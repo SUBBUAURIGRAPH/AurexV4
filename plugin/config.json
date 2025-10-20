@@ -1,0 +1,92 @@
+{
+  "pluginName": "Aurigraph Agents",
+  "pluginVersion": "1.0.0",
+  "pluginId": "aurigraph-agents",
+  "agents": {
+    "enabled": ["all"],
+    "disabled": [],
+    "aliases": {
+      "dlt": "dlt-developer",
+      "trading": "trading-operations",
+      "devops": "devops-engineer",
+      "qa": "qa-engineer",
+      "pm": "project-manager",
+      "security": "security-compliance",
+      "data": "data-engineer",
+      "frontend": "frontend-developer",
+      "sre": "sre-reliability",
+      "marketing": "digital-marketing",
+      "onboarding": "employee-onboarding",
+      "hr": "employee-onboarding"
+    }
+  },
+  "skills": {
+    "priority": [
+      "deploy-wizard",
+      "jira-sync",
+      "test-runner",
+      "backtest-manager",
+      "security-scanner"
+    ],
+    "autoload": true
+  },
+  "defaults": {
+    "timeout": 300,
+    "retries": 3,
+    "verbose": false,
+    "confirmDestructive": true
+  },
+  "integrations": {
+    "hermes": {
+      "enabled": true,
+      "api": "${HERMES_API_URL:http://localhost:8005}",
+      "auth": "${HERMES_API_KEY}",
+      "timeout": 30000
+    },
+    "jira": {
+      "enabled": true,
+      "url": "${JIRA_URL:https://aurigraphdlt.atlassian.net}",
+      "auth": "${JIRA_API_KEY}",
+      "project": "HMS",
+      "board": 459
+    },
+    "github": {
+      "enabled": true,
+      "repo": "Aurigraph-DLT-Corp/HMS",
+      "auth": "${GITHUB_TOKEN}"
+    }
+  },
+  "metrics": {
+    "enabled": true,
+    "endpoint": "https://metrics.aurigraph.io/agents",
+    "anonymous": false,
+    "trackUsage": true,
+    "trackSuccess": true,
+    "trackErrors": true
+  },
+  "logging": {
+    "level": "info",
+    "file": "~/.claude/logs/aurigraph-agents.log",
+    "maxSize": "10MB",
+    "maxFiles": 5
+  },
+  "updates": {
+    "checkOnStart": true,
+    "autoUpdate": false,
+    "channel": "stable"
+  },
+  "ui": {
+    "colors": true,
+    "interactive": true,
+    "progress": true,
+    "notifications": true
+  },
+  "security": {
+    "requireConfirmation": {
+      "deploy": true,
+      "delete": true,
+      "production": true
+    },
+    "sandbox": false
+  }
+}

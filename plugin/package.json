@@ -1,0 +1,151 @@
+{
+  "name": "@aurigraph/claude-agents-plugin",
+  "version": "1.0.0",
+  "description": "Claude Code plugin for Aurigraph AI Agents - 11 specialized agents with 68+ skills",
+  "main": "index.js",
+  "author": "Aurigraph Development Team",
+  "license": "MIT",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "plugin",
+    "agents",
+    "ai",
+    "automation",
+    "productivity",
+    "aurigraph",
+    "hermes",
+    "trading",
+    "devops",
+    "dlt",
+    "blockchain"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aurigraph-DLT-Corp/HMS.git",
+    "directory": ".claude/plugin"
+  },
+  "bugs": {
+    "url": "https://github.com/Aurigraph-DLT-Corp/HMS/issues"
+  },
+  "homepage": "https://github.com/Aurigraph-DLT-Corp/HMS#readme",
+  "engines": {
+    "node": ">=18.0.0",
+    "claude": ">=1.0.0"
+  },
+  "claudePlugin": {
+    "name": "Aurigraph Agents",
+    "version": "1.0.0",
+    "description": "11 specialized AI agents with 68+ skills for maximum productivity",
+    "agents": [
+      {
+        "id": "dlt-developer",
+        "name": "DLT Developer",
+        "description": "Smart contracts, tokenization, blockchain development",
+        "skills": 5,
+        "file": "../agents/dlt-developer.md"
+      },
+      {
+        "id": "trading-operations",
+        "name": "Trading Operations",
+        "description": "Trading strategies, exchanges, backtesting",
+        "skills": 7,
+        "file": "../agents/trading-operations.md"
+      },
+      {
+        "id": "devops-engineer",
+        "name": "DevOps Engineer",
+        "description": "Deployments, infrastructure, monitoring",
+        "skills": 8,
+        "file": "../agents/devops-engineer.md"
+      },
+      {
+        "id": "qa-engineer",
+        "name": "QA Engineer",
+        "description": "Testing, coverage, security scans",
+        "skills": 7,
+        "file": "../agents/qa-engineer.md"
+      },
+      {
+        "id": "project-manager",
+        "name": "Project Manager",
+        "description": "JIRA sync, sprint planning, reporting",
+        "skills": 7,
+        "file": "../agents/project-manager.md"
+      },
+      {
+        "id": "security-compliance",
+        "name": "Security & Compliance",
+        "description": "Security scans, compliance, audits",
+        "skills": 7,
+        "file": "../agents/security-compliance.md"
+      },
+      {
+        "id": "data-engineer",
+        "name": "Data Engineer",
+        "description": "Data pipelines, analytics, ETL",
+        "skills": 4,
+        "file": "../agents/data-engineer.md"
+      },
+      {
+        "id": "frontend-developer",
+        "name": "Frontend Developer",
+        "description": "UI/UX, React, responsive design",
+        "skills": 4,
+        "file": "../agents/frontend-developer.md"
+      },
+      {
+        "id": "sre-reliability",
+        "name": "SRE/Reliability",
+        "description": "Incidents, monitoring, SLOs",
+        "skills": 4,
+        "file": "../agents/sre-reliability.md"
+      },
+      {
+        "id": "digital-marketing",
+        "name": "Digital Marketing",
+        "description": "Marketing campaigns, social media, email, SEO",
+        "skills": 11,
+        "file": "../agents/digital-marketing.md"
+      },
+      {
+        "id": "employee-onboarding",
+        "name": "Employee Onboarding",
+        "description": "New hire onboarding, training, compliance, offboarding",
+        "skills": 8,
+        "file": "../agents/employee-onboarding.md"
+      }
+    ],
+    "skills": {
+      "total": 68,
+      "implemented": 5,
+      "documented": 63
+    },
+    "configuration": {
+      "file": "config.json",
+      "env": ["HERMES_API_KEY", "JIRA_API_KEY"]
+    },
+    "metrics": {
+      "enabled": true,
+      "endpoint": "https://metrics.aurigraph.io/agents"
+    }
+  },
+  "scripts": {
+    "test": "jest",
+    "lint": "eslint .",
+    "validate": "node scripts/validate-plugin.js",
+    "install": "node scripts/post-install.js"
+  },
+  "dependencies": {
+    "axios": "^1.11.0",
+    "dotenv": "^16.6.1",
+    "chalk": "^5.3.0"
+  },
+  "devDependencies": {
+    "jest": "^29.6.2",
+    "eslint": "^8.45.0"
+  },
+  "peerDependencies": {
+    "claude-code": ">=1.0.0"
+  }
+}
