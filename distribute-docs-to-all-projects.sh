@@ -34,6 +34,8 @@ FILES_TO_COPY=(
     "SPARC_PLAN_TEMPLATE.md:SPARC_PLAN.md"
     "docs/SOPS.md:docs/SOPS.md"
     "docs/SKILLS.md:docs/SKILLS.md"
+    "docs/PRD_TEMPLATE.md:docs/PRD.md"
+    "docs/ARCHITECTURE_TEMPLATE.md:docs/ARCHITECTURE.md"
 )
 
 # Search paths for projects
@@ -281,7 +283,7 @@ for project in "${PROJECTS[@]}"; do
     cd "$project"
 
     # Add docs files
-    git add CONTEXT.md TODO.md CHANGELOG.md SPARC_PLAN.md docs/SOPS.md docs/SKILLS.md 2>/dev/null || true
+    git add CONTEXT.md TODO.md CHANGELOG.md SPARC_PLAN.md docs/SOPS.md docs/SKILLS.md docs/PRD.md docs/ARCHITECTURE.md 2>/dev/null || true
 
     # Commit if there are changes
     if ! git diff --cached --quiet 2>/dev/null; then
@@ -294,6 +296,8 @@ Added organization-wide standard documentation:
 - SPARC_PLAN.md: SPARC development plan
 - docs/SOPS.md: Standard Operating Procedures
 - docs/SKILLS.md: Skills matrix
+- docs/PRD.md: Product Requirements Document
+- docs/ARCHITECTURE.md: Software Architecture Document
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
