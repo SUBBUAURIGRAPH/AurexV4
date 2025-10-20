@@ -9,12 +9,12 @@
 
 ## 🎯 Overview
 
-Comprehensive AI agent ecosystem for Aurigraph DLT featuring **11 specialized agents** with **68+ integrated skills** designed to maximize productivity across Development, Operations, Quality, Management, Growth, and HR.
+Comprehensive AI agent ecosystem for Aurigraph DLT featuring **12 specialized agents** with **76+ integrated skills** designed to maximize productivity across Development, Operations, Quality, Management, Growth, AI/ML, and HR.
 
 ### Key Stats
-- **11 Specialized Agents** covering all organizational functions
-- **68+ Integrated Skills** for complete workflows
-- **5 Production-Ready Skills** fully implemented
+- **12 Specialized Agents** covering all organizational functions
+- **76+ Integrated Skills** for complete workflows
+- **6 Production-Ready Skills** fully implemented
 - **30-80% Time Savings** on routine tasks
 - **100% Compliance** with best practices
 - **Ready for Enterprise** deployment
@@ -36,8 +36,9 @@ Comprehensive AI agent ecosystem for Aurigraph DLT featuring **11 specialized ag
 | 9 | **[SRE/Reliability](agents/sre-reliability.md)** | 4 | Incidents & monitoring | SRE, DevOps |
 | 10 | **[Digital Marketing](agents/digital-marketing.md)** | 11 | Marketing & engagement | Marketing, Growth |
 | 11 | **[Employee Onboarding](agents/employee-onboarding.md)** | 8 | Onboarding & offboarding | HR, People Ops |
+| 12 | **[GNN Heuristic Agent](agents/gnn-heuristic-agent.md)** | 8 | Graph Neural Networks & optimization | AI/ML, Research, Quant |
 
-**Total**: 68+ skills across 11 agents
+**Total**: 76+ skills across 12 agents
 
 ---
 
