@@ -22,13 +22,13 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/Aurigraph-DLT-Corp/HMS.git",
-    "directory": ".claude/plugin"
+    "url": "https://github.com/Aurigraph-DLT-Corp/glowing-adventure.git",
+    "directory": "plugin"
   },
   "bugs": {
-    "url": "https://github.com/Aurigraph-DLT-Corp/HMS/issues"
+    "url": "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/issues"
   },
-  "homepage": "https://github.com/Aurigraph-DLT-Corp/HMS#readme",
+  "homepage": "https://github.com/Aurigraph-DLT-Corp/glowing-adventure#readme",
   "engines": {
     "node": ">=18.0.0",
     "claude": ">=1.0.0"

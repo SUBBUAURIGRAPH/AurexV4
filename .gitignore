@@ -1,0 +1,48 @@
+# Node.js dependencies
+node_modules/
+plugin/node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+plugin/package-lock.json
+
+# Build output
+dist/
+plugin/dist/
+*.tgz
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Temporary files
+*.tmp
+.cache/
+
+# Coverage reports
+coverage/
+.nyc_output/
+
+# Credentials (never commit)
+*credentials*.json
+*secrets*.json
+*.key
+*.pem

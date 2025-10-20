@@ -47,12 +47,12 @@
       "enabled": true,
       "url": "${JIRA_URL:https://aurigraphdlt.atlassian.net}",
       "auth": "${JIRA_API_KEY}",
-      "project": "HMS",
-      "board": 459
+      "project": "AAE",
+      "board": 987
     },
     "github": {
       "enabled": true,
-      "repo": "Aurigraph-DLT-Corp/HMS",
+      "repo": "Aurigraph-DLT-Corp/glowing-adventure",
       "auth": "${GITHUB_TOKEN}"
     }
   },
