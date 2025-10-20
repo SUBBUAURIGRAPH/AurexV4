@@ -11,6 +11,31 @@
 
 [2-3 paragraphs describing what this skill does, why it's useful, and how it fits into the broader platform]
 
+## SPARC Development Status
+
+**Framework**: Using [SPARC methodology](../SPARC.md) for structured development
+**SPARC Document**: [Link to sparc-docs/skill-name.md or N/A]
+
+### Development Phase Progress
+
+| Phase | Status | Completed Date | Notes |
+|-------|--------|----------------|-------|
+| **Specification** | ⏳/🔄/✅ | YYYY-MM-DD | [Link to spec or notes] |
+| **Pseudocode** | ⏳/🔄/✅ | YYYY-MM-DD | [Link to pseudocode or notes] |
+| **Architecture** | ⏳/🔄/✅ | YYYY-MM-DD | [Link to architecture or notes] |
+| **Refinement** | ⏳/🔄/✅ | YYYY-MM-DD | [Implementation status] |
+| **Completion** | ⏳/🔄/✅ | YYYY-MM-DD | [Deployment status] |
+
+**Legend**: ⏳ Not Started | 🔄 In Progress | ✅ Complete
+
+### Quick SPARC Summary
+
+**Specification**: [Brief summary of requirements and acceptance criteria]
+**Architecture**: [Brief summary of component structure and design]
+**Status**: [Overall development status and next steps]
+
+**Note**: For detailed SPARC documentation, see `sparc-templates/skill-development.md` template.
+
 ## Capabilities
 
 [List 5-8 key capabilities this skill provides]

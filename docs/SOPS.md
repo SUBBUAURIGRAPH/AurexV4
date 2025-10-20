@@ -163,60 +163,81 @@ Step 3: @project-manager "Update JIRA with deployment status"
 
 ### SOP 4: Implementing New Skills
 
-**Purpose**: Standardize skill development process
+**Purpose**: Standardize skill development process using SPARC methodology
 
-**Procedure**:
+**Procedure**: Follow the [SPARC Framework](../SPARC.md) for structured development
 
-1. **Planning** (2-4 hours)
+1. **Planning - SPARC Specification Phase** (2-4 hours)
    - Copy `skills/SKILL_TEMPLATE.md`
-   - Define skill requirements
-   - Document use cases
+   - Copy `sparc-templates/skill-development.md` for detailed SPARC tracking
+   - Define skill requirements (Functional & Non-Functional)
+   - Document use cases (Primary & Edge cases)
+   - Define acceptance criteria
+   - Get stakeholder sign-off
    - Estimate effort
 
-2. **Design** (4-8 hours)
-   - Create detailed specification
-   - Define input/output formats
-   - Design workflow and logic
-   - Plan integration points
+2. **Design - SPARC Pseudocode & Architecture Phases** (4-8 hours)
+   - **Pseudocode Phase** (2-4 hours):
+     - Write high-level algorithm
+     - Decompose into functions
+     - Design data flow
+     - Plan error handling strategy
+   - **Architecture Phase** (2-4 hours):
+     - Design component structure
+     - Define interfaces and data models
+     - Select technology stack
+     - Plan non-functional design (performance, security)
    - Review with team
 
-3. **Implementation** (16-40 hours)
-   - Write production code
+3. **Implementation - SPARC Refinement Phase** (16-40 hours)
+   - Write production code following pseudocode
    - Follow coding standards
    - Add inline documentation
    - Implement error handling
+   - Iterate based on code reviews
 
-4. **Testing** (8-16 hours)
+4. **Testing - SPARC Refinement Phase** (8-16 hours)
    - Unit tests (80%+ coverage)
    - Integration tests
    - Edge case tests
    - Performance tests
+   - Security tests
 
-5. **Documentation** (4-8 hours)
+5. **Documentation - SPARC Refinement Phase** (4-8 hours)
    - Complete skill markdown file
    - Add usage examples
    - Document common issues
    - Update skills matrix
+   - Update SPARC status in skill document
 
-6. **Review** (2-4 hours)
+6. **Review - SPARC Refinement Phase** (2-4 hours)
    - Code review by 2 developers
    - Documentation review
    - Security review
    - Performance review
+   - Verify all SPARC phases completed
 
-7. **Deployment** (2-4 hours)
+7. **Deployment - SPARC Completion Phase** (2-4 hours)
    - Deploy to staging
    - Smoke testing
    - Deploy to production
    - Monitor metrics
+   - Mark SPARC Completion phase as done
 
-8. **Handoff** (1-2 hours)
+8. **Handoff - SPARC Completion Phase** (1-2 hours)
    - Team training
    - Add to quick reference
    - Update rollout materials
    - Collect initial feedback
+   - Document lessons learned
 
 **Total Effort**: 39-86 hours per skill
+
+**SPARC Integration Notes**:
+- Each phase maps to SPARC methodology (see [SPARC.md](../SPARC.md))
+- Use `sparc-templates/skill-development.md` for detailed tracking
+- Update SPARC status table in skill documentation throughout development
+- Ensure all 5 SPARC phases are completed before marking skill as "Production"
 
 ---
 

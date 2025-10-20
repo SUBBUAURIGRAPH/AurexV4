@@ -96,6 +96,12 @@ cat .claude/docs/AGENT_USAGE_EXAMPLES.md
 - **[Onboarding Guide](docs/ONBOARDING_GUIDE.md)**: Comprehensive 30-minute tour
 - **[Usage Examples](docs/AGENT_USAGE_EXAMPLES.md)**: 21 real-world scenarios
 
+### Development Methodology
+- **[SPARC Framework](SPARC.md)**: Structured development methodology for AI-assisted coding
+- **[SPARC Templates](sparc-templates/)**: Ready-to-use templates for different development scenarios
+- **[Skills Matrix](docs/SKILLS.md)**: Comprehensive skills documentation
+- **[SOPs](docs/SOPS.md)**: Standard Operating Procedures with SPARC integration
+
 ### Team Collaboration
 - **[Sharing Guide](docs/AGENT_SHARING_GUIDE.md)**: Team collaboration best practices
 - **[Distribution Plan](docs/TEAM_DISTRIBUTION_PLAN.md)**: Organization-wide rollout
@@ -197,6 +203,7 @@ Automated security testing:
 glowing-adventure/
 ├── README.md                    # This file
 ├── CHANGELOG.md                 # Version history
+├── SPARC.md                     # 🆕 SPARC Framework documentation
 ├── LICENSE                      # License information
 ├── .gitignore                   # Git ignore rules
 │
@@ -216,12 +223,19 @@ glowing-adventure/
 │
 ├── skills/                      # Skill implementations (7 files)
 │   ├── README.md
-│   ├── SKILL_TEMPLATE.md
-│   ├── deploy-wizard.md        # ⭐ Implemented (600+ lines)
-│   ├── jira-sync.md            # ⭐ Implemented
-│   ├── test-runner.md          # ⭐ Implemented
-│   ├── backtest-manager.md     # ⭐ Implemented
-│   └── security-scanner.md     # ⭐ Implemented
+│   ├── SKILL_TEMPLATE.md        # 🆕 Updated with SPARC integration
+│   ├── deploy-wizard.md         # ⭐ Implemented (600+ lines)
+│   ├── jira-sync.md             # ⭐ Implemented
+│   ├── test-runner.md           # ⭐ Implemented
+│   ├── backtest-manager.md      # ⭐ Implemented
+│   └── security-scanner.md      # ⭐ Implemented
+│
+├── sparc-templates/             # 🆕 SPARC templates (5 files)
+│   ├── skill-development.md     # Comprehensive skill development template
+│   ├── agent-creation.md        # Agent creation template
+│   ├── feature-implementation.md # Feature implementation template
+│   ├── bug-fix.md               # Bug fix template
+│   └── api-development.md       # API development template
 │
 ├── plugin/                      # Claude Code plugin (4 files)
 │   ├── README.md
@@ -235,6 +249,8 @@ glowing-adventure/
 │   ├── AGENT_USAGE_EXAMPLES.md
 │   ├── ONBOARDING_GUIDE.md
 │   ├── FEEDBACK_SYSTEM.md
+│   ├── SKILLS.md                # Comprehensive skills matrix
+│   ├── SOPS.md                  # 🆕 Updated with SPARC integration
 │   └── TEAM_DISTRIBUTION_PLAN.md
 │
 └── rollout/                     # Rollout materials (6 files)
@@ -246,7 +262,9 @@ glowing-adventure/
     └── ORGANIZATION_DISTRIBUTION.md
 ```
 
-**Total**: ~35,000 lines of code, documentation, and configuration
+**Total**: ~40,000 lines of code, documentation, and configuration
+
+**🆕 New in v2.0.0**: SPARC Framework integration with 5 ready-to-use templates
 
 ---
 
@@ -379,21 +397,37 @@ glowing-adventure/
 
 ### Add Custom Agent
 
-1. Copy a similar agent as template
-2. Define agent capabilities and skills
-3. Add to `agents/` directory
-4. Update README with agent info
-5. Test thoroughly
-6. Submit pull request
+1. Use SPARC methodology: Copy `sparc-templates/agent-creation.md`
+2. Follow SPARC phases for agent design
+3. Copy a similar agent as template
+4. Define agent capabilities and skills
+5. Add to `agents/` directory
+6. Update README with agent info
+7. Test thoroughly
+8. Submit pull request
 
 ### Implement New Skill
 
-1. Copy `skills/SKILL_TEMPLATE.md`
-2. Implement skill logic following template
-3. Add to appropriate agent(s)
-4. Document in skill README
-5. Create usage examples
-6. Test and submit PR
+**Using SPARC Framework** (Recommended):
+1. Copy `sparc-templates/skill-development.md` for SPARC tracking
+2. Copy `skills/SKILL_TEMPLATE.md` for skill documentation
+3. Follow all 5 SPARC phases:
+   - **Specification**: Define requirements and acceptance criteria
+   - **Pseudocode**: Plan logic before coding
+   - **Architecture**: Design component structure
+   - **Refinement**: Implement, test, and iterate
+   - **Completion**: Deploy and document
+4. Implement skill logic following template
+5. Add to appropriate agent(s)
+6. Document in skill README with SPARC status
+7. Create usage examples
+8. Test and submit PR
+
+**Benefits of SPARC**:
+- 40-60% reduction in rework
+- 30-50% faster development
+- 80%+ test coverage
+- Better documentation quality
 
 ### Customize for Your Organization
 
