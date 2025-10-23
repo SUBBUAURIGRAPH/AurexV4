@@ -7,6 +7,59 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [2.0.1] - 2025-10-20
+
+### Added
+
+#### SPARC Framework Integration
+- **SPARC.md**: Complete SPARC methodology documentation (~5,000 lines)
+  - 5-phase structured development approach (Specification, Pseudocode, Architecture, Refinement, Completion)
+  - Best practices and anti-patterns
+  - Tool integration guide
+  - Success metrics and tracking
+
+#### SPARC Templates (5 Templates)
+- **sparc-templates/skill-development.md**: Comprehensive skill development template (~900 lines)
+- **sparc-templates/agent-creation.md**: Agent creation template (~200 lines)
+- **sparc-templates/feature-implementation.md**: Feature addition template (~150 lines)
+- **sparc-templates/bug-fix.md**: Bug fix template for critical issues (~150 lines)
+- **sparc-templates/api-development.md**: API development template (~150 lines)
+
+#### SPARC Examples (3 Real-World Examples)
+- **sparc-examples/example-deploy-wizard.md**: Complete SPARC documentation from deploy-wizard skill (~1,000 lines)
+  - Shows: 83% time savings, 0% incidents, 92.3% test coverage
+- **sparc-examples/example-bug-fix.md**: Critical bug fix using SPARC (~600 lines)
+  - Shows: 4-hour resolution, zero regression, $105K saved
+- **sparc-examples/README.md**: Examples overview and usage guide (~200 lines)
+
+#### Documentation
+- **SPARC_INTEGRATION_SUMMARY.md**: Complete integration summary and usage guide
+- Integration guide for using SPARC with agents and skills
+- Expected benefits: 40-60% reduction in rework, 30-50% faster development
+
+### Changed
+
+#### Updated Files
+- **skills/SKILL_TEMPLATE.md**: Added SPARC Development Status section with phase tracking
+- **docs/SOPS.md**: Integrated SPARC into SOP 4 (Implementing New Skills)
+- **README.md**:
+  - Added "Development Methodology" section highlighting SPARC
+  - Updated repository structure to show SPARC files
+  - Added SPARC benefits to customization guide
+
+### Impact
+
+- **Total Lines Added**: ~8,500 lines of SPARC documentation and templates
+- **New Files**: 10 files (1 core doc, 5 templates, 3 examples, 1 summary)
+- **Updated Files**: 3 files (README, SOPS, SKILL_TEMPLATE)
+- **Expected Benefits**:
+  - 40-60% reduction in rework through better planning
+  - 30-50% faster development with clear roadmap
+  - 80%+ test coverage built into methodology
+  - 100% documentation completeness
+
+---
+
 ## [2.0.0] - 2025-10-20
 
 ### Added

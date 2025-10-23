@@ -6,14 +6,15 @@
 
 ## Overview
 
-This plugin provides direct access to all 9 Aurigraph specialized agents with 50+ skills through Claude Code. Team members can invoke agents for automated tasks, getting instant productivity boosts.
+This plugin provides direct access to all 11 Aurigraph specialized agents with 68+ skills through Claude Code. Team members can invoke agents for automated tasks, getting instant productivity boosts.
 
 ## Features
 
-- ✅ 9 specialized agents with role-specific capabilities
-- ✅ 50+ integrated skills
+- ✅ 11 specialized agents with role-specific capabilities
+- ✅ 68+ integrated skills
 - ✅ Natural language interface
 - ✅ Integration with existing Hermes infrastructure
+- ✅ SPARC Framework integration for structured development
 - ✅ Real-time execution and feedback
 - ✅ Success tracking and metrics
 
@@ -28,12 +29,15 @@ npm install -g @aurigraph/claude-agents-plugin
 ### Method 2: Local Installation
 
 ```bash
-# Clone HMS repository if you haven't
-git clone https://github.com/Aurigraph-DLT-Corp/HMS.git
-cd HMS
+# Clone glowing-adventure repository
+git clone git@github.com:Aurigraph-DLT-Corp/glowing-adventure.git
+cd glowing-adventure
 
-# Link plugin to Claude Code
-claude plugins add .claude/plugin
+# Install dependencies
+cd plugin && npm install
+
+# Link plugin to Claude Code (if using Claude Code)
+claude plugins add plugin
 
 # Verify installation
 claude plugins list | grep aurigraph
@@ -43,7 +47,7 @@ claude plugins list | grep aurigraph
 
 ```bash
 # Copy plugin files to Claude Code plugins directory
-cp -r .claude/plugin ~/.claude/plugins/aurigraph-agents
+cp -r plugin ~/.claude/plugins/aurigraph-agents
 
 # Reload Claude Code
 claude plugins reload
@@ -426,8 +430,8 @@ claude agent devops-engineer deploy-wizard --help
 
 - **Slack**: #claude-agents
 - **Email**: agents@aurigraph.io
-- **JIRA**: Project AGENT-*
-- **GitHub**: https://github.com/Aurigraph-DLT-Corp/HMS/issues
+- **JIRA**: Project AAE (Board 987)
+- **GitHub**: https://github.com/Aurigraph-DLT-Corp/glowing-adventure/issues
 
 ### Office Hours
 
@@ -456,7 +460,7 @@ Share feedback in #claude-agents or create JIRA ticket with:
 
 ## License
 
-MIT License - See HMS/LICENSE
+MIT License - See LICENSE file in repository
 
 ---
 
