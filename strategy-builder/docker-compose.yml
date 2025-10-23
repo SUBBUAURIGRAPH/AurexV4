@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongodb:
+    image: mongo:7.0
+    container_name: strategy-builder-mongodb
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin123
+      MONGO_INITDB_DATABASE: strategy-builder
+    volumes:
+      - mongodb_data:/data/db
+      - ./scripts/mongo-init.js:/docker-entrypoint-initdb.d/mongo-init.js:ro
+    networks:
+      - strategy-builder-network
+    restart: unless-stopped
+
+  # Redis Cache
+  redis:
+    image: redis:7.2-alpine
+    container_name: strategy-builder-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    networks:
+      - strategy-builder-network
+    restart: unless-stopped
+
+  # Strategy Builder API
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: strategy-builder-api
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: development
+      PORT: 3000
+      MONGODB_URI: mongodb://admin:admin123@mongodb:27017/strategy-builder?authSource=admin
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      JWT_SECRET: dev-secret-key-change-in-production
+      LOG_LEVEL: debug
+    volumes:
+      - ./src:/app/src
+      - ./logs:/app/logs
+      - ./storage:/app/storage
+    depends_on:
+      - mongodb
+      - redis
+    networks:
+      - strategy-builder-network
+    restart: unless-stopped
+
+  # WebSocket Server (optional, can be same as API)
+  websocket:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: strategy-builder-websocket
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: development
+      WS_PORT: 3001
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - redis
+    networks:
+      - strategy-builder-network
+    restart: unless-stopped
+
+  # Bull Dashboard (optional, for monitoring queues)
+  bull-board:
+    image: deadly0/bull-board:latest
+    container_name: strategy-builder-bull-board
+    ports:
+      - "3002:3000"
+    environment:
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+    depends_on:
+      - redis
+    networks:
+      - strategy-builder-network
+    restart: unless-stopped
+
+volumes:
+  mongodb_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  strategy-builder-network:
+    driver: bridge
