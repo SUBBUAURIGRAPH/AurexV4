@@ -1,0 +1,359 @@
+{
+  "plugin": {
+    "name": "Jeeves4Coder",
+    "version": "1.0.0",
+    "author": "Aurigraph Development Team",
+    "type": "claude-code-plugin",
+    "description": "Sophisticated coding assistant with refined butler-style service and deep programming expertise",
+    "homepage": "https://github.com/Aurigraph-DLT-Corp/glowing-adventure"
+  },
+  "capabilities": {
+    "codeReview": {
+      "enabled": true,
+      "description": "Comprehensive code review with quality metrics and recommendations",
+      "triggerPhrases": [
+        "review this code",
+        "code review",
+        "review for quality",
+        "analyze this code",
+        "check code quality",
+        "code analysis"
+      ],
+      "outputFormat": ["summary", "issues", "suggestions", "metrics", "recommendations"]
+    },
+    "refactoring": {
+      "enabled": true,
+      "description": "Strategic refactoring suggestions for code improvement",
+      "triggerPhrases": [
+        "refactor this",
+        "simplify this code",
+        "reduce complexity",
+        "modernize this code",
+        "improve structure",
+        "refactoring help"
+      ],
+      "outputFormat": ["refactoredCode", "improvements", "explanation", "examples"]
+    },
+    "architecture": {
+      "enabled": true,
+      "description": "System architecture review and design pattern recommendations",
+      "triggerPhrases": [
+        "review architecture",
+        "architecture review",
+        "how should I design",
+        "design pattern",
+        "system design",
+        "architecture help"
+      ],
+      "outputFormat": ["recommendations", "patterns", "analysis", "rationale"]
+    },
+    "performance": {
+      "enabled": true,
+      "description": "Performance analysis and optimization suggestions",
+      "triggerPhrases": [
+        "optimize this",
+        "performance issue",
+        "slow code",
+        "performance analysis",
+        "optimize performance",
+        "benchmarking"
+      ],
+      "outputFormat": ["optimizations", "benchmarks", "improvements", "examples"]
+    },
+    "security": {
+      "enabled": true,
+      "description": "Security vulnerability detection and hardening recommendations",
+      "triggerPhrases": [
+        "security audit",
+        "vulnerability check",
+        "secure this code",
+        "security review",
+        "penetration test",
+        "security analysis"
+      ],
+      "outputFormat": ["vulnerabilities", "fixes", "recommendations", "resources"]
+    },
+    "testing": {
+      "enabled": true,
+      "description": "Testing strategy development and test case design",
+      "triggerPhrases": [
+        "test strategy",
+        "how to test",
+        "test coverage",
+        "testing approach",
+        "test design",
+        "test recommendations"
+      ],
+      "outputFormat": ["strategy", "testCases", "coverage", "examples"]
+    },
+    "documentation": {
+      "enabled": true,
+      "description": "Code documentation improvement and enhancement",
+      "triggerPhrases": [
+        "document this",
+        "improve documentation",
+        "add comments",
+        "documentation help",
+        "docstring",
+        "api documentation"
+      ],
+      "outputFormat": ["documentation", "examples", "improvements", "standards"]
+    }
+  },
+  "languages": {
+    "javascript": {
+      "expertise": "expert",
+      "version": "ES2020+",
+      "tools": ["Node.js", "npm", "yarn", "webpack", "vite"]
+    },
+    "typescript": {
+      "expertise": "expert",
+      "version": "5.0+",
+      "tools": ["tsc", "ts-node", "jest", "vitest"]
+    },
+    "python": {
+      "expertise": "expert",
+      "version": "3.9+",
+      "tools": ["pip", "poetry", "pytest", "black", "flake8"]
+    },
+    "java": {
+      "expertise": "intermediate",
+      "version": "11+",
+      "tools": ["Maven", "Gradle", "JUnit", "Spring Boot"]
+    },
+    "csharp": {
+      "expertise": "intermediate",
+      "version": ".NET 6+",
+      "tools": [".NET CLI", "NUnit", "xUnit", "Entity Framework"]
+    },
+    "go": {
+      "expertise": "intermediate",
+      "version": "1.18+",
+      "tools": ["go", "go mod", "testing", "golangci-lint"]
+    },
+    "rust": {
+      "expertise": "intermediate",
+      "version": "stable",
+      "tools": ["cargo", "rustup", "rustfmt", "clippy"]
+    },
+    "sql": {
+      "expertise": "expert",
+      "version": "standard",
+      "tools": ["PostgreSQL", "MySQL", "MongoDB", "Redis"]
+    },
+    "ruby": {
+      "expertise": "intermediate",
+      "version": "2.7+",
+      "tools": ["bundler", "RSpec", "Rails", "Sinatra"]
+    },
+    "php": {
+      "expertise": "intermediate",
+      "version": "8.0+",
+      "tools": ["Composer", "PHPUnit", "Laravel", "Symfony"]
+    }
+  },
+  "frameworks": {
+    "frontend": [
+      {"name": "React", "expertise": "expert"},
+      {"name": "Vue", "expertise": "advanced"},
+      {"name": "Angular", "expertise": "advanced"},
+      {"name": "Svelte", "expertise": "intermediate"},
+      {"name": "Next.js", "expertise": "expert"},
+      {"name": "Nuxt", "expertise": "advanced"},
+      {"name": "Astro", "expertise": "intermediate"}
+    ],
+    "backend": [
+      {"name": "Node.js", "expertise": "expert"},
+      {"name": "Express", "expertise": "expert"},
+      {"name": "Django", "expertise": "expert"},
+      {"name": "Flask", "expertise": "advanced"},
+      {"name": "FastAPI", "expertise": "advanced"},
+      {"name": "Spring Boot", "expertise": "intermediate"},
+      {"name": "NestJS", "expertise": "advanced"},
+      {"name": "Ruby on Rails", "expertise": "intermediate"}
+    ],
+    "cloud": [
+      {"name": "AWS", "expertise": "advanced"},
+      {"name": "Google Cloud", "expertise": "advanced"},
+      {"name": "Azure", "expertise": "advanced"},
+      {"name": "DigitalOcean", "expertise": "intermediate"}
+    ],
+    "devops": [
+      {"name": "Docker", "expertise": "advanced"},
+      {"name": "Kubernetes", "expertise": "advanced"},
+      {"name": "Terraform", "expertise": "advanced"},
+      {"name": "CI/CD", "expertise": "advanced"}
+    ],
+    "databases": [
+      {"name": "PostgreSQL", "expertise": "expert"},
+      {"name": "MongoDB", "expertise": "expert"},
+      {"name": "Redis", "expertise": "advanced"},
+      {"name": "MySQL", "expertise": "advanced"},
+      {"name": "Elasticsearch", "expertise": "intermediate"}
+    ]
+  },
+  "designPatterns": {
+    "creational": [
+      "Singleton",
+      "Factory",
+      "Abstract Factory",
+      "Builder",
+      "Prototype"
+    ],
+    "structural": [
+      "Adapter",
+      "Bridge",
+      "Composite",
+      "Decorator",
+      "Facade",
+      "Flyweight",
+      "Proxy"
+    ],
+    "behavioral": [
+      "Chain of Responsibility",
+      "Command",
+      "Iterator",
+      "Mediator",
+      "Memento",
+      "Observer",
+      "State",
+      "Strategy",
+      "Template Method",
+      "Visitor",
+      "Interpreter"
+    ],
+    "architectural": [
+      "Model-View-Controller (MVC)",
+      "Model-View-ViewModel (MVVM)",
+      "Model-View-Presenter (MVP)",
+      "Redux",
+      "Flux",
+      "Microservices",
+      "Event-Driven Architecture",
+      "CQRS",
+      "Hexagonal Architecture",
+      "Layered Architecture",
+      "API Gateway",
+      "Service Locator"
+    ]
+  },
+  "codingStandards": {
+    "cleanCode": {
+      "enabled": true,
+      "principles": [
+        "Meaningful names",
+        "Small functions",
+        "Do one thing",
+        "Avoid code duplication",
+        "Handle errors gracefully"
+      ]
+    },
+    "solid": {
+      "enabled": true,
+      "principles": [
+        "Single Responsibility Principle",
+        "Open/Closed Principle",
+        "Liskov Substitution Principle",
+        "Interface Segregation Principle",
+        "Dependency Inversion Principle"
+      ]
+    },
+    "security": {
+      "enabled": true,
+      "standards": [
+        "OWASP Top 10",
+        "CWE Top 25",
+        "Secure Coding Practices",
+        "Input Validation",
+        "Authentication & Authorization"
+      ]
+    },
+    "performance": {
+      "enabled": true,
+      "areas": [
+        "Algorithm Optimization",
+        "Database Query Optimization",
+        "Memory Management",
+        "Caching Strategies",
+        "Resource Efficiency"
+      ]
+    }
+  },
+  "installation": {
+    "methods": [
+      {
+        "name": "npm",
+        "command": "npm install @aurigraph/jeeves4coder-plugin",
+        "description": "Standard npm package installation"
+      },
+      {
+        "name": "git",
+        "command": "git clone https://github.com/Aurigraph-DLT-Corp/glowing-adventure.git && cd glowing-adventure/plugin",
+        "description": "Clone from GitHub repository"
+      },
+      {
+        "name": "local",
+        "command": "cd plugin && npm install .",
+        "description": "Local installation from plugin directory"
+      },
+      {
+        "name": "aurigraph-internal",
+        "command": "npm install --registry https://npm.aurigraph.io @aurigraph/jeeves4coder-plugin",
+        "description": "Aurigraph internal npm registry (team only)"
+      }
+    ]
+  },
+  "configuration": {
+    "defaults": {
+      "reviewDepth": "standard",
+      "outputFormat": "detailed",
+      "verbose": false,
+      "debug": false
+    },
+    "reviewDepth": {
+      "light": "Quick review focusing on major issues",
+      "standard": "Balanced review with issues, suggestions, and metrics",
+      "deep": "Comprehensive review including edge cases and advanced analysis"
+    },
+    "outputFormat": {
+      "brief": "Minimal output - key findings only",
+      "standard": "Balanced output - main issues and suggestions",
+      "detailed": "Complete output - all analysis and recommendations"
+    }
+  },
+  "distribution": {
+    "internal": {
+      "registry": "https://npm.aurigraph.io",
+      "scope": "@aurigraph",
+      "access": "restricted",
+      "audience": "Aurigraph Team Members"
+    },
+    "external": {
+      "enabled": false,
+      "notes": "Currently restricted to Aurigraph team only"
+    },
+    "support": {
+      "email": "agents@aurigraph.io",
+      "slack": "#aurigraph-agents",
+      "github": "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/issues"
+    }
+  },
+  "metadata": {
+    "category": "code-quality",
+    "complexity": "advanced",
+    "readiness": "production",
+    "lastUpdated": "2025-10-23",
+    "maintainers": [
+      {
+        "name": "Aurigraph Development Team",
+        "email": "agents@aurigraph.io"
+      }
+    ],
+    "contributors": [
+      "Claude Code",
+      "Aurigraph AI"
+    ],
+    "license": "Proprietary",
+    "copyrightNotice": "Copyright 2025 Aurigraph DLT Corp. All rights reserved."
+  }
+}
