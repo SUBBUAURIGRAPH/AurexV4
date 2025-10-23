@@ -1,0 +1,376 @@
+{
+  "registry": {
+    "name": "Aurigraph Internal npm Registry",
+    "url": "https://npm.aurigraph.io",
+    "type": "private",
+    "scope": "@aurigraph",
+    "status": "active",
+    "description": "Internal npm registry for Aurigraph team members only"
+  },
+  "authentication": {
+    "method": "token",
+    "tokenType": "Bearer",
+    "tokenHeader": "Authorization: Bearer YOUR_TOKEN",
+    "authUrl": "https://npm.aurigraph.io/api/v1/auth",
+    "tokenEndpoint": "https://npm.aurigraph.io/api/v1/tokens",
+    "tokenGeneration": {
+      "method": "web-interface",
+      "url": "https://npm.aurigraph.io/tokens/generate",
+      "permissions": ["read:packages", "write:packages", "delete:packages"],
+      "expirationOptions": ["7-days", "30-days", "90-days", "1-year", "never"]
+    }
+  },
+  "registry_config": {
+    "internal_npm_registry": {
+      "registry_url": "https://npm.aurigraph.io",
+      "scope": "@aurigraph",
+      "auth_token_env": "INTERNAL_NPM_TOKEN",
+      "npmrc_format": "//npm.aurigraph.io/:_authToken=${INTERNAL_NPM_TOKEN}",
+      "registry_format": "@aurigraph:registry=https://npm.aurigraph.io",
+      "always_auth": true,
+      "strict_ssl": true
+    }
+  },
+  "packages": {
+    "jeeves4coder": {
+      "name": "@aurigraph/jeeves4coder-plugin",
+      "version": "1.0.0",
+      "scope": "@aurigraph",
+      "access": "restricted",
+      "description": "Jeeves4Coder - Sophisticated coding assistant plugin",
+      "installCommand": "npm install @aurigraph/jeeves4coder-plugin",
+      "registry": "https://npm.aurigraph.io",
+      "visibility": "private",
+      "team": "aurigraph-dev"
+    },
+    "claude-agents-plugin": {
+      "name": "@aurigraph/claude-agents-plugin",
+      "version": "2.2.0",
+      "scope": "@aurigraph",
+      "access": "restricted",
+      "description": "Claude Code plugin for Aurigraph AI Agents",
+      "installCommand": "npm install @aurigraph/claude-agents-plugin",
+      "registry": "https://npm.aurigraph.io",
+      "visibility": "private",
+      "team": "aurigraph-dev"
+    }
+  },
+  "access_control": {
+    "teams": {
+      "aurigraph-dev": {
+        "name": "Aurigraph Development Team",
+        "permissions": ["read", "write", "delete", "manage"],
+        "members": ["team-lead", "developers"]
+      },
+      "aurigraph-ops": {
+        "name": "Aurigraph Operations Team",
+        "permissions": ["read", "write"],
+        "members": ["ops-team"]
+      }
+    },
+    "permission_levels": {
+      "read": "Can install and view packages",
+      "write": "Can publish new versions",
+      "delete": "Can delete package versions",
+      "manage": "Can manage access and settings"
+    }
+  },
+  "security": {
+    "tls": {
+      "enabled": true,
+      "minimum_version": "1.2",
+      "certificate_validation": true
+    },
+    "authentication": {
+      "method": "token-based",
+      "token_length": 32,
+      "token_format": "aur_*",
+      "token_expiration": "90-days",
+      "automatic_rotation": true
+    },
+    "audit": {
+      "enabled": true,
+      "log_file": "~/.npm-audit.log",
+      "track_events": ["login", "publish", "delete", "access"],
+      "retention": "90-days"
+    },
+    "rate_limiting": {
+      "enabled": true,
+      "requests_per_minute": 60,
+      "publish_per_hour": 30,
+      "download_limit": "unlimited"
+    }
+  },
+  "configuration_methods": {
+    "method_1_npmrc_global": {
+      "name": "Global .npmrc Configuration",
+      "file": "~/.npmrc",
+      "precedence": "user-level",
+      "applies_to": "All npm commands",
+      "content": [
+        "// Add this to ~/.npmrc",
+        "@aurigraph:registry=https://npm.aurigraph.io",
+        "//npm.aurigraph.io/:_authToken=${INTERNAL_NPM_TOKEN}",
+        "//npm.aurigraph.io/:always-auth=true"
+      ]
+    },
+    "method_2_npmrc_project": {
+      "name": "Project-Level .npmrc Configuration",
+      "file": ".npmrc (in project root)",
+      "precedence": "project-level (overrides global)",
+      "applies_to": "Current project only",
+      "content": [
+        "// Add this to ./project/.npmrc",
+        "@aurigraph:registry=https://npm.aurigraph.io",
+        "//npm.aurigraph.io/:_authToken=${INTERNAL_NPM_TOKEN}",
+        "//npm.aurigraph.io/:always-auth=true"
+      ]
+    },
+    "method_3_cli_config": {
+      "name": "CLI Configuration Commands",
+      "method": "command-line",
+      "precedence": "one-time or persistent",
+      "commands": [
+        "npm config set @aurigraph:registry https://npm.aurigraph.io",
+        "npm config set //npm.aurigraph.io/:_authToken=$INTERNAL_NPM_TOKEN",
+        "npm config set //npm.aurigraph.io/:always-auth true"
+      ]
+    },
+    "method_4_environment_variables": {
+      "name": "Environment Variables",
+      "variables": [
+        {
+          "name": "INTERNAL_NPM_TOKEN",
+          "description": "API token for npm.aurigraph.io",
+          "required": true,
+          "format": "aur_*"
+        },
+        {
+          "name": "NPM_REGISTRY",
+          "description": "Override default npm registry",
+          "value": "https://npm.aurigraph.io"
+        }
+      ]
+    }
+  },
+  "installation": {
+    "prerequisites": [
+      "Node.js >= 18.0.0",
+      "npm >= 9.0.0",
+      "Valid INTERNAL_NPM_TOKEN"
+    ],
+    "steps": [
+      {
+        "step": 1,
+        "title": "Generate API Token",
+        "instructions": [
+          "1. Visit https://npm.aurigraph.io/tokens/generate",
+          "2. Sign in with your Aurigraph credentials",
+          "3. Click 'Create New Token'",
+          "4. Select permissions: read:packages, write:packages",
+          "5. Set expiration: 90-days (or preferred duration)",
+          "6. Copy the generated token (shown only once)"
+        ]
+      },
+      {
+        "step": 2,
+        "title": "Configure npm Registry",
+        "instructions": [
+          "# Option A: Using CLI commands",
+          "npm config set @aurigraph:registry https://npm.aurigraph.io",
+          "npm config set //npm.aurigraph.io/:_authToken=$INTERNAL_NPM_TOKEN",
+          "npm config set //npm.aurigraph.io/:always-auth true",
+          "",
+          "# Option B: Edit ~/.npmrc directly",
+          "@aurigraph:registry=https://npm.aurigraph.io",
+          "//npm.aurigraph.io/:_authToken=your-token-here",
+          "//npm.aurigraph.io/:always-auth=true"
+        ]
+      },
+      {
+        "step": 3,
+        "title": "Verify Configuration",
+        "instructions": [
+          "npm whoami --registry https://npm.aurigraph.io",
+          "npm config get @aurigraph:registry",
+          "npm info @aurigraph/jeeves4coder-plugin --registry https://npm.aurigraph.io"
+        ]
+      },
+      {
+        "step": 4,
+        "title": "Install Package",
+        "instructions": [
+          "npm install @aurigraph/jeeves4coder-plugin",
+          "# Or from project directory",
+          "npm install @aurigraph/jeeves4coder-plugin --save-dev"
+        ]
+      }
+    ]
+  },
+  "troubleshooting": {
+    "issue_1_401_unauthorized": {
+      "error": "npm ERR! 401 Unauthorized",
+      "causes": [
+        "Invalid or expired token",
+        "Token not set in .npmrc",
+        "Incorrect registry URL"
+      ],
+      "solutions": [
+        "Generate new token at https://npm.aurigraph.io/tokens/generate",
+        "Verify token is set: npm config get //npm.aurigraph.io/:_authToken",
+        "Verify registry URL: npm config get @aurigraph:registry",
+        "Clear npm cache: npm cache clean --force"
+      ]
+    },
+    "issue_2_404_not_found": {
+      "error": "npm ERR! 404 Not Found",
+      "causes": [
+        "Package doesn't exist in registry",
+        "Wrong registry URL",
+        "Package scope mismatch"
+      ],
+      "solutions": [
+        "Verify package name: npm search @aurigraph --registry https://npm.aurigraph.io",
+        "Check registry URL matches https://npm.aurigraph.io",
+        "Verify scope is @aurigraph, not @aurigraph-dlt-corp"
+      ]
+    },
+    "issue_3_403_forbidden": {
+      "error": "npm ERR! 403 Forbidden",
+      "causes": [
+        "Insufficient permissions",
+        "Token lacking required scopes",
+        "Access revoked"
+      ],
+      "solutions": [
+        "Regenerate token with read:packages permission",
+        "Check team membership at https://npm.aurigraph.io/teams",
+        "Contact team admin: agents@aurigraph.io"
+      ]
+    },
+    "issue_4_connection_timeout": {
+      "error": "npm ERR! ETIMEDOUT",
+      "causes": [
+        "Network connectivity issue",
+        "Registry server down",
+        "Firewall blocking access"
+      ],
+      "solutions": [
+        "Test connectivity: curl -I https://npm.aurigraph.io",
+        "Check network: ping npm.aurigraph.io",
+        "Try again after 5 minutes",
+        "Contact admin if registry is down"
+      ]
+    },
+    "issue_5_eacces_permission_denied": {
+      "error": "npm ERR! EACCES permission denied",
+      "causes": [
+        "npm installed with sudo",
+        "Directory permission issues"
+      ],
+      "solutions": [
+        "Fix npm permissions: npm install -g npm",
+        "Use nvm for Node.js: curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/master/install.sh",
+        "Never use sudo with npm"
+      ]
+    }
+  },
+  "best_practices": {
+    "security": [
+      "Never commit .npmrc to git repository",
+      "Use environment variables for tokens in CI/CD",
+      "Rotate tokens every 90 days",
+      "Use unique tokens for different environments",
+      "Always use always-auth=true for scoped packages",
+      "Enable 2FA for npm.aurigraph.io account"
+    ],
+    "development": [
+      "Use project-level .npmrc for team consistency",
+      "Add .npmrc to .gitignore",
+      "Document required environment variables in README",
+      "Use exact versions in package-lock.json",
+      "Test installation in clean environment"
+    ],
+    "ci_cd": [
+      "Store tokens as GitHub Secrets (for GitHub Actions)",
+      "Use masked environment variables",
+      "Create separate tokens for CI/CD pipelines",
+      "Implement token rotation in pipelines",
+      "Monitor and log all registry access"
+    ]
+  },
+  "token_management": {
+    "generation": {
+      "url": "https://npm.aurigraph.io/tokens/generate",
+      "requirements": [
+        "Authenticated Aurigraph account",
+        "Team membership verification",
+        "Valid email address"
+      ]
+    },
+    "permissions": {
+      "read": {
+        "description": "Download and install packages",
+        "allows": ["npm install", "npm search"],
+        "required_for": "End users, CI/CD pipelines"
+      },
+      "write": {
+        "description": "Publish new package versions",
+        "allows": ["npm publish"],
+        "required_for": "Package maintainers"
+      },
+      "delete": {
+        "description": "Delete package versions",
+        "allows": ["npm unpublish"],
+        "required_for": "Maintainers (limited)"
+      }
+    },
+    "expiration": {
+      "7_days": "Short-lived tokens for CI/CD",
+      "30_days": "Development tokens",
+      "90_days": "Standard team tokens (recommended)",
+      "1_year": "Long-term access",
+      "never": "Permanent tokens (not recommended)"
+    },
+    "rotation": {
+      "schedule": "Every 90 days",
+      "process": [
+        "1. Generate new token",
+        "2. Update in .npmrc or .env",
+        "3. Verify new token works",
+        "4. Revoke old token",
+        "5. Update all environments"
+      ]
+    }
+  },
+  "monitoring_and_logging": {
+    "access_logs": {
+      "location": "~/.npm-audit.log",
+      "tracked_events": [
+        "Token generation",
+        "Failed authentications",
+        "Package installations",
+        "Package publishes",
+        "Access denials"
+      ],
+      "retention": "90 days"
+    },
+    "metrics": {
+      "track": [
+        "Daily active users",
+        "Package download counts",
+        "Publish frequency",
+        "Failed attempts",
+        "Performance metrics"
+      ],
+      "dashboard": "https://npm.aurigraph.io/admin/metrics"
+    }
+  },
+  "support": {
+    "documentation": "https://docs.aurigraph.io/npm-registry",
+    "email": "agents@aurigraph.io",
+    "slack_channel": "#aurigraph-agents",
+    "github_issues": "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/issues",
+    "contact_admin": "npm-admin@aurigraph.io"
+  }
+}
