@@ -238,49 +238,84 @@ async function analyzeFile(content, language, options = {}) {
     includeRecommendations
   } = options;
 
-  // Parse file to extract structure
-  const ast = ASTParser.parse(content, language);
+  try {
+    // Parse file to extract structure
+    const ast = ASTParser.parse(content, language);
 
-  // Detect issues using bug patterns
-  const allIssues = detectPatterns(content, { language, severityFilter: severity, categoryFilter: category });
+    // Detect issues using bug patterns
+    const allIssues = detectPatterns(content, {
+      language,
+      severityFilter: severity,
+      categoryFilter: category
+    });
 
-  // Calculate complexity metrics
-  let metrics = {};
-  if (includeMetrics !== false) {
-    metrics = calculateMetrics(content, language);
-  }
+    // Calculate complexity metrics
+    let metrics = {};
+    if (includeMetrics !== false) {
+      metrics = calculateMetrics(content, language);
+    }
 
-  // Generate recommendations
-  let recommendations = [];
-  if (includeRecommendations !== false) {
-    recommendations = generateRecommendations(allIssues, metrics, language);
-  }
+    // Generate recommendations
+    let recommendations = [];
+    if (includeRecommendations !== false) {
+      recommendations = generateRecommendations(allIssues, metrics, language);
+    }
 
-  // Calculate quality score
-  const qualityScore = calculateQualityScore(allIssues, metrics);
+    // Calculate quality score
+    const qualityScore = calculateQualityScore(allIssues, metrics);
 
-  return {
-    issues: allIssues,
-    metrics,
-    qualityScore,
-    recommendations,
-    summary: {
-      totalIssues: allIssues.length,
-      issuesBySeverity: {
-        critical: allIssues.filter(i => i.severity === 'critical').length,
-        high: allIssues.filter(i => i.severity === 'high').length,
-        medium: allIssues.filter(i => i.severity === 'medium').length,
-        low: allIssues.filter(i => i.severity === 'low').length
-      },
-      issuesByCategory: {
-        security: allIssues.filter(i => i.category === 'security').length,
-        performance: allIssues.filter(i => i.category === 'performance').length,
-        quality: allIssues.filter(i => i.category === 'quality').length,
-        maintainability: allIssues.filter(i => i.category === 'maintainability').length,
-        reliability: allIssues.filter(i => i.category === 'reliability').length
+    // Build issue summary with efficient filtering
+    const issuesBySeverity = {
+      critical: 0,
+      high: 0,
+      medium: 0,
+      low: 0
+    };
+
+    const issuesByCategory = {
+      security: 0,
+      performance: 0,
+      quality: 0,
+      maintainability: 0,
+      reliability: 0
+    };
+
+    // Single pass through issues for efficiency
+    for (const issue of allIssues) {
+      if (issuesBySeverity.hasOwnProperty(issue.severity)) {
+        issuesBySeverity[issue.severity]++;
+      }
+      if (issuesByCategory.hasOwnProperty(issue.category)) {
+        issuesByCategory[issue.category]++;
       }
     }
-  };
+
+    return {
+      issues: allIssues,
+      metrics,
+      qualityScore,
+      recommendations,
+      summary: {
+        totalIssues: allIssues.length,
+        issuesBySeverity,
+        issuesByCategory
+      }
+    };
+  } catch (error) {
+    // Return partial results on error to maintain analysis continuity
+    return {
+      issues: [],
+      metrics: {},
+      qualityScore: 0,
+      recommendations: [],
+      summary: {
+        totalIssues: 0,
+        issuesBySeverity: { critical: 0, high: 0, medium: 0, low: 0 },
+        issuesByCategory: { security: 0, performance: 0, quality: 0, maintainability: 0, reliability: 0 }
+      },
+      error: error.message
+    };
+  }
 }
 
 /**
