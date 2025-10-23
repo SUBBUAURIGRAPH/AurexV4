@@ -231,7 +231,7 @@ Comprehensive code quality analysis across multiple languages
 - Improvement recommendations
 ```
 
-#### Implementation: code-analyzer.js (1,200-1,500 lines)
+#### Implementation: code-analyzer.js (1,800-2,200 lines)
 
 ```javascript
 class CodeAnalyzer {
@@ -241,12 +241,18 @@ class CodeAnalyzer {
   async analyzeRust(files) {}
   async analyzeSolidity(files) {}
   async analyzeGo(files) {}
+  async analyzeJava(files) {}           // NEW
+  async analyzeSQL(files) {}            // NEW
+  async analyzeProtobuf(files) {}       // NEW (gRPC)
 
   // Bug detection
   detectSQLInjection(ast) {}
   detectHardcodedSecrets(content) {}
   detectNullPointerRisks(ast) {}
   detectRaceConditions(ast) {}
+  detectJavaVulnerabilities(ast) {}    // NEW
+  detectSQLVulnerabilities(ast) {}     // NEW
+  detectGrpcSecurityIssues(proto) {}   // NEW
 
   // Quality metrics
   calculateComplexity(ast) {}
@@ -264,16 +270,276 @@ class CodeAnalyzer {
 - Clippy for Rust
 - Solhint for Solidity
 - golangci-lint for Go
-- 20+ bug patterns
+- Checkstyle/PMD for Java (NEW)
+- SQLFluff for SQL analysis (NEW)
+- Protoc-gen-lint for gRPC/protobuf (NEW)
+- 30+ bug patterns (including Java, SQL, gRPC-specific)
 - Complexity scoring
 
-**Week 2-3 Total**: 1,200-1,500 lines
+**Week 2-3 Total**: 1,800-2,200 lines (expanded for 3 new languages)
+
+---
+
+#### Java Analyzer (300-400 lines) - NEW
+
+```javascript
+class JavaAnalyzer {
+  async analyzeJava(files) {
+    // Parse Java source files
+    // Extract AST using espree-java or similar
+  }
+
+  detectJavaVulnerabilities(ast) {
+    // CWE-89: SQL Injection in JDBC
+    // CWE-427: Uncontrolled Search Path Element
+    // CWE-502: Deserialization of Untrusted Data
+    // CWE-477: Use of Obsolete Functions
+    // CWE-532: Sensitive Data in Log Files
+  }
+
+  analyzeJavaComplexity(ast) {
+    // Cyclomatic complexity
+    // Nested block depth
+    // Method length analysis
+    // Class coupling
+  }
+
+  checkJavaSecurityPatterns(content) {
+    // Hard-coded credentials detection
+    // Insecure random (java.util.Random vs SecureRandom)
+    // Weak encryption algorithms
+    // Hardcoded SQL queries
+    // Insecure HTTP usage (http vs https)
+  }
+
+  validateJavaFrameworks(files) {
+    // Spring/Spring Boot configuration analysis
+    // Servlet security checks
+    // JPA/Hibernate entity validation
+    // Exception handling patterns
+  }
+}
+```
+
+**Features**:
+- Checkstyle integration (style/complexity rules)
+- PMD integration (code defect detection)
+- SpotBugs integration (potential bugs)
+- Architecture analysis (dependencies, coupling)
+- Security analysis (10+ Java-specific vulnerabilities)
+- Framework-specific checks (Spring, Servlet, JPA)
+- Test framework detection (JUnit 4/5, TestNG)
+
+**Integration with Testing Framework** (Week 3-4):
+- JUnit 4 & 5 test execution
+- TestNG support
+- Maven/Gradle test discovery
+- Code coverage (JaCoCo)
+- Flaky test detection
+
+---
+
+#### SQL Analyzer (250-350 lines) - NEW
+
+```javascript
+class SQLAnalyzer {
+  async analyzeSQL(files) {
+    // Parse SQL files and embedded SQL
+    // Extract queries from code files
+    // Validate SQL syntax
+  }
+
+  detectSQLVulnerabilities(queries) {
+    // CWE-89: SQL Injection patterns
+    // CWE-90: Improper Neutralization of Special Elements in SQL
+    // CWE-943: Improper Neutralization of Special Elements in Query Language
+    // Unparameterized queries
+    // Missing input validation
+    // Dangerous functions (eval, exec)
+  }
+
+  analyzeSQLPerformance(queries) {
+    // Missing indexes suggestions
+    // N+1 query patterns
+    // Inefficient joins
+    // Missing LIMIT clauses
+    // Cartesian products
+    // Subquery optimization opportunities
+  }
+
+  validateSQLBestPractices(content) {
+    // Use of parameterized queries
+    // Proper data type usage
+    // Naming conventions
+    // Query complexity assessment
+    // Transaction usage
+    // Comment coverage
+  }
+
+  analyzeSQLFromCode(files) {
+    // Extract SQL from JavaScript/Python/Java
+    // Pattern matching for embedded queries
+    // Dynamic query detection
+    // Template literal detection
+    // String concatenation patterns
+  }
+
+  supportedDatabases() {
+    // PostgreSQL
+    // MySQL/MariaDB
+    // SQL Server
+    // Oracle
+    // SQLite
+  }
+}
+```
+
+**Features**:
+- SQLFluff integration (SQL linting and formatting)
+- Embedded SQL detection (in JS, Python, Java code)
+- SQL injection pattern detection (40+ patterns)
+- Performance anti-pattern detection
+- Database-specific validation (PostgreSQL, MySQL, SQL Server, Oracle, SQLite)
+- Query complexity scoring
+- Security best practices validation
+- Index recommendation engine
+
+**Bug Patterns** (40+ specific to SQL):
+1. Unparameterized queries
+2. String concatenation in WHERE clauses
+3. Missing input validation
+4. SQL injection via LIKE operator
+5. TIME-BASED SQL injection
+6. BOOLEAN-BASED SQL injection
+7. UNION-based SQL injection
+8. ERROR-BASED SQL injection
+9. Out-of-band SQL injection (DNS exfiltration)
+10. Second-order SQL injection
+11. NoSQL injection patterns
+12. ORM bypass techniques
+13. Missing query timeouts
+14. Inefficient GROUP BY
+15. Cartesian product joins
+... and 25+ more
+
+---
+
+#### gRPC/Protobuf Analyzer (300-400 lines) - NEW
+
+```javascript
+class GrpcProtobufAnalyzer {
+  async analyzeProtobuf(files) {
+    // Parse .proto files
+    // Validate protobuf syntax
+    // Extract service definitions
+  }
+
+  validateProtobufSyntax(content) {
+    // Syntax version validation (proto2 vs proto3)
+    // Message definition validation
+    // Service definition validation
+    // Field number uniqueness
+    // Reserved field checking
+    // Proper dependency declarations
+  }
+
+  detectGrpcSecurityIssues(proto) {
+    // Missing TLS/SSL configuration
+    // Unencrypted communication
+    // Missing authentication
+    // Missing authorization
+    // Insecure default settings
+    // Credentials in proto files
+    // Excessive method permissions
+  }
+
+  analyzeGrpcPerformance(proto) {
+    // Message size analysis
+    // Streaming strategy validation
+    // Timeout configuration
+    // Deadline recommendations
+    // Batch processing opportunities
+    // Connection pooling suggestions
+  }
+
+  validateGrpcBestPractices(files) {
+    // Service naming conventions
+    // Message naming conventions
+    // Error handling patterns
+    // Versioning strategy
+    // Documentation completeness
+    // Method idempotency
+    // Retry configuration
+  }
+
+  analyzeProtobufBackwardCompatibility(oldProto, newProto) {
+    // Breaking changes detection
+    // Field number reuse
+    // Type changes
+    // Service method removal
+    // Default value changes
+    // Enum value changes
+  }
+
+  generateGrpcSecurityChecklist(proto) {
+    // TLS configuration checklist
+    // Authentication method verification
+    // Authorization policy validation
+    // Input validation requirements
+    // Rate limiting configuration
+    // Monitoring and logging setup
+  }
+
+  supportedGrpcFrameworks() {
+    // Go gRPC (grpc-go)
+    // Java gRPC (grpc-java)
+    // Python gRPC (grpc)
+    // Node.js gRPC (@grpc/grpc-js)
+    // Rust gRPC (tonic)
+    // C++ gRPC (grpc/grpc)
+  }
+}
+```
+
+**Features**:
+- Protoc validation (syntax checking)
+- Service definition analysis
+- Security analysis (30+ gRPC-specific issues)
+- Performance analysis and optimization
+- Backward compatibility checking
+- Version mismatch detection
+- Framework-specific validation (Go, Java, Python, Node.js, Rust, C++)
+- Generated code analysis
+- Deployment configuration validation
+
+**gRPC Security Analysis** (30+ patterns):
+1. Missing TLS/SSL certificates
+2. Self-signed certificate usage
+3. Expired certificates
+4. Weak cipher suites
+5. Missing mutual TLS (mTLS)
+6. No client authentication
+7. No authorization checks
+8. Hardcoded credentials in proto
+9. Missing request authentication
+10. Missing deadline/timeout
+11. No rate limiting
+12. No input validation
+13. Unencrypted metadata
+14. Credential leakage in logs
+15. Missing error handling
+... and 15+ more
+
+---
 
 **Commits**:
 - `feat: Add TypeScript/JavaScript analyzer`
 - `feat: Add Python analyzer`
 - `feat: Add Rust/Solidity/Go analyzers`
-- `feat: Add bug pattern detection`
+- `feat: Add Java analyzer with security patterns`
+- `feat: Add SQL analyzer with injection detection`
+- `feat: Add gRPC/protobuf analyzer`
+- `feat: Add bug pattern detection (30+ patterns)`
 
 ---
 
@@ -298,7 +564,7 @@ Execute and analyze test suites with coverage reporting
 - Flaky test detection
 ```
 
-#### Implementation: test-runner.js (1,200-1,500 lines)
+#### Implementation: test-runner.js (1,800-2,200 lines)
 
 ```javascript
 class TestRunner {
@@ -307,6 +573,10 @@ class TestRunner {
   async runPytest(projectPath, config) {}
   async runMocha(projectPath, config) {}
   async runGoTests(projectPath, config) {}
+  async runJUnit(projectPath, config) {}        // NEW
+  async runTestNG(projectPath, config) {}       // NEW
+  async runGrpcTests(projectPath, config) {}    // NEW (NEW)
+  async runSQLTests(projectPath, config) {}     // NEW
 
   // Coverage analysis
   async analyzeCoverage(results) {}
@@ -326,11 +596,41 @@ class TestRunner {
 - Pytest integration (auto-discovery)
 - Mocha integration (auto-discovery)
 - Go testing support
-- Coverage gap identification
-- Flaky test detection
+- **NEW: JUnit 4/5 integration** (Maven/Gradle projects)
+- **NEW: TestNG integration** (Java testing framework)
+- **NEW: gRPC integration tests** (protobuf service testing)
+- **NEW: SQL integration tests** (database validation)
+- Coverage gap identification (JaCoCo for Java, coverage.py for Python, etc.)
+- Flaky test detection (multi-run analysis)
 - Multi-format reporting
 
-**Week 3-4 Total**: 1,200-1,500 lines
+**Java Test Support** (400-500 lines):
+- JUnit 4 & 5 test runner
+- TestNG support
+- Maven integration (mvn test)
+- Gradle integration (gradle test)
+- JaCoCo coverage parsing
+- Surefire/Failsafe report parsing
+- Parameterized test support
+
+**gRPC Test Support** (300-400 lines):
+- Proto compilation validation
+- gRPC service testing
+- Streaming test support
+- Error handling validation
+- Generated code compilation checks
+- Multi-language test execution (Go, Java, Python, Node.js)
+
+**SQL Test Support** (250-350 lines):
+- Database connection testing
+- Query result validation
+- Schema consistency checks
+- Transaction testing
+- Test data setup/cleanup
+- SQLite/H2 in-memory database support
+- Multi-database support (PostgreSQL, MySQL, SQL Server)
+
+**Week 3-4 Total**: 1,800-2,200 lines (expanded for 4 new test frameworks)
 
 **Commits**:
 - `feat: Add test orchestrator framework`
@@ -361,7 +661,7 @@ Multi-layered security scanning for vulnerabilities, secrets, and compliance
 - Security severity score
 ```
 
-#### Implementation: security-scanner.js (1,500-2,000 lines)
+#### Implementation: security-scanner.js (2,200-2,800 lines)
 
 ```javascript
 class SecurityScanner {
@@ -392,14 +692,69 @@ class SecurityScanner {
 ```
 
 **Features**:
-- 30+ secret detection patterns
-- npm/pip/cargo audit integration
+- 50+ secret detection patterns
+- npm/pip/cargo/maven audit integration
 - OWASP Top 10 coverage
+- **NEW: Java-specific vulnerabilities** (CWE detection)
+- **NEW: SQL injection patterns** (40+ variations)
+- **NEW: gRPC/protobuf security checks** (30+ patterns)
 - Severity scoring (critical/high/medium/low)
 - Remediation suggestions
 - Compliance checking
 
-**Week 4-5 Total**: 1,500-2,000 lines
+**Extended Security Patterns** (NEW):
+
+**Java Security** (20+ patterns):
+- Deserialization vulnerabilities (CWE-502)
+- Weak random number generation
+- Hardcoded credentials in code
+- Insecure cryptographic algorithms
+- SQL injection via JDBC
+- XML External Entity (XXE) attacks
+- Cross-Site Scripting (XSS) in servlets
+- Path traversal vulnerabilities
+- Insecure HTTP communication
+- Broken authentication patterns
+- Missing CSRF protection
+- Insecure direct object references
+- Spring Security misconfigurations
+- JPA/Hibernate injection vulnerabilities
+
+**SQL Security** (40+ patterns):
+- Unparameterized queries (all variations)
+- String concatenation in queries
+- Dynamic query construction
+- Stored procedure injection
+- Comment-based injection
+- Union-based injection
+- Boolean-based blind injection
+- Time-based blind injection
+- Out-of-band data exfiltration
+- Second-order injection
+- ORM framework misuse
+- Insufficient query escaping
+- Dangerous SQL functions
+- Missing input validation
+- Inadequate authorization checks
+
+**gRPC Security** (30+ patterns):
+- Missing TLS/SSL enforcement
+- Unencrypted communication channels
+- Weak cipher configuration
+- Missing client authentication
+- Absent authorization checks
+- Hardcoded credentials in proto
+- API key exposure in metadata
+- Missing rate limiting
+- Insufficient input validation
+- Inadequate error handling
+- Logging sensitive data
+- Missing request authentication
+- Unprotected service methods
+- Version mismatch vulnerabilities
+- Protobuf version mismatches
+
+**Week 4-5 Total**: 2,200-2,800 lines (expanded for Java, SQL, gRPC patterns)
 
 **Commits**:
 - `feat: Add secret scanner`
@@ -547,23 +902,45 @@ class EnhancedJeeves4Coder extends Jeeves4Coder {
 
 ---
 
-## 📊 IMPLEMENTATION TIMELINE (REVISED)
+## 📊 IMPLEMENTATION TIMELINE (REVISED - EXPANDED FOR JAVA, SQL, gRPC)
 
 | Week | Focus | Components | Target Lines | Status |
 |------|-------|-----------|-------------|--------|
 | 1 | Plugin Core & Framework | Skill executor, agent def, helpers | 1,350-2,050 | 🔴 Starting |
-| 2-3 | Code Analysis | Multi-language analyzers, bug detection | 1,200-1,500 | ⏳ Nov 8 |
-| 3-4 | Testing Framework | Test orchestration, coverage analysis | 1,200-1,500 | ⏳ Nov 15 |
-| 4-5 | Security Scanner | Secrets, dependencies, OWASP | 1,500-2,000 | ⏳ Nov 22 |
-| 5 | Performance Analyzer | Profiling, optimization suggestions | 800-1,000 | ⏳ Nov 29 |
+| 2-3 | Code Analysis | 8 language analyzers + bug detection | 1,800-2,200 | ⏳ Nov 8 |
+| 3-4 | Testing Framework | 8 test framework support + coverage | 1,800-2,200 | ⏳ Nov 15 |
+| 4-5 | Security Scanner | 90+ patterns (secrets, deps, OWASP) | 2,200-2,800 | ⏳ Nov 22 |
+| 5 | Performance Analyzer | Profiling for 5+ languages | 800-1,000 | ⏳ Nov 29 |
 | 5-6 | Documentation Generator | OpenAPI, README, API docs | 1,000-1,200 | ⏳ Dec 5 |
 | 6 | Jeeves4Coder Integration | Unified review component | 800-1,000 | ⏳ Dec 12 |
-| **TOTAL** | **Production Ready** | **7 Components, 6 Skills** | **7,850-10,250** | ✅ Goal |
+| **TOTAL** | **Production Ready** | **7 Components, 6 Skills** | **9,750-12,450** | ✅ Goal |
+
+**Expanded Language & Framework Support**:
+
+**Code Analysis** (8 languages):
+- TypeScript/JavaScript, Python, Rust, Solidity, Go
+- **NEW: Java** (Checkstyle, PMD, SpotBugs)
+- **NEW: SQL** (SQLFluff, embedded SQL detection)
+- **NEW: gRPC/Protobuf** (protoc, schema validation)
+
+**Testing Framework** (8 frameworks):
+- Jest, Pytest, Mocha, Go testing
+- **NEW: JUnit 4/5** (Maven/Gradle integration)
+- **NEW: TestNG** (Java testing)
+- **NEW: gRPC tests** (proto compilation, service testing)
+- **NEW: SQL tests** (database validation, schema checks)
+
+**Security Patterns** (90+):
+- 50+ secret detection patterns
+- 40+ SQL injection variations
+- 30+ gRPC/protobuf security issues
+- 20+ Java-specific vulnerabilities
+- OWASP Top 10 + CWE mapping
 
 **Note**: Much leaner than 17-22K lines because:
 - No server backend needed
 - No database layer
-- Leverages existing CLI tools
+- Leverages existing CLI tools (Maven, pytest, cargo, etc.)
 - Markdown skill definitions (light)
 - Focused JavaScript orchestration only
 - Integrates with Jeeves4Coder (reuses existing code)
@@ -716,13 +1093,13 @@ npm install @aurigraph/claude-agents-plugin
 - ✅ Plugin load time: <500ms
 
 ### Feature Completeness
-- ✅ 5 languages supported (TS, Python, Rust, Solidity, Go)
-- ✅ 4 test frameworks (Jest, Pytest, Mocha, Go)
-- ✅ OWASP Top 10 coverage
-- ✅ 30+ bug patterns detected
-- ✅ Performance profiling for 4 languages
-- ✅ 6 skill definitions (markdown)
-- ✅ Jeeves4Coder integration complete
+- ✅ **8 languages supported** (TS, Python, Rust, Solidity, Go, **Java, SQL, gRPC/Protobuf**)
+- ✅ **8 test frameworks** (Jest, Pytest, Mocha, Go, **JUnit 4/5, TestNG, gRPC, SQL**)
+- ✅ **90+ security patterns** (OWASP Top 10 + CWE mapping + SQL injection + gRPC/Java specific)
+- ✅ **30+ bug patterns detected** per language
+- ✅ **5+ language performance profiling**
+- ✅ **6 skill definitions** (markdown with full markdown documentation)
+- ✅ **Jeeves4Coder integration complete** with unified review
 
 ### Adoption
 - ✅ 50% team adoption within 2 weeks
