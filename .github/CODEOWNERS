@@ -1,0 +1,46 @@
+# CODEOWNERS file for Aurigraph Agent Architecture
+# GitHub will request reviews from these teams for PRs matching the patterns
+
+# Global owners (all changes)
+* @aurigraph-dev-lead @aurigraph-architects
+
+# Skills by Agent
+skills/exchange-connector* @aurigraph-trading-ops @aurigraph-security
+skills/strategy-builder* @aurigraph-trading-ops @aurigraph-quant-team
+skills/docker-manager* @aurigraph-devops @aurigraph-infrastructure
+skills/deploy-wizard* @aurigraph-devops @aurigraph-infrastructure
+skills/jira-sync* @aurigraph-pm @aurigraph-dev-lead
+skills/test-runner* @aurigraph-qa-team @aurigraph-dev-lead
+skills/backtest-manager* @aurigraph-trading-ops @aurigraph-quant-team
+skills/security-scanner* @aurigraph-security @aurigraph-qa-team
+
+# Agents
+agents/trading-operations* @aurigraph-trading-ops @aurigraph-quant-team
+agents/devops-engineer* @aurigraph-devops @aurigraph-infrastructure
+agents/qa-engineer* @aurigraph-qa-team @aurigraph-security
+agents/project-manager* @aurigraph-pm
+agents/security-compliance* @aurigraph-security
+agents/dlt-developer* @aurigraph-dlt-team
+agents/data-engineer* @aurigraph-data-team
+agents/frontend-developer* @aurigraph-frontend
+agents/sre-reliability* @aurigraph-sre
+agents/digital-marketing* @aurigraph-marketing
+agents/employee-onboarding* @aurigraph-hr
+
+# Documentation
+docs/SPARC_FRAMEWORK.md @aurigraph-architects @aurigraph-dev-lead
+docs/SOPS.md @aurigraph-architects @aurigraph-dev-lead
+docs/PROCESS_IMPROVEMENTS.md @aurigraph-dev-lead @aurigraph-architects
+CONTEXT.md @aurigraph-dev-lead @aurigraph-architects
+README.md @aurigraph-dev-lead
+
+# Framework & Configuration
+plugin/ @aurigraph-dev-lead @aurigraph-architects
+skills/SKILL_TEMPLATE.md @aurigraph-architects
+.github/ @aurigraph-devops @aurigraph-dev-lead
+
+# CI/CD & Infrastructure
+.github/workflows/ @aurigraph-devops @aurigraph-infrastructure
+docker-compose*.yml @aurigraph-devops
+Dockerfile* @aurigraph-devops
+package.json @aurigraph-dev-lead
