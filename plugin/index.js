@@ -13,13 +13,53 @@ const path = require('path');
 const axios = require('axios');
 require('dotenv').config();
 
+const EnvironmentLoader = require('./environment-loader');
+
 class AurigraphAgentsPlugin {
   constructor(config = {}) {
     this.version = '1.0.0';
     this.name = 'Aurigraph Agents';
     this.config = this.loadConfig(config);
+    this.environmentLoader = null;
+    this.projectContext = null;
     this.agents = this.loadAgents();
     this.skills = this.loadSkills();
+  }
+
+  /**
+   * Initialize the Aurigraph Agent environment
+   * Loads all project files including credentials
+   */
+  async initializeEnvironment(options = {}) {
+    try {
+      this.environmentLoader = new EnvironmentLoader({
+        projectRoot: options.projectRoot || path.join(__dirname, '..'),
+        environment: options.environment || process.env.NODE_ENV || 'development',
+        verbose: options.verbose || false
+      });
+
+      const result = await this.environmentLoader.initialize();
+
+      // Load project context files
+      this.projectContext = {
+        files: this.environmentLoader.getLoadedFiles(),
+        contextFiles: this.environmentLoader.getContextFiles(),
+        credentials: this.environmentLoader.getCredentials(false), // Redacted
+        environment: this.environmentLoader.environment
+      };
+
+      if (options.verbose) {
+        console.log('\n✅ Aurigraph Agent environment initialized');
+        console.log(`   - Project Root: ${this.environmentLoader.projectRoot}`);
+        console.log(`   - Environment: ${this.environmentLoader.environment}`);
+        console.log(`   - Files Loaded: ${Object.keys(this.projectContext.files).length}`);
+      }
+
+      return result;
+    } catch (error) {
+      console.error('Failed to initialize environment:', error.message);
+      throw error;
+    }
   }
 
   /**
@@ -282,6 +322,108 @@ class AurigraphAgentsPlugin {
    */
   getSkill(skillId) {
     return this.skills[skillId] || null;
+  }
+
+  /**
+   * Get project context (loaded files, credentials, environment info)
+   */
+  getProjectContext() {
+    if (!this.projectContext) {
+      throw new Error('Environment not initialized. Call initializeEnvironment() first.');
+    }
+    return this.projectContext;
+  }
+
+  /**
+   * Get specific context file content
+   */
+  getContextFileContent(fileName) {
+    if (!this.environmentLoader) {
+      throw new Error('Environment not initialized. Call initializeEnvironment() first.');
+    }
+    return this.environmentLoader.getContextFileContent(fileName);
+  }
+
+  /**
+   * Get all loaded files metadata
+   */
+  getLoadedFiles() {
+    if (!this.environmentLoader) {
+      throw new Error('Environment not initialized. Call initializeEnvironment() first.');
+    }
+    return this.environmentLoader.getLoadedFiles();
+  }
+
+  /**
+   * Check if a credential exists
+   */
+  hasCredential(key) {
+    if (!this.environmentLoader) {
+      return false;
+    }
+    const creds = this.environmentLoader.getCredentials(true);
+    return creds && creds.data && key in creds.data;
+  }
+
+  /**
+   * Get credential value (returns only for internal use, redacted for external)
+   */
+  getCredential(key, redact = true) {
+    if (!this.environmentLoader) {
+      return null;
+    }
+    const creds = this.environmentLoader.getCredentials(true);
+    if (!creds || !creds.data) return null;
+
+    const value = creds.data[key];
+    if (!value) return null;
+
+    if (redact) {
+      return '***' + (value.length > 4 ? value.slice(-4) : '');
+    }
+    return value;
+  }
+
+  /**
+   * Get all credentials (redacted by default)
+   */
+  getAllCredentials(redact = true) {
+    if (!this.environmentLoader) {
+      return null;
+    }
+    return this.environmentLoader.getCredentials(!redact);
+  }
+
+  /**
+   * Verify environment is properly loaded
+   */
+  isEnvironmentLoaded() {
+    return this.projectContext !== null && this.environmentLoader !== null;
+  }
+
+  /**
+   * Get environment status information
+   */
+  getEnvironmentStatus() {
+    return {
+      loaded: this.isEnvironmentLoaded(),
+      environment: this.environmentLoader?.environment || 'not-initialized',
+      filesLoaded: this.environmentLoader?.loadedFiles.size || 0,
+      credentialsAvailable: !!this.environmentLoader?.credentials,
+      contextAvailable: !!this.projectContext?.contextFiles
+    };
+  }
+
+  /**
+   * Export environment state for debugging
+   */
+  exportEnvironmentState(outputPath = null) {
+    if (!this.environmentLoader) {
+      throw new Error('Environment not initialized.');
+    }
+
+    const outputFile = outputPath || path.join(process.cwd(), 'environment-state.json');
+    return this.environmentLoader.exportState(outputFile);
   }
 }
 

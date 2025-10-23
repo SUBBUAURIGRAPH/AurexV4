@@ -306,13 +306,196 @@ See `docs/SKILLS.md` for complete skills matrix.
 
 ## Implementation History
 
-### Strategy Builder Skill - Phase 1 Specification (October 23, 2025)
+### Docker Manager Skill - Phase 1 Specification (October 23, 2025)
 
 **New Development**:
-- Completed comprehensive Phase 1 Specification for strategy-builder skill
-- Trading Operations Agent's most complex skill (60+ pages)
+- Completed comprehensive Phase 1 Specification for docker-manager skill
+- DevOps Engineer Agent's most critical infrastructure skill
 - Following SPARC Framework methodology
-- Created: `skills/strategy-builder-spec.md`
+- Created: `skills/docker-manager-spec.md` (100+ pages)
+
+**Specification Highlights**:
+- **10 Functional Requirement Areas**:
+  1. Container lifecycle management (create, start, stop, restart, remove, pause, update)
+  2. Image management (build optimization, multi-stage, BuildKit, cross-platform, cache)
+  3. Docker Compose orchestration (up, down, scale, logs, multi-file configs)
+  4. Container inspection & diagnostics (logs, stats, health, events, network)
+  5. Registry integration (Docker Hub, AWS ECR, Google GCR, Azure ACR, Harbor, GitLab)
+  6. Health checks & auto-recovery (HTTP, TCP, command-based, restart policies)
+  7. Log aggregation & monitoring (search, filter, pattern detection, export)
+  8. Resource tracking & optimization (CPU, memory, network, disk, right-sizing)
+  9. Security scanning (Trivy, Snyk, Clair, vulnerability management, compliance)
+  10. Swarm/Kubernetes integration (Phase 2/3 - future)
+
+- **Technical Requirements**:
+  - Performance: <3 min build/deploy, <30s restart, <2 min security scan
+  - Reliability: 99.9% uptime, >95% auto-recovery, >98% deployment success
+  - Security: CVE scanning, secret detection, CIS Benchmark compliance
+  - Scalability: 100 containers, 500 images, 5 registries (Phase 1)
+
+- **4 Complete User Journeys**:
+  1. Developer Deploying Local Changes (15 min → 3 min, 80% faster)
+  2. DevOps Building CI/CD Pipeline (8 hours → 1 hour, 87% faster)
+  3. Operations Running Container Diagnostics (45 min → 10 min, 77% faster)
+  4. Security Auditing Container Images (3 hours → 20 min, 93% faster)
+
+- **Success Metrics**:
+  - Adoption: 10 users (100% DevOps team) by 12 months
+  - Efficiency: 77-93% time savings vs manual operations
+  - Quality: 99.9% uptime, 100% security scan coverage
+  - Business: $183K/year ROI, 3-month payback, 20% infra cost reduction
+
+- **10 Constraint Categories**:
+  - Docker version compatibility (Engine 20.10+, Compose 2.0+)
+  - Registry limitations (rate limits, storage quotas, regional constraints)
+  - Performance limitations (max 5GB images, 5 concurrent builds)
+  - Storage constraints (500GB local, 10GB logs per container)
+  - Network constraints (firewall rules, DNS, port conflicts)
+  - Security constraints (Docker socket access, image signing, secrets)
+  - Orchestration constraints (single-host Compose, Swarm/K8s in Phase 2/3)
+  - Platform constraints (Linux full, macOS/Windows partial support)
+  - Scalability constraints (100 containers Phase 1, 500 Phase 2)
+  - Cost constraints ($50K dev budget, $10K/year operational)
+
+**Business Impact** (projected):
+- Consolidate 20+ deployment scripts into single intelligent skill
+- Reduce deployment time from 15 min to 3 min (80% faster)
+- Improve container uptime from 98.5% to 99.9%
+- Enable 100% security scan coverage (vs 40% manual)
+- Save 520 hours/year in DevOps time ($52K value)
+- Reduce infrastructure costs by 20% ($24K/year)
+- Prevent security incidents ($100K+ risk mitigation)
+- Total ROI: $183K/year, 3-month payback period
+
+**Next Steps**:
+- Phase 2: Pseudocode (Oct 24-28, 2025)
+- Phase 3: Architecture (Oct 29 - Nov 2, 2025)
+- Phase 4: Refinement (Nov 3-5, 2025)
+- Phase 5: Completion (Nov 6 - Dec 15, 2025)
+- Target Launch: December 15, 2025
+
+### Strategy Builder Skill - Phase 3 Architecture (October 23, 2025)
+
+**Latest Development**:
+- Completed comprehensive Phase 3 Architecture for strategy-builder skill
+- Complete system design (C4 model, 7 sections, 100+ pages)
+- Following SPARC Framework methodology
+- Created: `skills/strategy-builder-phase3-architecture.md`
+
+**Phase 3 Architecture Highlights**:
+- **System Architecture (C4 Model)**:
+  - Context diagram (external integrations)
+  - Container diagram (microservices, databases)
+  - Component diagrams (API servers, workers, services)
+  - Design principles (separation of concerns, modularity, scalability)
+
+- **Frontend Architecture**:
+  - React component hierarchy (visual builder, code editor, result panels)
+  - Key components (VisualBuilder, CodeEditor, BacktestResultsPanel, IndicatorConfigPanel)
+  - State management (Redux store structure, actions, reducers)
+  - Component specifications with properties, methods, events
+
+- **Backend API Design** (50+ endpoints):
+  - Strategy management (CRUD, validation, cloning)
+  - Indicator management (schema, defaults)
+  - Backtesting (start, progress, results, history)
+  - Optimization (start, progress, results)
+  - Deployment (deploy, approve, reject, stop, monitor)
+  - Export/import (JSON, YAML, Python, JavaScript)
+  - Version control (versions, restore, diff, tagging)
+  - Sharing & collaboration (share, revoke, comments)
+  - Templates (list, details, create from template)
+  - WebSocket events (real-time updates, 12+ event types)
+
+- **Database Schema** (MongoDB):
+  - strategies: Strategy definitions with versions and sharing
+  - backtest_results: Comprehensive backtest metrics and trade data
+  - optimization_jobs: Optimization state and results
+  - deployments: Deployment tracking and monitoring
+  - audit_log: Complete audit trail of all actions
+
+- **Security Architecture**:
+  - Authentication: OAuth 2.0 / SAML2 with JWT tokens
+  - Authorization: Role-based access control (5 roles: Viewer, Trader, Senior Trader, Risk Manager, Admin)
+  - Encryption: AES-256 at rest, TLS 1.3 in transit
+  - Data protection: PII handling, sensitive field encryption
+  - Code execution: Sandboxed with resource limits
+  - Input validation: Comprehensive rules for all inputs
+  - API security: Rate limiting, request signing, scoped permissions
+
+- **Deployment Architecture**:
+  - Multi-region AWS (primary: us-east-1, failover: us-west-2)
+  - Containerized services (ECS/Kubernetes)
+  - Load balancing (ALB)
+  - Database (MongoDB 3-node replica set)
+  - Cache (Redis cluster)
+  - CI/CD pipeline (GitHub Actions)
+  - Deployment strategies (blue-green, canary)
+  - Auto-scaling configuration (API, backtest, optimization)
+
+- **Monitoring & Observability**:
+  - Application metrics (requests, business metrics, system metrics, performance)
+  - Logging strategy (5 levels, JSON structured logs)
+  - Tools: CloudWatch, X-Ray, DataDog, PagerDuty
+
+### Strategy Builder Skill - Phase 2 Pseudocode (October 23, 2025)
+
+**Latest Development**:
+- Completed comprehensive Phase 2 Pseudocode for strategy-builder skill
+- Detailed algorithmic design for all core components (100+ algorithms)
+- Following SPARC Framework methodology
+- Created: `skills/strategy-builder-phase2-pseudocode.md`
+
+**Phase 2 Pseudocode Highlights**:
+- **10 Core Algorithm Areas**:
+  1. Core data structures (Strategy, Indicator, Position, Trade, etc.)
+  2. Visual builder algorithm (drag-drop component logic)
+  3. Code parser algorithm (syntax validation, code execution)
+  4. Validation framework (comprehensive error checking)
+  5. Backtest execution engine (main loop, position management)
+  6. Grid search optimization (parameter combination testing)
+  7. Genetic algorithm optimization (evolutionary parameter search)
+  8. Walk-forward analysis (out-of-sample validation)
+  9. Error handling framework (user-friendly error responses)
+  10. Integration points mapping (system connections, database schema)
+
+- **Data Structure Definitions**:
+  - StrategyDefinition (complete strategy object)
+  - StrategyLogic (entry/exit conditions, logic trees)
+  - IndicatorLibrary (indicators, calculations, values)
+  - IndicatorInstance (individual indicator with parameters)
+  - EntryCondition & ExitCondition (signal logic)
+  - RiskManagementConfig (position sizing, stop-loss, limits)
+  - BacktestConfig (date range, capital, commission)
+  - Position & Trade (runtime position tracking)
+  - StrategyState (execution state management)
+
+- **Algorithm Specifications** (pseudocode notation):
+  - BuildStrategyVisually: Drag-drop canvas to strategy conversion
+  - ParseCodeStrategy: Code tokenization and AST generation
+  - ValidateStrategy: Comprehensive validation (100+ checks)
+  - RunBacktest: Full backtest execution loop (indicator calc, signal eval, position management)
+  - GridSearchOptimization: Parameter grid search with scoring
+  - GeneticAlgorithmOptimization: Evolutionary parameter optimization
+  - WalkForwardAnalysis: Rolling window OOS validation
+  - HandleStrategyError: Error handling with user-friendly messages
+
+- **Integration Specifications**:
+  - Exchange Manager integration (REST + WebSocket)
+  - Backtest Manager integration (parallel job execution)
+  - Portfolio Analyzer integration (risk metrics)
+  - MongoDB schema design (strategies, backtests, optimization jobs)
+  - JSON/YAML import-export workflows
+  - State management and checkpointing
+
+**Phase 1 Specification Recap**:
+- 10 Functional Requirement Areas (strategy types, indicators, order types, etc.)
+- 4 Complete User Journeys
+- 50+ Success Metrics (adoption, efficiency, quality, business impact)
+- 9 Constraint Categories (complexity, scalability, regulatory, cost)
+- 60+ pages of detailed specifications
+
+### Strategy Builder Skill - Phase 1 Specification (October 23, 2025)
 
 **Specification Highlights**:
 - **10 Functional Requirement Areas**:
@@ -731,7 +914,12 @@ This context file provides comprehensive project context for the Aurigraph Agent
 **Version**: 2.0.0
 **Status**: ✅ Production Ready
 
-**Recent Work**: Strategy Builder Skill Phase 1 Specification completed (60+ pages, SPARC framework)
+**Recent Work**:
+- Strategy Builder Skill Phase 3 Architecture completed (system design, APIs, database, security, deployment)
+- Environment Loading Feature implemented (auto-load all project files including credentials.md)
+- Phase 2 Pseudocode complete (100+ algorithms)
+- Phase 1 Specification complete (60+ pages)
+- Next: Phase 4 Refinement (Nov 3-5, 2025)
 
 ---
 
