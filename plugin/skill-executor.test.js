@@ -257,6 +257,8 @@ describe('SkillExecutor', () => {
       });
 
       executor._initialized = false;
+      executor.skillMetadata.clear();
+      executor.skillCache.clear();
       await executor.initialize();
       const result = await executor.execute('test-context', {});
 
@@ -386,6 +388,8 @@ describe('SkillExecutor', () => {
       });
 
       executor._initialized = false;
+      executor.skillMetadata.clear();
+      executor.skillCache.clear();
       await executor.initialize();
 
       await expect(
@@ -429,6 +433,8 @@ describe('SkillExecutor', () => {
       });
 
       executor._initialized = false;
+      executor.skillMetadata.clear();
+      executor.skillCache.clear();
       await executor.initialize();
 
       const result = await executor.execute('test-bad-format', {});
