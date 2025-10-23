@@ -1,7 +1,7 @@
 {
   "name": "@aurigraph/claude-agents-plugin",
-  "version": "1.0.0",
-  "description": "Claude Code plugin for Aurigraph AI Agents - 12 specialized agents with 76+ skills",
+  "version": "2.2.0",
+  "description": "Claude Code plugin for Aurigraph AI Agents - 12 specialized agents with 80+ skills and comprehensive development tools",
   "main": "index.js",
   "author": "Aurigraph Development Team",
   "license": "MIT",
@@ -35,8 +35,8 @@
   },
   "claudePlugin": {
     "name": "Aurigraph Agents",
-    "version": "1.0.0",
-    "description": "12 specialized AI agents with 76+ skills for maximum productivity",
+    "version": "2.2.0",
+    "description": "12 specialized AI agents with 80+ skills and comprehensive code analysis, security scanning, performance profiling, and documentation generation",
     "agents": [
       {
         "id": "dlt-developer",
@@ -124,9 +124,9 @@
       }
     ],
     "skills": {
-      "total": 76,
-      "implemented": 6,
-      "documented": 70
+      "total": 80,
+      "implemented": 22,
+      "documented": 76
     },
     "configuration": {
       "file": "config.json",
