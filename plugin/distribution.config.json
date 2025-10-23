@@ -1,0 +1,250 @@
+{
+  "distribution": {
+    "name": "Jeeves4Coder Plugin",
+    "version": "1.0.0",
+    "description": "Sophisticated coding assistant plugin for Claude Code",
+    "channels": {
+      "npm": {
+        "enabled": true,
+        "registries": [
+          {
+            "name": "npm-public",
+            "url": "https://registry.npmjs.org",
+            "scope": "@aurigraph",
+            "access": "public",
+            "tag": "latest",
+            "enabled": false,
+            "notes": "Public distribution disabled - restricted to team"
+          },
+          {
+            "name": "npm-internal",
+            "url": "https://npm.aurigraph.io",
+            "scope": "@aurigraph",
+            "access": "restricted",
+            "tag": "latest",
+            "enabled": true,
+            "authentication": "token",
+            "tokenVar": "INTERNAL_NPM_TOKEN"
+          },
+          {
+            "name": "github-packages",
+            "url": "https://npm.pkg.github.com",
+            "scope": "@aurigraph-dlt-corp",
+            "access": "restricted",
+            "tag": "latest",
+            "enabled": true,
+            "authentication": "token",
+            "tokenVar": "GITHUB_TOKEN"
+          }
+        ]
+      },
+      "docker": {
+        "enabled": true,
+        "registries": [
+          {
+            "name": "docker-hub",
+            "url": "https://hub.docker.com",
+            "repository": "aurigraph/jeeves4coder-plugin",
+            "access": "public",
+            "enabled": false,
+            "notes": "Docker Hub distribution disabled - use GitHub Container Registry"
+          },
+          {
+            "name": "github-container-registry",
+            "url": "ghcr.io",
+            "repository": "aurigraph-dlt-corp/jeeves4coder-plugin",
+            "access": "restricted",
+            "enabled": true,
+            "authentication": "token",
+            "tokenVar": "GITHUB_TOKEN"
+          },
+          {
+            "name": "internal-registry",
+            "url": "registry.aurigraph.io",
+            "repository": "plugins/jeeves4coder",
+            "access": "restricted",
+            "enabled": true,
+            "authentication": "credentials",
+            "credentialsVar": "DOCKER_CREDENTIALS"
+          }
+        ]
+      },
+      "github": {
+        "enabled": true,
+        "repository": "Aurigraph-DLT-Corp/glowing-adventure",
+        "releases": true,
+        "discussions": true,
+        "packages": true,
+        "templates": [
+          "bug_report.md",
+          "feature_request.md",
+          "pull_request_template.md"
+        ]
+      },
+      "website": {
+        "enabled": true,
+        "url": "https://aurigraph.io",
+        "documentation": "https://docs.aurigraph.io/j4c",
+        "download": true,
+        "package": true
+      },
+      "marketplace": {
+        "enabled": true,
+        "platforms": [
+          {
+            "name": "claude-code-plugins",
+            "url": "https://plugins.claudecode.dev",
+            "enabled": false,
+            "notes": "Wait for official Claude Code plugin marketplace"
+          },
+          {
+            "name": "npm-js",
+            "url": "https://www.npmjs.com",
+            "enabled": false,
+            "notes": "Public npm not available - internal only"
+          },
+          {
+            "name": "open-vsx",
+            "url": "https://open-vsx.org",
+            "enabled": false,
+            "notes": "For VS Code extension distribution (if applicable)"
+          }
+        ]
+      }
+    },
+    "distribution_strategy": {
+      "phases": [
+        {
+          "phase": 1,
+          "name": "Internal Staging",
+          "channels": ["npm-internal"],
+          "audience": "Aurigraph Team",
+          "duration": "1-2 weeks"
+        },
+        {
+          "phase": 2,
+          "name": "Beta Testing",
+          "channels": ["npm-internal", "github-packages"],
+          "audience": "Selected Partners",
+          "duration": "2-4 weeks"
+        },
+        {
+          "phase": 3,
+          "name": "Limited Release",
+          "channels": ["npm-internal", "github-packages", "github-container-registry"],
+          "audience": "Team Members",
+          "duration": "Open"
+        }
+      ]
+    },
+    "artifact_signing": {
+      "enabled": true,
+      "method": "gpg",
+      "keyId": "${GPG_KEY_ID}",
+      "passphrase": "${GPG_PASSPHRASE}"
+    },
+    "distribution_metadata": {
+      "author": "Aurigraph Development Team",
+      "email": "agents@aurigraph.io",
+      "license": "Proprietary",
+      "homepage": "https://github.com/Aurigraph-DLT-Corp/glowing-adventure",
+      "repository": "git+https://github.com/Aurigraph-DLT-Corp/glowing-adventure.git",
+      "bugs": "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/issues",
+      "keywords": [
+        "claude-code",
+        "plugin",
+        "code-review",
+        "refactoring",
+        "architecture",
+        "performance",
+        "security",
+        "testing",
+        "aurigraph"
+      ],
+      "categories": ["Development", "Coding Assistant", "Code Quality"],
+      "tags": ["plugin", "claude-code", "ai-assistant", "code-review"]
+    },
+    "distribution_channels": {
+      "direct_download": {
+        "enabled": true,
+        "url": "https://releases.aurigraph.io/jeeves4coder-plugin",
+        "formats": ["zip", "tar.gz", "tar.bz2"]
+      },
+      "package_managers": {
+        "npm": true,
+        "yarn": true,
+        "pnpm": true,
+        "bun": true
+      },
+      "container_registries": {
+        "docker_hub": false,
+        "github_container_registry": true,
+        "internal_registry": true,
+        "quay": false,
+        "ecr": false
+      },
+      "documentation": {
+        "readme": true,
+        "installation_guide": true,
+        "usage_guide": true,
+        "api_documentation": true,
+        "troubleshooting": true,
+        "examples": true,
+        "changelog": true
+      }
+    },
+    "verification": {
+      "checksums": {
+        "enabled": true,
+        "algorithms": ["sha256", "sha512", "md5"]
+      },
+      "signatures": {
+        "enabled": true,
+        "method": "gpg",
+        "publicKey": "${GPG_PUBLIC_KEY_URL}"
+      },
+      "integrity_checks": {
+        "enabled": true,
+        "npm": {
+          "npm_audit": true,
+          "npm_info": true,
+          "package_size": true
+        },
+        "docker": {
+          "image_scan": true,
+          "layer_analysis": true,
+          "signature_check": true
+        }
+      }
+    },
+    "release_notes": {
+      "enabled": true,
+      "format": "markdown",
+      "sections": [
+        "Features",
+        "Improvements",
+        "Bug Fixes",
+        "Security Updates",
+        "Dependencies Updated",
+        "Known Issues",
+        "Deprecated Features",
+        "Migration Guide"
+      ]
+    },
+    "support": {
+      "email": "agents@aurigraph.io",
+      "slack": "#aurigraph-agents",
+      "github_issues": "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/issues",
+      "documentation": "https://docs.aurigraph.io/j4c",
+      "community": "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/discussions"
+    },
+    "metrics": {
+      "track_downloads": true,
+      "track_installations": true,
+      "track_usage": true,
+      "analytics_provider": "mixpanel",
+      "privacy_compliant": true,
+      "data_collection": "opt-in"
+    }
+  }
+}
