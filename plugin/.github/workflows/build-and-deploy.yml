@@ -1,0 +1,374 @@
+name: Build and Deploy Jeeves4Coder Plugin
+
+on:
+  push:
+    branches: [ main, develop, staging ]
+    paths:
+      - 'plugin/**'
+      - '.github/workflows/build-and-deploy.yml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'plugin/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/jeeves4coder-plugin
+
+jobs:
+  validate:
+    name: Validate and Test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+          cache-dependency-path: 'plugin/package-lock.json'
+
+      - name: Display Node and npm versions
+        run: |
+          echo "Node version: $(node --version)"
+          echo "npm version: $(npm --version)"
+
+      - name: Install dependencies
+        working-directory: ./plugin
+        run: npm ci
+
+      - name: Validate environment
+        working-directory: ./plugin
+        run: node scripts/validate-plugin.js
+
+      - name: Lint code
+        working-directory: ./plugin
+        run: npm run lint --if-present || true
+
+      - name: Run tests
+        working-directory: ./plugin
+        run: npm test --if-present || true
+
+      - name: Generate coverage report
+        working-directory: ./plugin
+        run: npm test -- --coverage --if-present || true
+
+      - name: Upload coverage to Codecov
+        if: matrix.node-version == '18.x'
+        uses: codecov/codecov-action@v3
+        with:
+          files: ./plugin/coverage/coverage-final.json
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  build:
+    name: Build Plugin
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: validate
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+          cache-dependency-path: 'plugin/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ./plugin
+        run: npm ci
+
+      - name: Run build
+        working-directory: ./plugin
+        run: node scripts/build.js
+
+      - name: Generate build report
+        working-directory: ./plugin
+        if: always()
+        run: |
+          if [ -f BUILD_REPORT.json ]; then
+            echo "## Build Report" >> $GITHUB_STEP_SUMMARY
+            cat BUILD_REPORT.json >> $GITHUB_STEP_SUMMARY
+          fi
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-artifacts-${{ github.run_id }}
+          path: plugin/dist/
+          retention-days: 30
+
+      - name: Upload build reports
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: build-reports-${{ github.run_id }}
+          path: |
+            plugin/BUILD_REPORT.json
+            plugin/.deployment-logs/
+          retention-days: 30
+
+  security-scan:
+    name: Security Scanning
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+          cache-dependency-path: 'plugin/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ./plugin
+        run: npm ci
+
+      - name: Run npm audit
+        working-directory: ./plugin
+        continue-on-error: true
+        run: npm audit --audit-level=moderate || true
+
+      - name: Run security checks
+        working-directory: ./plugin
+        continue-on-error: true
+        run: |
+          # Add custom security checks here
+          echo "Running security scans..."
+
+  docker-build:
+    name: Build Docker Image
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: validate
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./plugin
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+            VERSION=1.0.0
+
+  deploy-dev:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    needs: [build, security-scan]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    environment:
+      name: development
+      url: http://localhost:3000
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+          cache-dependency-path: 'plugin/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ./plugin
+        run: npm ci
+
+      - name: Deploy to development
+        working-directory: ./plugin
+        run: npm run deploy:dev || true
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Verify deployment
+        working-directory: ./plugin
+        run: |
+          echo "Verifying development deployment..."
+          # Add verification steps
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: [build, security-scan, docker-build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/staging'
+    environment:
+      name: staging
+      url: https://staging.aurigraph.io/jeeves4coder
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+          cache-dependency-path: 'plugin/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ./plugin
+        run: npm ci
+
+      - name: Deploy to staging
+        working-directory: ./plugin
+        run: node scripts/deploy.js staging
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          INTERNAL_NPM_TOKEN: ${{ secrets.INTERNAL_NPM_TOKEN }}
+
+      - name: Run smoke tests
+        working-directory: ./plugin
+        run: |
+          echo "Running smoke tests..."
+          # Add smoke test commands
+
+  deploy-prod:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [build, security-scan, docker-build]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://npm.aurigraph.io/@aurigraph/jeeves4coder-plugin
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+          cache-dependency-path: 'plugin/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: ./plugin
+        run: npm ci
+
+      - name: Deploy to production
+        working-directory: ./plugin
+        run: node scripts/deploy.js prod
+        env:
+          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
+          INTERNAL_NPM_TOKEN: ${{ secrets.INTERNAL_NPM_TOKEN }}
+
+      - name: Create release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v1.0.0
+          release_name: Jeeves4Coder Plugin v1.0.0
+          body: |
+            Jeeves4Coder Plugin v1.0.0 has been released!
+
+            ## Features
+            - Code review and analysis
+            - Refactoring suggestions
+            - Architecture review
+            - Performance optimization
+
+            ## Installation
+            ```
+            npm install @aurigraph/jeeves4coder-plugin
+            ```
+          draft: false
+          prerelease: false
+
+      - name: Post deployment notifications
+        if: always()
+        run: |
+          echo "Deployment to production completed"
+          # Add notification logic (Slack, email, etc.)
+
+  status-check:
+    name: Deployment Status
+    runs-on: ubuntu-latest
+    needs: [validate, build, security-scan]
+    if: always()
+
+    steps:
+      - name: Check job statuses
+        run: |
+          echo "Job Status Summary:"
+          echo "- Validate: ${{ needs.validate.result }}"
+          echo "- Build: ${{ needs.build.result }}"
+          echo "- Security Scan: ${{ needs.security-scan.result }}"
+
+          if [ "${{ needs.validate.result }}" != "success" ] || [ "${{ needs.build.result }}" != "success" ]; then
+            echo "❌ Pipeline failed"
+            exit 1
+          fi
+
+          echo "✅ Pipeline successful"

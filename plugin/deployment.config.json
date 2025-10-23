@@ -1,0 +1,215 @@
+{
+  "deployment": {
+    "name": "Jeeves4Coder Plugin",
+    "version": "1.0.0",
+    "type": "claude-code-plugin",
+    "environment": {
+      "development": {
+        "enabled": true,
+        "registry": "http://localhost:4873",
+        "scope": "@aurigraph",
+        "access": "public",
+        "debug": true,
+        "logging": "verbose"
+      },
+      "staging": {
+        "enabled": true,
+        "registry": "https://staging-npm.aurigraph.io",
+        "scope": "@aurigraph",
+        "access": "restricted",
+        "debug": true,
+        "logging": "debug"
+      },
+      "production": {
+        "enabled": true,
+        "registry": "https://npm.aurigraph.io",
+        "scope": "@aurigraph",
+        "access": "restricted",
+        "debug": false,
+        "logging": "info"
+      }
+    },
+    "build": {
+      "outputDir": "dist",
+      "sourceDir": "src",
+      "testDir": "tests",
+      "buildTools": {
+        "bundler": "webpack",
+        "linter": "eslint",
+        "formatter": "prettier",
+        "testRunner": "jest"
+      },
+      "optimization": {
+        "minify": true,
+        "treeshake": true,
+        "compress": true,
+        "sourceMap": true
+      },
+      "quality": {
+        "linting": {
+          "enabled": true,
+          "strict": true,
+          "failOnWarnings": false
+        },
+        "testing": {
+          "enabled": true,
+          "minCoverage": 80,
+          "failOnLowCoverage": true
+        },
+        "security": {
+          "enabled": true,
+          "scanDependencies": true,
+          "auditLevel": "moderate"
+        }
+      }
+    },
+    "publishing": {
+      "npm": {
+        "enabled": true,
+        "prepublish": "npm run build && npm run test",
+        "registry": "${REGISTRY}",
+        "token": "${NPM_TOKEN}",
+        "scope": "@aurigraph",
+        "tag": "latest"
+      },
+      "github": {
+        "enabled": true,
+        "releases": true,
+        "packageRegistry": true
+      },
+      "internal": {
+        "enabled": true,
+        "registry": "https://npm.aurigraph.io",
+        "token": "${INTERNAL_NPM_TOKEN}"
+      }
+    },
+    "installation": {
+      "preInstall": [
+        "node scripts/validate-environment.js",
+        "npm run check:dependencies"
+      ],
+      "postInstall": [
+        "npm run setup",
+        "npm run verify"
+      ],
+      "verificationSteps": [
+        "Check Node.js version >= 18.0.0",
+        "Verify npm version >= 9.0.0",
+        "Test plugin loading",
+        "Validate configuration",
+        "Run smoke tests"
+      ]
+    },
+    "deployment": {
+      "strategy": "rolling",
+      "maxRetries": 3,
+      "retryDelay": 5000,
+      "timeout": 60000,
+      "healthCheck": {
+        "enabled": true,
+        "interval": 30000,
+        "timeout": 5000,
+        "path": "/health",
+        "expectedStatus": 200
+      },
+      "rollback": {
+        "enabled": true,
+        "onFailure": true,
+        "keepBackup": true
+      }
+    },
+    "environments": {
+      "local": {
+        "description": "Local development machine",
+        "install": "npm install .",
+        "build": "npm run build:dev",
+        "test": "npm test",
+        "deploy": "npm run setup"
+      },
+      "docker": {
+        "description": "Docker container deployment",
+        "image": "aurigraph/jeeves4coder-plugin:latest",
+        "registry": "ghcr.io",
+        "buildArgs": {
+          "NODE_VERSION": "18-alpine",
+          "NPM_VERSION": "9"
+        }
+      },
+      "kubernetes": {
+        "description": "Kubernetes cluster deployment",
+        "namespace": "aurigraph-plugins",
+        "replicas": 3,
+        "resources": {
+          "requests": {
+            "cpu": "100m",
+            "memory": "128Mi"
+          },
+          "limits": {
+            "cpu": "500m",
+            "memory": "512Mi"
+          }
+        }
+      },
+      "serverless": {
+        "description": "AWS Lambda / Cloud Functions",
+        "runtime": "nodejs18.x",
+        "timeout": 60,
+        "memorySize": 256
+      }
+    },
+    "monitoring": {
+      "enabled": true,
+      "metrics": {
+        "enabled": true,
+        "interval": 60000,
+        "exporters": ["prometheus", "cloudwatch", "datadog"]
+      },
+      "logging": {
+        "enabled": true,
+        "level": "info",
+        "transports": ["console", "file", "sentry"]
+      },
+      "alerting": {
+        "enabled": true,
+        "channels": ["slack", "email", "pagerduty"],
+        "rules": [
+          {
+            "name": "high_error_rate",
+            "threshold": 5,
+            "unit": "percent",
+            "action": "alert"
+          },
+          {
+            "name": "deployment_failure",
+            "threshold": 1,
+            "unit": "count",
+            "action": "alert"
+          }
+        ]
+      }
+    },
+    "artifacts": {
+      "retention": {
+        "builds": 30,
+        "days": 90
+      },
+      "storage": {
+        "type": "s3",
+        "bucket": "aurigraph-artifacts",
+        "prefix": "jeeves4coder-plugin/"
+      }
+    },
+    "rollbackPolicy": {
+      "enabled": true,
+      "keepPreviousVersions": 5,
+      "autoRollbackOnFailure": true,
+      "rollbackTimeout": 300000
+    },
+    "compliance": {
+      "securityScanning": true,
+      "licenseCheck": true,
+      "auditLog": true,
+      "signedReleases": true
+    }
+  }
+}
