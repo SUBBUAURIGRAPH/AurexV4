@@ -16,6 +16,7 @@ import { requestLogger, performanceLogger } from './middleware/logging';
 
 // Import routes
 import authRoutes from './api/routes/auth.routes';
+import apiKeyRoutes from './api/routes/apikey.routes';
 import strategyRoutes from './api/routes/strategies.routes';
 import indicatorRoutes from './api/routes/indicators.routes';
 import backtestRoutes from './api/routes/backtests.routes';
@@ -107,6 +108,7 @@ app.get('/health', async (req, res) => {
 // ============================================================================
 
 app.use('/api/v1/auth', authRoutes);
+app.use('/api/v1/apikeys', apiKeyRoutes);
 app.use('/api/v1/strategies', strategyRoutes);
 app.use('/api/v1/indicators', indicatorRoutes);
 app.use('/api/v1/backtests', backtestRoutes);

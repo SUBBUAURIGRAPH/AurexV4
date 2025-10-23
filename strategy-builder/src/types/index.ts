@@ -45,6 +45,27 @@ export interface JWTPayload {
   exp: number;
 }
 
+export interface IAPIKey extends Document {
+  _id: string;
+  userId: string;
+  name: string;
+  keyHash: string;
+  keyPrefix: string;
+  description?: string;
+  permissions: string[];
+  isActive: boolean;
+  lastUsed?: Date;
+  expiresAt?: Date;
+  rateLimit: number;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface APIKeyRequest extends Request {
+  user?: IUser;
+  apiKey?: IAPIKey;
+}
+
 // ============================================================================
 // STRATEGY TYPES
 // ============================================================================
