@@ -375,6 +375,17 @@ See `docs/SKILLS.md` for complete skills matrix.
 
 ## Usage Guidelines
 
+### SPARC Framework (Default)
+
+**All development now uses the SPARC Framework** for structured, high-quality outcomes:
+- **Phase 1**: Specification (define requirements)
+- **Phase 2**: Pseudocode (design logic)
+- **Phase 3**: Architecture (design systems)
+- **Phase 4**: Refinement (optimize & test plan)
+- **Phase 5**: Completion (implement & deploy)
+
+See `docs/SPARC_FRAMEWORK.md` for complete guidelines.
+
 ### For Individual Users
 
 1. **Installation**:
@@ -398,6 +409,7 @@ See `docs/SKILLS.md` for complete skills matrix.
 3. **Learn More**:
    - Complete onboarding (30 min): `cat .claude/docs/ONBOARDING_GUIDE.md`
    - See examples: `cat .claude/docs/AGENT_USAGE_EXAMPLES.md`
+   - **New**: SPARC Framework: `cat .claude/docs/SPARC_FRAMEWORK.md`
    - Join #claude-agents on Slack
 
 ### For Teams

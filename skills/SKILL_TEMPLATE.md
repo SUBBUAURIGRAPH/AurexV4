@@ -7,6 +7,37 @@
 **Owner**: [Team Name]
 **Last Updated**: YYYY-MM-DD
 
+---
+
+## SPARC Framework Phases
+
+This skill follows the **SPARC Framework** for structured development. Track progress here:
+
+- **Phase 1 - Specification**: ✓ Complete (or 🔄 In Progress)
+  - Define functional requirements
+  - Define technical requirements
+  - Document success metrics
+- **Phase 2 - Pseudocode**: ✓ Complete (or 🔄 In Progress)
+  - High-level algorithm design
+  - Data structures defined
+  - Integration points mapped
+- **Phase 3 - Architecture**: ✓ Complete (or 🔄 In Progress)
+  - System design finalized
+  - API specifications drafted
+  - Security approach defined
+- **Phase 4 - Refinement**: ✓ Complete (or 🔄 In Progress)
+  - Design optimizations applied
+  - Testing strategy finalized
+  - Code standards documented
+- **Phase 5 - Completion**: ✓ Complete (or 🔄 In Progress)
+  - Code implementation done
+  - Tests passing (80%+ coverage)
+  - Documentation complete
+
+> For more info on SPARC Framework, see `docs/SPARC_FRAMEWORK.md`
+
+---
+
 ## Overview
 
 [2-3 paragraphs describing what this skill does, why it's useful, and how it fits into the broader platform]

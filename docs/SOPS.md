@@ -9,12 +9,13 @@
 ## Table of Contents
 
 1. [Purpose & Scope](#purpose--scope)
-2. [Agent Quality Standards](#agent-quality-standards)
-3. [Agent Usage SOPs](#agent-usage-sops)
-4. [Skill Implementation SOPs](#skill-implementation-sops)
-5. [Quality Assurance Procedures](#quality-assurance-procedures)
-6. [Incident Response](#incident-response)
-7. [Continuous Improvement](#continuous-improvement)
+2. [SPARC Framework SOPs](#sparc-framework-sops) ⭐ **NEW**
+3. [Agent Quality Standards](#agent-quality-standards)
+4. [Agent Usage SOPs](#agent-usage-sops)
+5. [Skill Implementation SOPs](#skill-implementation-sops)
+6. [Quality Assurance Procedures](#quality-assurance-procedures)
+7. [Incident Response](#incident-response)
+8. [Continuous Improvement](#continuous-improvement)
 
 ---
 
@@ -30,6 +31,171 @@ These SOPs ensure consistent, high-quality use and development of the Aurigraph 
 - Documentation standards
 - Team collaboration
 - Incident response
+- **NEW**: SPARC Framework methodology for all development
+
+---
+
+## SPARC Framework SOPs
+
+### Overview
+
+**SPARC Framework** (Specification, Pseudocode, Architecture, Refinement, Completion) is the default methodology for all Aurigraph Agent Architecture development. These SOPs ensure consistent application across all teams.
+
+**Framework Reference**: See `docs/SPARC_FRAMEWORK.md` for detailed guidance.
+
+### SOP 0.1: When to Use SPARC
+
+**Apply SPARC Framework for**:
+- ✅ Creating new agents
+- ✅ Implementing new skills
+- ✅ Major feature enhancements
+- ✅ Critical integrations
+- ✅ Architectural decisions
+- ✅ Important documentation
+
+**Skip SPARC Framework for**:
+- ⏭️ Minor bug fixes
+- ⏭️ Small documentation updates
+- ⏭️ Simple refactoring
+- ⏭️ Template copying without changes
+
+### SOP 0.2: Phase Gate Process
+
+**Phase Transition Requirements**:
+
+Each phase must be marked complete before proceeding to the next. Use this checklist for phase gates:
+
+**Specification → Pseudocode Gate**:
+- [ ] All functional requirements documented
+- [ ] All technical requirements documented
+- [ ] User journeys mapped
+- [ ] Success metrics defined
+- [ ] Constraints identified
+- [ ] Team alignment confirmed
+- [ ] Stakeholder sign-off received
+
+**Pseudocode → Architecture Gate**:
+- [ ] Pseudocode complete and reviewed
+- [ ] Data structures fully defined
+- [ ] Integration points identified
+- [ ] Error scenarios documented
+- [ ] Technical review passed
+- [ ] Feasibility confirmed
+
+**Architecture → Refinement Gate**:
+- [ ] Architecture diagrams complete
+- [ ] All components specified
+- [ ] Security design complete
+- [ ] API specs drafted
+- [ ] Deployment plan sketched
+- [ ] Architecture review approved
+
+**Refinement → Completion Gate**:
+- [ ] Design review complete
+- [ ] Testing strategy detailed
+- [ ] Code standards documented
+- [ ] Documentation template prepared
+- [ ] Resource allocation confirmed
+
+**Completion → Deployment Gate**:
+- [ ] Code coverage at 80%+
+- [ ] All tests passing
+- [ ] Code review approved (2+ reviewers)
+- [ ] Documentation complete
+- [ ] Security review passed
+
+### SOP 0.3: SPARC Documentation Updates
+
+**In CONTEXT.md**:
+After each major phase, update the context file with:
+- New requirements or constraints discovered
+- Integration points identified
+- Technology choices made
+- Timeline adjustments
+
+**In TODO.md**:
+Add phase tracking like this:
+```markdown
+### [Skill/Agent Name]
+- Phase 1 - Specification: ✅ 2025-10-23
+- Phase 2 - Pseudocode: 🔄 In Progress (Est. 2025-10-24)
+- Phase 3 - Architecture: 📋 Pending
+- Phase 4 - Refinement: 📋 Pending
+- Phase 5 - Completion: 📋 Pending
+```
+
+**In PROMPTS.md**:
+Log when AI assistance is used for any SPARC phase:
+- Request prompt
+- Phase being worked on
+- Outcomes and deliverables
+
+### SOP 0.4: SPARC Phase Artifacts
+
+**Each phase must produce specific deliverables**:
+
+| Phase | Deliverables |
+|-------|--------------|
+| Specification | Requirements doc, user journeys, success metrics |
+| Pseudocode | Pseudocode, data structures, workflows |
+| Architecture | Architecture diagrams, API specs, design docs |
+| Refinement | Optimization plan, testing plan, code standards |
+| Completion | Production code, tests, documentation, deployment |
+
+**Artifact Review**:
+- All artifacts peer-reviewed before gate approval
+- Store in version control
+- Link to GitHub issues/PRs
+- Reference in PROMPTS.md
+
+### SOP 0.5: SPARC Quality Metrics
+
+**Track these metrics during SPARC execution**:
+
+| Metric | Phase | Target |
+|--------|-------|--------|
+| Requirements clarity | Specification | 95%+ |
+| Design completeness | Architecture | 100% |
+| Test coverage | Completion | 80%+ |
+| Documentation | Completion | 100% |
+| Code review approvals | Completion | 2+ |
+| Phase gate compliance | All | 100% |
+
+### SOP 0.6: SPARC Integration with Agents
+
+**When developing agents using SPARC**:
+
+1. **Specification Phase**: Define 5-8 core competencies and 4-11 skills
+2. **Pseudocode Phase**: Map agent-to-skill workflows and dependencies
+3. **Architecture Phase**: Design skill selection logic and integration
+4. **Refinement Phase**: Optimize skill selection and workflow
+5. **Completion Phase**: Document all skills and create usage examples
+
+See example agent templates in `docs/SPARC_FRAMEWORK.md`
+
+### SOP 0.7: SPARC Integration with Skills
+
+**When implementing skills using SPARC**:
+
+1. **Specification Phase**: Define functionality, parameters, success metrics
+2. **Pseudocode Phase**: Design execution logic and data structures
+3. **Architecture Phase**: Design components, APIs, and integrations
+4. **Refinement Phase**: Optimize algorithms and plan tests
+5. **Completion Phase**: Write production code, tests, and documentation
+
+Use `skills/SKILL_TEMPLATE.md` which now includes SPARC sections.
+
+### SOP 0.8: Approval Authority
+
+**Phase gate approvals by role**:
+
+| Phase | Approver | Notes |
+|-------|----------|-------|
+| Specification | Product Lead | Ensures requirements align with business |
+| Pseudocode | Tech Lead | Validates technical approach |
+| Architecture | Architect | Reviews system design |
+| Refinement | QA Lead | Approves testing strategy |
+| Completion | Release Manager | Sign-off before deployment |
 
 ---
 
