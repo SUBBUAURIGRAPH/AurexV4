@@ -1,0 +1,45 @@
+{
+  "name": "@aurigraph/developer-tools-helpers",
+  "version": "1.0.0",
+  "description": "Helper utilities for Developer Tools Framework Phase 5",
+  "main": "index.js",
+  "scripts": {
+    "test": "jest",
+    "test:coverage": "jest --coverage",
+    "test:watch": "jest --watch",
+    "test:verbose": "jest --verbose"
+  },
+  "keywords": [
+    "security",
+    "ast",
+    "static-analysis",
+    "code-quality",
+    "developer-tools"
+  ],
+  "author": "Aurigraph Agent Architecture",
+  "license": "MIT",
+  "devDependencies": {
+    "jest": "^29.7.0"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "coverageDirectory": "coverage",
+    "collectCoverageFrom": [
+      "*.js",
+      "!__tests__/**",
+      "!coverage/**",
+      "!node_modules/**"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 80,
+        "functions": 80,
+        "lines": 80,
+        "statements": 80
+      }
+    },
+    "testMatch": [
+      "**/__tests__/**/*.test.js"
+    ]
+  }
+}

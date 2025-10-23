@@ -14,6 +14,8 @@ const axios = require('axios');
 require('dotenv').config();
 
 const EnvironmentLoader = require('./environment-loader');
+const SkillExecutor = require('./skill-executor');
+const SkillManager = require('./skill-manager');
 
 class AurigraphAgentsPlugin {
   constructor(config = {}) {
@@ -24,11 +26,15 @@ class AurigraphAgentsPlugin {
     this.projectContext = null;
     this.agents = this.loadAgents();
     this.skills = this.loadSkills();
+
+    // Initialize Skill Executor Framework
+    this.skillExecutor = null;
+    this.skillManager = null;
   }
 
   /**
    * Initialize the Aurigraph Agent environment
-   * Loads all project files including credentials
+   * Loads all project files including credentials and initializes Skill Executor Framework
    */
   async initializeEnvironment(options = {}) {
     try {
@@ -48,16 +54,58 @@ class AurigraphAgentsPlugin {
         environment: this.environmentLoader.environment
       };
 
+      // Initialize Skill Executor Framework
+      await this.initializeSkillExecutor(options);
+
       if (options.verbose) {
         console.log('\n✅ Aurigraph Agent environment initialized');
         console.log(`   - Project Root: ${this.environmentLoader.projectRoot}`);
         console.log(`   - Environment: ${this.environmentLoader.environment}`);
         console.log(`   - Files Loaded: ${Object.keys(this.projectContext.files).length}`);
+        console.log(`   - Skills Available: ${this.skillManager ? this.skillManager.registry.size : 0}`);
       }
 
       return result;
     } catch (error) {
       console.error('Failed to initialize environment:', error.message);
+      throw error;
+    }
+  }
+
+  /**
+   * Initialize the Skill Executor Framework
+   */
+  async initializeSkillExecutor(options = {}) {
+    try {
+      // Initialize Skill Manager
+      this.skillManager = new SkillManager({
+        skillsPath: path.join(__dirname, 'skills'),
+        verbose: options.verbose || false
+      });
+
+      await this.skillManager.initialize();
+
+      // Initialize Skill Executor
+      this.skillExecutor = new SkillExecutor({
+        skillsPath: path.join(__dirname, 'skills'),
+        environmentLoader: this.environmentLoader,
+        verbose: options.verbose || false,
+        defaultTimeout: this.config.defaults.timeout * 1000, // Convert to ms
+        maxRetries: this.config.defaults.retries
+      });
+
+      await this.skillExecutor.initialize();
+
+      if (options.verbose) {
+        console.log('✅ Skill Executor Framework initialized');
+      }
+
+      return {
+        success: true,
+        skillsAvailable: this.skillManager.registry.size
+      };
+    } catch (error) {
+      console.error('Failed to initialize Skill Executor:', error.message);
       throw error;
     }
   }
@@ -185,15 +233,30 @@ class AurigraphAgentsPlugin {
 
   /**
    * Execute agent/skill logic
-   * This is a simplified version - actual implementation would integrate with Hermes APIs
+   * Now integrates with Skill Executor Framework for dynamic skill execution
    */
   async execute(agentId, skillId, params) {
-    // For now, return simulated success
-    // In production, this would:
-    // 1. Parse the task from params
-    // 2. Call appropriate Hermes APIs or scripts
-    // 3. Return actual results
+    // If skill executor is available and skill exists, use it
+    if (this.skillExecutor && skillId) {
+      try {
+        const result = await this.skillExecutor.execute(skillId, params);
+        return {
+          success: result.success,
+          output: result.result,
+          executionTime: result.executionTime,
+          executionId: result.executionId
+        };
+      } catch (error) {
+        // If skill not found in executor, fall back to legacy behavior
+        if (error.name === 'SkillNotFoundError') {
+          console.log(`Skill ${skillId} not found in executor, using legacy execution`);
+        } else {
+          throw error;
+        }
+      }
+    }
 
+    // Legacy execution path for backward compatibility
     console.log(`Executing ${agentId}${skillId ? '/' + skillId : ''}`);
     console.log('Parameters:', params);
 
@@ -204,6 +267,72 @@ class AurigraphAgentsPlugin {
       success: true,
       output: `Agent ${agentId} executed successfully`
     };
+  }
+
+  /**
+   * Execute a skill directly using the Skill Executor Framework
+   */
+  async executeSkill(skillName, parameters = {}, options = {}) {
+    if (!this.skillExecutor) {
+      throw new Error('Skill Executor not initialized. Call initializeEnvironment() first.');
+    }
+
+    return await this.skillExecutor.execute(skillName, parameters, options);
+  }
+
+  /**
+   * List all executable skills from Skill Executor Framework
+   */
+  async listExecutableSkills() {
+    if (!this.skillExecutor) {
+      return [];
+    }
+
+    return await this.skillExecutor.listSkills();
+  }
+
+  /**
+   * Get skill metadata from Skill Manager
+   */
+  getExecutableSkillMetadata(skillName) {
+    if (!this.skillManager) {
+      return null;
+    }
+
+    return this.skillManager.getSkill(skillName);
+  }
+
+  /**
+   * Search for skills in the registry
+   */
+  searchExecutableSkills(query) {
+    if (!this.skillManager) {
+      return [];
+    }
+
+    return this.skillManager.searchSkills(query);
+  }
+
+  /**
+   * Get skill execution metrics
+   */
+  getSkillExecutionMetrics() {
+    if (!this.skillExecutor) {
+      return null;
+    }
+
+    return this.skillExecutor.getMetrics();
+  }
+
+  /**
+   * Get skill execution history
+   */
+  getSkillExecutionHistory(limit = 20) {
+    if (!this.skillExecutor) {
+      return [];
+    }
+
+    return this.skillExecutor.getExecutionHistory(limit);
   }
 
   /**
