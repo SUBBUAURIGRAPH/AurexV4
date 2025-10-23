@@ -1,0 +1,92 @@
+{
+  "slack": {
+    "enabled": true,
+    "webhookUrl": "${SLACK_WEBHOOK_URL}",
+    "channels": {
+      "announcements": {
+        "name": "#aurigraph-announcements",
+        "webhookUrl": "${SLACK_WEBHOOK_ANNOUNCEMENTS}",
+        "enabled": true,
+        "description": "Major announcements and releases"
+      },
+      "agents": {
+        "name": "#aurigraph-agents",
+        "webhookUrl": "${SLACK_WEBHOOK_AGENTS}",
+        "enabled": true,
+        "description": "Team discussion and updates"
+      },
+      "dev": {
+        "name": "#aurigraph-dev",
+        "webhookUrl": "${SLACK_WEBHOOK_DEV}",
+        "enabled": true,
+        "description": "Development and technical discussions"
+      },
+      "releases": {
+        "name": "#releases",
+        "webhookUrl": "${SLACK_WEBHOOK_RELEASES}",
+        "enabled": true,
+        "description": "Automated release notifications"
+      }
+    },
+    "notifications": {
+      "distribution": {
+        "enabled": true,
+        "channels": ["announcements", "agents", "releases"],
+        "mention": "@aurigraph-team",
+        "emoji": "📦"
+      },
+      "release": {
+        "enabled": true,
+        "channels": ["announcements", "releases"],
+        "mention": "@channel",
+        "emoji": "🚀"
+      },
+      "deployment": {
+        "enabled": true,
+        "channels": ["dev", "releases"],
+        "mention": "@dev-team",
+        "emoji": "🔧"
+      },
+      "success": {
+        "enabled": true,
+        "channels": ["agents"],
+        "mention": "",
+        "emoji": "✅"
+      }
+    },
+    "messageTemplates": {
+      "distribution": {
+        "title": "J4C Plugin Distribution",
+        "color": "#36a64f",
+        "icon": "📦"
+      },
+      "release": {
+        "title": "J4C Plugin Release",
+        "color": "#0099ff",
+        "icon": "🚀"
+      },
+      "deployment": {
+        "title": "J4C Plugin Deployment",
+        "color": "#ff9900",
+        "icon": "🔧"
+      },
+      "success": {
+        "title": "Distribution Complete",
+        "color": "#00aa00",
+        "icon": "✅"
+      }
+    },
+    "formatting": {
+      "use_blocks": true,
+      "include_metadata": true,
+      "include_buttons": true,
+      "include_threads": false,
+      "thread_ts": null
+    },
+    "retry": {
+      "enabled": true,
+      "maxRetries": 3,
+      "delayMs": 1000
+    }
+  }
+}
