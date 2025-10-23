@@ -25,8 +25,262 @@ const path = require('path');
 const chalk = require('chalk');
 
 /**
+ * Memory Manager for Jeeves4Coder
+ * Prevents IDE crashes by monitoring and managing memory usage
+ */
+class MemoryManager {
+  constructor(options = {}) {
+    this.maxMemoryMB = options.maxMemoryMB || 512; // 512 MB limit
+    this.warningThresholdPercent = options.warningThresholdPercent || 80;
+    this.criticalThresholdPercent = options.criticalThresholdPercent || 95;
+    this.checkIntervalMs = options.checkIntervalMs || 1000;
+    this.maxRunawayDetectionMs = options.maxRunawayDetectionMs || 30000; // 30 second timeout
+    this.memoryHistory = [];
+    this.maxHistoryLength = 100;
+    this.runawayDetectionEnabled = true;
+    this.lastExecutionTime = 0;
+    this.executionStartTime = null;
+  }
+
+  /**
+   * Get current memory usage
+   */
+  getMemoryUsage() {
+    if (typeof process === 'undefined' || !process.memoryUsage) {
+      return { heapUsed: 0, heapTotal: 0, external: 0, rss: 0 };
+    }
+    return process.memoryUsage();
+  }
+
+  /**
+   * Check if memory usage is within acceptable limits
+   */
+  isMemoryHealthy() {
+    const usage = this.getMemoryUsage();
+    const heapUsedMB = usage.heapUsed / (1024 * 1024);
+    const usagePercent = (heapUsedMB / this.maxMemoryMB) * 100;
+
+    this.memoryHistory.push({
+      timestamp: Date.now(),
+      heapUsedMB,
+      usagePercent,
+      heapTotalMB: usage.heapTotal / (1024 * 1024),
+      rssMB: usage.rss / (1024 * 1024)
+    });
+
+    if (this.memoryHistory.length > this.maxHistoryLength) {
+      this.memoryHistory.shift();
+    }
+
+    return usagePercent < this.criticalThresholdPercent;
+  }
+
+  /**
+   * Get memory status
+   */
+  getMemoryStatus() {
+    const usage = this.getMemoryUsage();
+    const heapUsedMB = usage.heapUsed / (1024 * 1024);
+    const heapTotalMB = usage.heapTotal / (1024 * 1024);
+    const usagePercent = (heapUsedMB / this.maxMemoryMB) * 100;
+
+    return {
+      heapUsedMB: heapUsedMB.toFixed(2),
+      heapTotalMB: heapTotalMB.toFixed(2),
+      rssMB: (usage.rss / (1024 * 1024)).toFixed(2),
+      usagePercent: usagePercent.toFixed(2),
+      status: usagePercent > this.criticalThresholdPercent ? 'critical' :
+              usagePercent > this.warningThresholdPercent ? 'warning' : 'healthy',
+      history: this.memoryHistory.slice(-10)
+    };
+  }
+
+  /**
+   * Check for runaway execution (infinite loops, excessive processing)
+   */
+  detectRunaway() {
+    if (!this.runawayDetectionEnabled) return false;
+
+    if (this.executionStartTime) {
+      const elapsedMs = Date.now() - this.executionStartTime;
+      if (elapsedMs > this.maxRunawayDetectionMs) {
+        return {
+          detected: true,
+          elapsedMs,
+          timeout: this.maxRunawayDetectionMs,
+          message: `Runaway execution detected: ${elapsedMs}ms exceeds ${this.maxRunawayDetectionMs}ms limit`
+        };
+      }
+    }
+
+    return { detected: false };
+  }
+
+  /**
+   * Start execution timer
+   */
+  startExecution() {
+    this.executionStartTime = Date.now();
+  }
+
+  /**
+   * End execution timer
+   */
+  endExecution() {
+    if (this.executionStartTime) {
+      this.lastExecutionTime = Date.now() - this.executionStartTime;
+      this.executionStartTime = null;
+    }
+    return this.lastExecutionTime;
+  }
+
+  /**
+   * Force garbage collection (if available)
+   */
+  forceGarbageCollection() {
+    if (global.gc) {
+      global.gc();
+      return { success: true, message: 'Garbage collection triggered' };
+    }
+    return { success: false, message: 'Garbage collection not available (run with --expose-gc)' };
+  }
+
+  /**
+   * Clear memory history
+   */
+  clearHistory() {
+    this.memoryHistory = [];
+  }
+
+  /**
+   * Get memory trend (increasing, stable, decreasing)
+   */
+  getMemoryTrend() {
+    if (this.memoryHistory.length < 3) return 'insufficient-data';
+
+    const recent = this.memoryHistory.slice(-3);
+    const trend = recent[2].usagePercent - recent[0].usagePercent;
+
+    if (trend > 5) return 'increasing';
+    if (trend < -5) return 'decreasing';
+    return 'stable';
+  }
+}
+
+/**
+ * Runaway Condition Detector
+ * Identifies infinite loops, deadlocks, and excessive resource usage
+ */
+class RunawayDetector {
+  constructor(options = {}) {
+    this.timeoutMs = options.timeoutMs || 30000; // 30 second default
+    this.maxIterations = options.maxIterations || 100000;
+    this.maxRecursionDepth = options.maxRecursionDepth || 1000;
+    this.maxArraySize = options.maxArraySize || 10000000; // 10M elements
+    this.enableStackTrace = options.enableStackTrace || true;
+  }
+
+  /**
+   * Create a safe wrapper for potentially runaway code
+   */
+  createSafeWrapper(asyncFn, timeoutMs = this.timeoutMs) {
+    return async (...args) => {
+      return Promise.race([
+        asyncFn(...args),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error(`Execution timeout: ${timeoutMs}ms exceeded`)), timeoutMs)
+        )
+      ]);
+    };
+  }
+
+  /**
+   * Check for potential infinite loop patterns
+   */
+  detectInfiniteLoopPatterns(code) {
+    const patterns = [
+      { regex: /while\s*\(\s*true\s*\)/g, message: 'Infinite while loop detected' },
+      { regex: /for\s*\(\s*;\s*;\s*\)/g, message: 'Infinite for loop detected' },
+      { regex: /do\s*{[\s\S]*?}\s*while\s*\(\s*true\s*\)/g, message: 'Infinite do-while loop detected' }
+    ];
+
+    const issues = [];
+    patterns.forEach(pattern => {
+      if (pattern.regex.test(code)) {
+        issues.push({
+          pattern: pattern.message,
+          severity: 'critical',
+          recommendation: 'Add break condition or modify loop condition'
+        });
+      }
+    });
+
+    return issues;
+  }
+
+  /**
+   * Check for deep recursion patterns
+   */
+  detectDeepRecursion(code) {
+    const recursionMatches = code.match(/function\s+\w+\s*\([\s\S]*?\)\s*{[\s\S]*?\1\s*\(/g);
+    if (recursionMatches && recursionMatches.length > 0) {
+      return {
+        detected: true,
+        count: recursionMatches.length,
+        message: `${recursionMatches.length} potential recursive calls detected`,
+        recommendation: 'Ensure recursion has proper base case and depth limits'
+      };
+    }
+    return { detected: false };
+  }
+
+  /**
+   * Check for potential memory leaks
+   */
+  detectMemoryLeakPatterns(code) {
+    const patterns = [
+      { regex: /setInterval\s*\([^)]*\)/g, message: 'setInterval without clearInterval - potential memory leak' },
+      { regex: /addEventListener\s*\([^)]*\)/g, message: 'addEventListener without removeEventListener - potential memory leak' },
+      { regex: /new\s+\w+\s*\([\s\S]*?\)/g, message: 'Object creation in loop - potential memory leak' }
+    ];
+
+    const issues = [];
+    patterns.forEach(pattern => {
+      const matches = code.match(pattern.regex);
+      if (matches) {
+        issues.push({
+          pattern: pattern.message,
+          count: matches.length,
+          severity: 'major'
+        });
+      }
+    });
+
+    return issues;
+  }
+
+  /**
+   * Validate code for runaway conditions before execution
+   */
+  validateBeforeExecution(code) {
+    const results = {
+      infiniteLoops: this.detectInfiniteLoopPatterns(code),
+      recursion: this.detectDeepRecursion(code),
+      memoryLeaks: this.detectMemoryLeakPatterns(code),
+      isSafe: true
+    };
+
+    if (results.infiniteLoops.length > 0 || results.recursion.detected) {
+      results.isSafe = false;
+    }
+
+    return results;
+  }
+}
+
+/**
  * Jeeves4Coder Plugin Class
- * Main plugin class for Claude Code integration
+ * Main plugin class for Claude Code integration with memory management
  */
 class Jeeves4CoderPlugin {
   /**
@@ -35,7 +289,7 @@ class Jeeves4CoderPlugin {
    */
   constructor(config = {}) {
     this.name = 'Jeeves4Coder';
-    this.version = '1.0.0';
+    this.version = '1.1.0'; // Updated version with memory management
     this.author = 'Aurigraph Development Team';
     this.description = 'Sophisticated coding assistant for code review, refactoring, and architectural guidance';
 
@@ -44,13 +298,39 @@ class Jeeves4CoderPlugin {
       verbose: config.verbose || false,
       reviewDepth: config.reviewDepth || 'standard', // light, standard, deep
       outputFormat: config.outputFormat || 'detailed', // brief, standard, detailed
+      memoryManagementEnabled: config.memoryManagementEnabled !== false, // Default: enabled
+      runawayDetectionEnabled: config.runawayDetectionEnabled !== false, // Default: enabled
+      maxMemoryMB: config.maxMemoryMB || 512,
+      executionTimeoutMs: config.executionTimeoutMs || 30000,
       ...config
     };
+
+    // Initialize memory management
+    this.memoryManager = new MemoryManager({
+      maxMemoryMB: this.config.maxMemoryMB,
+      maxRunawayDetectionMs: this.config.executionTimeoutMs
+    });
+
+    // Initialize runaway detection
+    this.runawayDetector = new RunawayDetector({
+      timeoutMs: this.config.executionTimeoutMs
+    });
 
     this.skills = this.initializeSkills();
     this.languages = this.initializeLanguages();
     this.frameworks = this.initializeFrameworks();
     this.patterns = this.initializePatterns();
+
+    // Performance tracking
+    this.executionStats = {
+      totalExecutions: 0,
+      totalExecutionTimeMs: 0,
+      averageExecutionTimeMs: 0,
+      maxExecutionTimeMs: 0,
+      minExecutionTimeMs: Infinity,
+      runawayDetections: 0,
+      memoryWarnings: 0
+    };
   }
 
   /**
@@ -241,7 +521,7 @@ class Jeeves4CoderPlugin {
   }
 
   /**
-   * Execute a code review analysis
+   * Execute a code review analysis with memory and runaway protection
    * @param {Object} params - Review parameters
    * @returns {Object} Review results
    */
@@ -252,17 +532,74 @@ class Jeeves4CoderPlugin {
       throw new Error('Code parameter is required for code review');
     }
 
-    const review = {
-      summary: this.analyzeSummary(code),
-      strengths: this.identifyStrengths(code, language),
-      issues: this.identifyIssues(code, language, depth),
-      suggestions: this.generateSuggestions(code, language),
-      metrics: this.calculateMetrics(code, language),
-      recommendations: this.prioritizeRecommendations(code, language),
-      timestamp: new Date().toISOString()
-    };
+    // Check memory before execution
+    if (this.config.memoryManagementEnabled && !this.memoryManager.isMemoryHealthy()) {
+      const status = this.memoryManager.getMemoryStatus();
+      this.executionStats.memoryWarnings++;
+      throw new Error(`Memory limit exceeded: ${status.usagePercent}% of ${this.config.maxMemoryMB}MB limit`);
+    }
 
-    return review;
+    // Detect runaway conditions in code
+    if (this.config.runawayDetectionEnabled) {
+      const validation = this.runawayDetector.validateBeforeExecution(code);
+      if (!validation.isSafe) {
+        const issues = [...validation.infiniteLoops];
+        if (validation.recursion.detected) {
+          issues.push({
+            pattern: 'Recursion Risk',
+            severity: 'critical',
+            message: validation.recursion.message
+          });
+        }
+        return {
+          error: true,
+          message: 'Code contains potential runaway conditions',
+          issues,
+          recommendations: 'Fix the detected issues before executing code review',
+          timestamp: new Date().toISOString()
+        };
+      }
+    }
+
+    // Start execution timer
+    this.memoryManager.startExecution();
+    this.executionStats.totalExecutions++;
+
+    try {
+      const review = {
+        summary: this.analyzeSummary(code),
+        strengths: this.identifyStrengths(code, language),
+        issues: this.identifyIssues(code, language, depth),
+        suggestions: this.generateSuggestions(code, language),
+        metrics: this.calculateMetrics(code, language),
+        recommendations: this.prioritizeRecommendations(code, language),
+        timestamp: new Date().toISOString()
+      };
+
+      // Check for runaway execution during processing
+      const runawayCheck = this.memoryManager.detectRunaway();
+      if (runawayCheck.detected) {
+        this.executionStats.runawayDetections++;
+        return {
+          error: true,
+          ...runawayCheck,
+          partialResults: review
+        };
+      }
+
+      return review;
+    } catch (error) {
+      this.executionStats.runawayDetections++;
+      throw new Error(`Code review failed: ${error.message}`);
+    } finally {
+      // Track execution time
+      const executionTime = this.memoryManager.endExecution();
+      this.executionStats.totalExecutionTimeMs += executionTime;
+      this.executionStats.maxExecutionTimeMs = Math.max(this.executionStats.maxExecutionTimeMs, executionTime);
+      this.executionStats.minExecutionTimeMs = Math.min(this.executionStats.minExecutionTimeMs, executionTime);
+      this.executionStats.averageExecutionTimeMs =
+        this.executionStats.totalExecutionTimeMs / this.executionStats.totalExecutions;
+    }
   }
 
   /**
@@ -587,6 +924,58 @@ class Jeeves4CoderPlugin {
   }
 
   /**
+   * Get memory management status
+   * @returns {Object} Current memory status and health
+   */
+  getMemoryStatus() {
+    return this.memoryManager.getMemoryStatus();
+  }
+
+  /**
+   * Get execution statistics
+   * @returns {Object} Execution performance metrics
+   */
+  getExecutionStats() {
+    return {
+      ...this.executionStats,
+      memoryStatus: this.memoryManager.getMemoryStatus(),
+      memoryTrend: this.memoryManager.getMemoryTrend()
+    };
+  }
+
+  /**
+   * Validate code for runaway conditions
+   * @param {string} code - Code to validate
+   * @returns {Object} Validation results
+   */
+  validateCodeSafety(code) {
+    return this.runawayDetector.validateBeforeExecution(code);
+  }
+
+  /**
+   * Force garbage collection
+   * @returns {Object} GC result
+   */
+  forceGarbageCollection() {
+    return this.memoryManager.forceGarbageCollection();
+  }
+
+  /**
+   * Reset execution statistics
+   */
+  resetExecutionStats() {
+    this.executionStats = {
+      totalExecutions: 0,
+      totalExecutionTimeMs: 0,
+      averageExecutionTimeMs: 0,
+      maxExecutionTimeMs: 0,
+      minExecutionTimeMs: Infinity,
+      runawayDetections: 0,
+      memoryWarnings: 0
+    };
+  }
+
+  /**
    * Get plugin information
    */
   getInfo() {
@@ -598,7 +987,11 @@ class Jeeves4CoderPlugin {
       skills: Object.keys(this.skills).length,
       languages: Object.keys(this.languages).length,
       frameworks: Object.keys(this.frameworks),
-      patterns: Object.values(this.patterns).reduce((sum, arr) => sum + arr.length, 0)
+      patterns: Object.values(this.patterns).reduce((sum, arr) => sum + arr.length, 0),
+      memoryManagementEnabled: this.config.memoryManagementEnabled,
+      runawayDetectionEnabled: this.config.runawayDetectionEnabled,
+      maxMemoryMB: this.config.maxMemoryMB,
+      executionTimeoutMs: this.config.executionTimeoutMs
     };
   }
 
@@ -672,10 +1065,17 @@ module.exports = Jeeves4CoderPlugin;
  * CLI Usage
  */
 if (require.main === module) {
-  const plugin = new Jeeves4CoderPlugin({ verbose: true, debug: false });
+  const plugin = new Jeeves4CoderPlugin({
+    verbose: true,
+    debug: false,
+    memoryManagementEnabled: true,
+    runawayDetectionEnabled: true,
+    maxMemoryMB: 512,
+    executionTimeoutMs: 30000
+  });
 
-  console.log('\n' + chalk.bold.cyan('🤖 Jeeves4Coder Plugin v1.0.0'));
-  console.log(chalk.gray('Sophisticated coding assistant for Claude Code\n'));
+  console.log('\n' + chalk.bold.cyan('🤖 Jeeves4Coder Plugin v1.1.0 - WITH MEMORY MANAGEMENT'));
+  console.log(chalk.gray('Sophisticated coding assistant with IDE crash prevention\n'));
 
   const info = plugin.getInfo();
   console.log('Plugin Information:');
@@ -683,7 +1083,18 @@ if (require.main === module) {
   console.log(`  Version: ${info.version}`);
   console.log(`  Skills: ${info.skills}`);
   console.log(`  Languages: ${info.languages}`);
-  console.log(`  Design Patterns: ${info.patterns}\n`);
+  console.log(`  Design Patterns: ${info.patterns}`);
+  console.log(`  Memory Management: ${info.memoryManagementEnabled ? chalk.green('✓ ENABLED') : chalk.red('✗ DISABLED')}`);
+  console.log(`  Runaway Detection: ${info.runawayDetectionEnabled ? chalk.green('✓ ENABLED') : chalk.red('✗ DISABLED')}`);
+  console.log(`  Max Memory: ${info.maxMemoryMB}MB`);
+  console.log(`  Execution Timeout: ${info.executionTimeoutMs}ms\n`);
+
+  // Show memory status
+  const memoryStatus = plugin.getMemoryStatus();
+  console.log(chalk.bold('Memory Status:'));
+  console.log(`  Heap Used: ${memoryStatus.heapUsedMB}MB / ${memoryStatus.heapTotalMB}MB`);
+  console.log(`  RSS: ${memoryStatus.rssMB}MB`);
+  console.log(`  Usage: ${memoryStatus.usagePercent}% - Status: ${memoryStatus.status === 'healthy' ? chalk.green(memoryStatus.status) : chalk.yellow(memoryStatus.status)}\n`);
 
   // Example code review
   const exampleCode = `
@@ -696,9 +1107,32 @@ if (require.main === module) {
     }
   `;
 
-  console.log('Running example code review...\n');
-  plugin.executeCodeReview({ code: exampleCode }).then(review => {
-    console.log(chalk.bold('Review Results:'));
-    console.log(JSON.stringify(review, null, 2));
-  });
+  console.log(chalk.bold('Running safe code review...\n'));
+
+  // Validate code safety first
+  const safety = plugin.validateCodeSafety(exampleCode);
+  console.log(chalk.bold('Code Safety Check:'));
+  console.log(`  Infinite Loops: ${safety.infiniteLoops.length > 0 ? chalk.red('DETECTED') : chalk.green('✓ SAFE')}`);
+  console.log(`  Deep Recursion: ${safety.recursion.detected ? chalk.red('DETECTED') : chalk.green('✓ SAFE')}`);
+  console.log(`  Memory Leaks: ${safety.memoryLeaks.length > 0 ? chalk.yellow('POTENTIAL ISSUES') : chalk.green('✓ CLEAN')}`);
+  console.log(`  Overall Safety: ${safety.isSafe ? chalk.green('✓ SAFE TO EXECUTE') : chalk.red('✗ UNSAFE')}\n`);
+
+  // Execute review if safe
+  if (safety.isSafe) {
+    plugin.executeCodeReview({ code: exampleCode }).then(review => {
+      console.log(chalk.bold('Review Results:'));
+      console.log(JSON.stringify(review, null, 2));
+
+      // Show execution statistics
+      const stats = plugin.getExecutionStats();
+      console.log('\n' + chalk.bold('Execution Statistics:'));
+      console.log(`  Total Executions: ${stats.totalExecutions}`);
+      console.log(`  Average Time: ${stats.averageExecutionTimeMs.toFixed(2)}ms`);
+      console.log(`  Max Time: ${stats.maxExecutionTimeMs}ms`);
+      console.log(`  Memory Warnings: ${stats.memoryWarnings}`);
+      console.log(`  Runaway Detections: ${stats.runawayDetections}\n`);
+    });
+  } else {
+    console.log(chalk.red('Code failed safety check. Fix issues before executing.\n'));
+  }
 }
