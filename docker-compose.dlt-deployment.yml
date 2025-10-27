@@ -1,0 +1,142 @@
+version: '3.9'
+
+services:
+  # J4C Agent Plugin - Main Application
+  j4c-agent:
+    image: node:18-alpine
+    container_name: j4c-agent-plugin
+    working_dir: /app
+    volumes:
+      - ./plugin:/app
+      - j4c-logs:/app/logs
+    environment:
+      - NODE_ENV=production
+      - PORT=9003
+      - LOG_LEVEL=info
+      - HUBSPOT_API_KEY=${HUBSPOT_API_KEY:-}
+      - HUBSPOT_PORTAL_ID=${HUBSPOT_PORTAL_ID:-}
+      - JIRA_URL=https://aurigraphdlt.atlassian.net
+      - JIRA_API_KEY=${JIRA_API_KEY:-}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+    command: sh -c "npm install && node index.js"
+    ports:
+      - "9003:9003"
+    networks:
+      - j4c-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:9003', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.aurigraph.description=J4C Agent Plugin v1.0.0"
+      - "com.aurigraph.version=1.0.0"
+
+  # NGINX Reverse Proxy with SSL
+  nginx-proxy:
+    image: nginx:alpine
+    container_name: j4c-nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx-dlt.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt/live/aurcrt:/etc/nginx/ssl:ro
+      - j4c-nginx-logs:/var/log/nginx
+      - j4c-nginx-cache:/var/cache/nginx
+    networks:
+      - j4c-network
+    depends_on:
+      - j4c-agent
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "com.aurigraph.description=NGINX Reverse Proxy with SSL"
+
+  # PostgreSQL Database (Optional - for future use)
+  postgres:
+    image: postgres:15-alpine
+    container_name: j4c-postgres
+    environment:
+      - POSTGRES_USER=${DB_USER:-j4c_user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-j4c_password}
+      - POSTGRES_DB=${DB_NAME:-j4c_db}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8
+    volumes:
+      - j4c-postgres-data:/var/lib/postgresql/data
+    networks:
+      - j4c-network
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-j4c_user}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "com.aurigraph.description=PostgreSQL Database"
+
+  # Prometheus for Metrics Collection (Optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: j4c-prometheus
+    volumes:
+      - ./prometheus-dlt.yml:/etc/prometheus/prometheus.yml:ro
+      - j4c-prometheus-data:/prometheus
+    networks:
+      - j4c-network
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+    restart: unless-stopped
+    labels:
+      - "com.aurigraph.description=Prometheus Metrics"
+
+  # Grafana for Monitoring (Optional)
+  grafana:
+    image: grafana/grafana:latest
+    container_name: j4c-grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+    volumes:
+      - j4c-grafana-data:/var/lib/grafana
+    networks:
+      - j4c-network
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    labels:
+      - "com.aurigraph.description=Grafana Monitoring Dashboard"
+
+volumes:
+  j4c-logs:
+    driver: local
+  j4c-postgres-data:
+    driver: local
+  j4c-nginx-logs:
+    driver: local
+  j4c-nginx-cache:
+    driver: local
+  j4c-prometheus-data:
+    driver: local
+  j4c-grafana-data:
+    driver: local
+
+networks:
+  j4c-network:
+    driver: bridge
+    name: j4c-network
