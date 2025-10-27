@@ -1,0 +1,303 @@
+# Prometheus Alert Rules - J4C Agent Production System
+# Generated: October 27, 2025
+# Purpose: Comprehensive monitoring and alerting for production J4C deployment
+
+groups:
+  - name: j4c_core_alerts
+    interval: 30s
+    rules:
+      # ==========================================
+      # CRITICAL: Service Availability
+      # ==========================================
+
+      - alert: J4CAgentPluginDown
+        expr: up{job="j4c-agent"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: j4c-agent
+        annotations:
+          summary: "🔴 CRITICAL: J4C Agent Plugin is DOWN"
+          description: "J4C Agent service at {{ $labels.instance }} has been unreachable for 2+ minutes. Immediate investigation required."
+          dashboard: "https://dlt.aurigraph.io:3000/d/j4c-overview"
+
+      - alert: PostgreSQLDown
+        expr: up{job="postgres"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: postgres
+        annotations:
+          summary: "🔴 CRITICAL: PostgreSQL Database is DOWN"
+          description: "PostgreSQL has been unreachable for 2+ minutes. Database operations will fail."
+          dashboard: "https://dlt.aurigraph.io:3000/d/postgres-performance"
+
+      - alert: NGINXReverseProxyDown
+        expr: up{job="nginx"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          service: nginx
+        annotations:
+          summary: "🔴 CRITICAL: NGINX Reverse Proxy is DOWN"
+          description: "NGINX proxy has been unreachable for 2+ minutes. External traffic cannot reach services."
+          dashboard: "https://dlt.aurigraph.io:3000/d/infrastructure-health"
+
+      # ==========================================
+      # HIGH: Error Rates & Failures
+      # ==========================================
+
+      - alert: J4CHighErrorRate
+        expr: (rate(http_requests_total{job="j4c-agent",status=~"5.."}[5m]) / rate(http_requests_total{job="j4c-agent"}[5m])) > 0.05
+        for: 5m
+        labels:
+          severity: high
+          service: j4c-agent
+        annotations:
+          summary: "⚠️ HIGH: J4C Agent Error Rate Elevated (>5%)"
+          description: "Error rate is {{ $value | humanizePercentage }}. Recent code changes or infrastructure issues may be causing failures."
+          runbook: "Check recent deployments and review error logs in J4C Agent container"
+
+      - alert: NGINXHighErrorRate
+        expr: (rate(nginx_requests_total{status=~"5.."}[5m]) / rate(nginx_requests_total[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: high
+          service: nginx
+        annotations:
+          summary: "⚠️ HIGH: NGINX 5xx Error Rate Elevated (>10%)"
+          description: "NGINX is returning 5xx errors at {{ $value | humanizePercentage }}. Backend services may be unavailable."
+          runbook: "Check NGINX upstream targets with 'docker logs j4c-nginx-proxy'"
+
+      - alert: PostgreSQLDatabaseDown
+        expr: pg_up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: postgres
+        annotations:
+          summary: "🔴 CRITICAL: PostgreSQL Database Cannot Connect"
+          description: "PostgreSQL exporter cannot connect to database. Data operations will fail."
+          runbook: "SSH to server and check: docker exec j4c-postgres psql -U j4c_admin -d j4c_agents -c 'SELECT 1;'"
+
+      # ==========================================
+      # MEDIUM: Performance Degradation
+      # ==========================================
+
+      - alert: J4CHighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="j4c-agent"}[5m])) > 1
+        for: 5m
+        labels:
+          severity: medium
+          service: j4c-agent
+        annotations:
+          summary: "⚠️ MEDIUM: J4C API Latency High (p95 > 1s)"
+          description: "95th percentile API response time is {{ $value | humanize }}s. Performance may be degraded."
+          runbook: "Check memory/CPU usage and database query performance"
+
+      - alert: J4CMemoryUsageHigh
+        expr: (container_memory_usage_bytes{name="j4c-agent-plugin"} / 536870912) > 0.75
+        for: 5m
+        labels:
+          severity: medium
+          service: j4c-agent
+        annotations:
+          summary: "⚠️ MEDIUM: J4C Memory Usage High (>75%)"
+          description: "Memory usage: {{ $value | humanizePercentage }}. May cause performance issues or OOM kills."
+          runbook: "Check for memory leaks: docker stats j4c-agent-plugin"
+
+      - alert: J4CCPUUsageHigh
+        expr: (rate(container_cpu_usage_seconds_total{name="j4c-agent-plugin"}[5m]) * 100) > 80
+        for: 5m
+        labels:
+          severity: medium
+          service: j4c-agent
+        annotations:
+          summary: "⚠️ MEDIUM: J4C CPU Usage High (>80%)"
+          description: "CPU usage: {{ $value | humanize }}%. May indicate high task load or inefficient processing."
+          runbook: "Monitor task queue and consider scaling"
+
+      - alert: PostgreSQLHighConnectionCount
+        expr: pg_stat_activity_count{job="postgres",state="active"} > 50
+        for: 5m
+        labels:
+          severity: medium
+          service: postgres
+        annotations:
+          summary: "⚠️ MEDIUM: PostgreSQL Active Connections High (>50)"
+          description: "Active connections: {{ $value }}. May indicate connection pool exhaustion."
+          runbook: "Review long-running queries: SELECT * FROM pg_stat_activity WHERE state != 'idle';"
+
+      - alert: PostgreSQLSlowQueryRate
+        expr: rate(pg_stat_statements_sum_time[5m]) > 5000
+        for: 5m
+        labels:
+          severity: medium
+          service: postgres
+        annotations:
+          summary: "⚠️ MEDIUM: PostgreSQL Slow Query Rate High"
+          description: "Slow query cumulative time per second: {{ $value | humanize }}ms. Query optimization needed."
+          runbook: "Analyze slow queries and consider adding indexes"
+
+      # ==========================================
+      # WARNING: Resource Constraints
+      # ==========================================
+
+      - alert: DiskSpaceWarning
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.15
+        for: 10m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "⚠️ WARNING: Disk Space Low (<15%)"
+          description: "Available disk space: {{ $value | humanizePercentage }}. Ensure backups and cleanup."
+          runbook: "Check disk usage: docker exec j4c-postgres du -sh /var/lib/postgresql/data"
+
+      - alert: DiskSpaceCritical
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) < 0.05
+        for: 5m
+        labels:
+          severity: critical
+          service: system
+        annotations:
+          summary: "🔴 CRITICAL: Disk Space Critical (<5%)"
+          description: "Available disk space: {{ $value | humanizePercentage }}. Immediate cleanup required!"
+          runbook: "Run cleanup immediately: docker volume prune -f && docker system prune -f"
+
+      - alert: HighMemoryUsage
+        expr: (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "⚠️ WARNING: System Memory Usage High (>85%)"
+          description: "Memory usage: {{ $value | humanizePercentage }}. System performance may degrade."
+          runbook: "Check memory consumption: docker stats"
+
+      - alert: HighCPUUsage
+        expr: (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m]))) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: system
+        annotations:
+          summary: "⚠️ WARNING: High CPU Usage (>80%)"
+          description: "CPU usage: {{ $value | humanizePercentage }}. Check for resource-intensive processes."
+          runbook: "Monitor with: docker top j4c-agent-plugin"
+
+      # ==========================================
+      # SECURITY & CERTIFICATES
+      # ==========================================
+
+      - alert: SSLCertificateExpiringWarning
+        expr: (ssl_cert_not_after - time()) < 604800
+        for: 1h
+        labels:
+          severity: warning
+          service: nginx
+        annotations:
+          summary: "⚠️ WARNING: SSL Certificate Expiring Soon (<7 days)"
+          description: "Certificate will expire in {{ $value | humanizeDuration }}. Renewal required."
+          runbook: "Renew SSL certificate with Let's Encrypt: sudo certbot renew"
+
+      - alert: SSLCertificateExpiringCritical
+        expr: (ssl_cert_not_after - time()) < 86400
+        for: 10m
+        labels:
+          severity: critical
+          service: nginx
+        annotations:
+          summary: "🔴 CRITICAL: SSL Certificate Expiring in <24 hours"
+          description: "Certificate will expire in {{ $value | humanizeDuration }}. Immediate renewal required!"
+          runbook: "URGENT: sudo certbot renew --force-renewal"
+
+      # ==========================================
+      # DATA INTEGRITY
+      # ==========================================
+
+      - alert: DatabaseDiskSpaceLow
+        expr: (pg_database_size_bytes{datname="j4c_agents"} / 1073741824) > 5
+        for: 10m
+        labels:
+          severity: warning
+          service: postgres
+        annotations:
+          summary: "⚠️ WARNING: Database Size Large (>5GB)"
+          description: "Database size: {{ $value | humanize }}GB. Consider archiving old data."
+          runbook: "Review data retention policies and consider cleanup"
+
+      - alert: CacheHitRatioDegraded
+        expr: (pg_stat_database_blks_hit{datname="j4c_agents"} / (pg_stat_database_blks_hit{datname="j4c_agents"} + pg_stat_database_blks_read{datname="j4c_agents"})) < 0.95
+        for: 10m
+        labels:
+          severity: medium
+          service: postgres
+        annotations:
+          summary: "⚠️ MEDIUM: Database Cache Hit Ratio Low (<95%)"
+          description: "Cache hit ratio: {{ $value | humanizePercentage }}. Increase shared_buffers or add indexes."
+          runbook: "Analyze slow queries and consider adding indexes"
+
+      # ==========================================
+      # MONITORING SYSTEM HEALTH
+      # ==========================================
+
+      - alert: PrometheusDown
+        expr: up{job="prometheus"} == 0
+        for: 2m
+        labels:
+          severity: high
+          service: prometheus
+        annotations:
+          summary: "⚠️ HIGH: Prometheus Monitoring System Down"
+          description: "Prometheus has been unreachable for 2+ minutes. Metrics collection may be interrupted."
+          runbook: "Check Prometheus container: docker logs j4c-prometheus"
+
+      - alert: GrafanaDown
+        expr: up{job="grafana"} == 0
+        for: 5m
+        labels:
+          severity: medium
+          service: grafana
+        annotations:
+          summary: "⚠️ MEDIUM: Grafana Dashboard Unavailable"
+          description: "Grafana has been unreachable for 5+ minutes. Dashboards will not be accessible."
+          runbook: "Check Grafana container: docker logs j4c-grafana"
+
+      - alert: PrometheusHighMemory
+        expr: (container_memory_usage_bytes{name="j4c-prometheus"} / 536870912) > 0.8
+        for: 10m
+        labels:
+          severity: medium
+          service: prometheus
+        annotations:
+          summary: "⚠️ MEDIUM: Prometheus Memory Usage High"
+          description: "Prometheus memory: {{ $value | humanizePercentage }}. Check retention settings."
+          runbook: "Reduce retention: docker exec j4c-prometheus prometheus --storage.tsdb.retention.time=7d"
+
+      # ==========================================
+      # AGENT SYSTEM HEALTH
+      # ==========================================
+
+      - alert: LowAgentSkillCoverage
+        expr: (j4c_agent_skills_total / 100) < 0.9
+        for: 15m
+        labels:
+          severity: medium
+          service: j4c-agents
+        annotations:
+          summary: "⚠️ MEDIUM: Agent Skill Coverage Low"
+          description: "Available skills: {{ $value | humanize }}. Less than 90% of expected skills."
+          runbook: "Check AGENT_SKILLS_MEMORY.md for missing skill definitions"
+
+      - alert: AgentTaskFailureRate
+        expr: (j4c_tasks_failed_total / j4c_tasks_total) > 0.05
+        for: 10m
+        labels:
+          severity: high
+          service: j4c-agents
+        annotations:
+          summary: "⚠️ HIGH: Agent Task Failure Rate Elevated (>5%)"
+          description: "Task failure rate: {{ $value | humanizePercentage }}. Review recent task logs."
+          runbook: "Check task execution logs and error patterns"

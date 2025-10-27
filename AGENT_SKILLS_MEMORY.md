@@ -422,7 +422,200 @@ healthcheck:
 
 ---
 
-## Section 8: Common Fixes Reference
+### Section 8: Production Configuration Management
+
+#### Learned: October 27, 2025
+
+**PERMANENT MEMORY**: Environment variables in production must never contain hardcoded secrets. Use placeholder values and document required changes.
+
+**Pattern**:
+```bash
+# .env.production template (safe to commit)
+DATABASE_PASSWORD=CHANGE_ME_SECURE_PASSWORD_HERE
+HUBSPOT_API_KEY=CHANGE_ME_YOUR_HUBSPOT_API_KEY_HERE
+GRAFANA_ADMIN_PASSWORD=CHANGE_ME_SECURE_GRAFANA_PASSWORD_HERE
+
+# Actual .env (in .gitignore)
+DATABASE_PASSWORD=xK9m2vL5pQ8rT3wX
+HUBSPOT_API_KEY=pat-na1-abc123def456
+GRAFANA_ADMIN_PASSWORD=mK7j9nP2qL5sT8uV
+```
+
+**Why Critical**: Prevents accidental credential leaks in git history and makes onboarding clear - new operators know exactly which values to change.
+
+---
+
+**PERMANENT MEMORY**: Generate secure passwords using cryptographic random methods.
+
+**Safe Methods**:
+```bash
+# Option 1: OpenSSL (32 bytes base64)
+openssl rand -base64 32
+
+# Option 2: /dev/urandom (32 bytes base64)
+head -c 32 /dev/urandom | base64
+
+# Option 3: Node.js (32 bytes hex)
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+# Option 4: Node.js (64 bytes base64 for JWT)
+node -e "console.log(require('crypto').randomBytes(64).toString('base64'))"
+```
+
+**Verification**: Copy generated value into .env file and verify it doesn't contain quotes or special characters requiring escaping.
+
+---
+
+**PERMANENT MEMORY**: API key setup requires different procedures per service provider.
+
+**HubSpot API Setup**:
+1. Login to https://app.hubspot.com/
+2. Navigate to Settings → API Keys
+3. Create new API key (or copy existing)
+4. Key format: `pat-na1-xxxxx...` or `pat-eu1-xxxxx...`
+
+**GitHub Token Setup**:
+1. Go to https://github.com/settings/tokens
+2. Create new Personal Access Token (classic)
+3. Required scopes: `repo`, `admin:repo_hook`
+4. Key format: `ghp_xxxxxxxxxx...` (40+ chars)
+
+**Jira API Setup**:
+1. Go to https://aurigraphdlt.atlassian.net
+2. Navigate to Account Settings → Security → API Tokens
+3. Create new API token
+4. Email: registered Atlassian account email
+5. Key format: `ATATT...` (long encoded string)
+
+---
+
+### Section 9: Monitoring & Observability Expertise
+
+#### Learned: October 27, 2025
+
+**PERMANENT MEMORY**: Prometheus scrape intervals affect alert sensitivity. Default 15 seconds provides good balance.
+
+**Configuration**:
+```yaml
+# prometheus.yml
+global:
+  scrape_interval: 15s      # Default for all jobs
+  evaluation_interval: 30s   # How often to evaluate rules
+  scrape_timeout: 10s        # Timeout per scrape
+
+scrape_configs:
+  - job_name: 'j4c-agent'
+    static_configs:
+      - targets: ['localhost:9003']
+    scrape_interval: 15s     # Can override per job
+```
+
+**Impact**:
+- Faster interval (5s) → More data, higher storage, catches spikes faster
+- Slower interval (60s) → Less data, lower storage, may miss quick issues
+
+**Recommendation**: Use 15s globally, override to 5s for critical metrics only.
+
+---
+
+**PERMANENT MEMORY**: Alert rules must include severity levels for proper filtering and escalation.
+
+**Severity Hierarchy**:
+```yaml
+severity: critical  # Page on-call engineer immediately
+severity: high      # Alert team within 15 minutes
+severity: medium    # Team review within 1 hour
+severity: warning   # Information only, no immediate action
+```
+
+**Pattern**:
+```yaml
+alert: ServiceDown
+expr: up == 0
+labels:
+  severity: critical    # This determines escalation
+  service: j4c-agent
+annotations:
+  summary: "Critical alert message"
+  runbook: "https://runbooks.example.com/service-down"
+```
+
+**Best Practice**: Include runbook links in annotations so engineers know recovery steps.
+
+---
+
+**PERMANENT MEMORY**: Grafana dashboards require data source configuration before displaying metrics.
+
+**Data Source Setup Pattern**:
+1. **Settings** → **Data Sources** → **Add Data Source**
+2. Select Prometheus
+3. URL: `http://j4c-prometheus:9090` (internal Docker network)
+4. Access: Browser (Grafana queries from browser client)
+5. Click **Save & Test** (must show "Data source is working")
+
+**Debugging "No Data"**:
+```bash
+# 1. Check Prometheus is scraping
+curl http://localhost:9090/api/v1/targets
+
+# 2. Test query directly in Prometheus
+curl 'http://localhost:9090/api/v1/query?query=up'
+
+# 3. Verify data source in Grafana
+curl -H "Authorization: Bearer admin:PASSWORD" \
+  http://localhost:3000/api/datasources
+```
+
+---
+
+**PERMANENT MEMORY**: Grafana dashboard panels require specific query syntax per metric type.
+
+**Common Metric Types**:
+```
+# Counter (always increases)
+rate(metric_total[5m])        # Rate of increase
+
+# Gauge (can go up or down)
+metric_bytes                   # Direct value
+
+# Histogram (value distribution)
+histogram_quantile(0.95, metric_bucket)  # 95th percentile
+
+# Summary (pre-computed quantiles)
+metric_sum / metric_count      # Average value
+```
+
+**Example Dashboard Panel**:
+```
+Title: "API Response Time (p95)"
+Query: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
+Unit: seconds
+Threshold: > 1s (warning)
+Visualization: Gauge
+```
+
+---
+
+**PERMANENT MEMORY**: Alert thresholds must be tuned to match actual application behavior.
+
+**Tuning Process**:
+1. Monitor baseline metrics for 1 week
+2. Calculate: mean + 2*stddev = warning threshold
+3. Calculate: mean + 5*stddev = critical threshold
+4. Set thresholds in alert rules
+5. Monitor false alert rate (target: < 5%)
+6. Adjust thresholds if necessary
+
+**Example for Database Connections**:
+```
+Baseline: 10-15 connections
+Warning: 50 (mean 12 + 38 buffer)
+Critical: 80 (mean 12 + 68 buffer)
+```
+
+---
+
+## Section 10: Common Fixes Reference
 
 #### Quick Access to Solutions
 
@@ -519,6 +712,7 @@ After **every significant activity**, add learnings:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.1 | Oct 27, 2025 | Added production config, monitoring & observability sections (post-deployment) |
 | 1.0 | Oct 27, 2025 | Initial memory bank created from J4C Plugin deployment |
 | TBD | TBD | Updates will be made after each major project |
 
