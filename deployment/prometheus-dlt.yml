@@ -1,0 +1,100 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    cluster: 'hermes-dlt'
+    environment: 'production'
+    service: 'aurigraph-dlt'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - localhost:9093
+
+# Load rules
+rule_files:
+  - '/etc/prometheus/dlt-rules.yml'
+
+scrape_configs:
+  # DLT Node Metrics
+  - job_name: 'dlt-node'
+    static_configs:
+      - targets: ['dlt-node:9004']
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+      - source_labels: [__scheme__]
+        target_label: scheme
+
+  # Prometheus Self-Monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 15s
+
+  # NGINX Metrics (if using nginx-prometheus-exporter)
+  - job_name: 'nginx-dlt'
+    static_configs:
+      - targets: ['dlt-nginx:9113']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # PostgreSQL Metrics (if using postgres-exporter)
+  - job_name: 'postgres-dlt'
+    static_configs:
+      - targets: ['dlt-postgres:9187']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # Node Exporter (System Metrics)
+  - job_name: 'node-dlt'
+    static_configs:
+      - targets: ['dlt-node:9100']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # Redis Metrics (if using redis-exporter)
+  - job_name: 'redis-dlt'
+    static_configs:
+      - targets: ['dlt-redis:9121']
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+
+  # Application Performance Metrics
+  - job_name: 'dlt-performance'
+    metrics_path: '/api/metrics'
+    static_configs:
+      - targets: ['dlt-node:9004']
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        replacement: 'dlt-node'
+
+  # Transaction Metrics
+  - job_name: 'dlt-transactions'
+    metrics_path: '/api/dlt/metrics'
+    static_configs:
+      - targets: ['dlt-node:9004']
+    scrape_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: 'dlt-transactions'
+
+  # Health Check Metrics
+  - job_name: 'dlt-health'
+    metrics_path: '/health'
+    static_configs:
+      - targets: ['dlt-node:9004']
+    scrape_interval: 30s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: service
+        replacement: 'dlt-health'
