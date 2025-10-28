@@ -249,6 +249,66 @@
           "duration": 7
         }
       ]
+    },
+    "jira-github-sync": {
+      "name": "JIRA-GitHub Sync Workflow",
+      "description": "Synchronize JIRA tickets with GitHub repository - scan open tickets, verify code implementation, and update tickets with findings",
+      "stages": [
+        {
+          "name": "JIRA Scan",
+          "agent": "project-manager",
+          "skills": ["jira-github-sync"],
+          "description": "Scan all open JIRA tickets from specified project",
+          "duration": 5
+        },
+        {
+          "name": "GitHub Scan",
+          "agent": "devops-engineer",
+          "skills": ["jira-github-sync"],
+          "description": "Recursively scan GitHub repository for relevant code files",
+          "duration": 10
+        },
+        {
+          "name": "Code Verification",
+          "agent": "qa-engineer",
+          "skills": ["jira-github-sync"],
+          "description": "Verify code implementation against ticket requirements",
+          "duration": 15
+        },
+        {
+          "name": "JIRA Update",
+          "agent": "project-manager",
+          "skills": ["jira-github-sync"],
+          "description": "Automatically update JIRA tickets with verification results and code links",
+          "duration": 5,
+          "requireConfirmation": false
+        }
+      ],
+      "configuration": {
+        "projectKey": "AV11",
+        "status": ["Open", "In Progress"],
+        "branch": "main",
+        "updateCustomField": true,
+        "scheduleInterval": "0 0 * * *",
+        "maxConcurrentVerifications": 5,
+        "relevanceThreshold": 0.3
+      },
+      "triggers": [
+        {
+          "type": "schedule",
+          "interval": "daily",
+          "time": "00:00 UTC"
+        },
+        {
+          "type": "manual",
+          "command": "j4c workflow run jira-github-sync"
+        },
+        {
+          "type": "webhook",
+          "event": "github.push",
+          "branches": ["main", "develop"]
+        }
+      ]
     }
   },
   "bestPractices": {
