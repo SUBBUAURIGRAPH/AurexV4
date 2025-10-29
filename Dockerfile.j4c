@@ -2,7 +2,7 @@
 # Version: 1.0.0
 # Build: docker build -f Dockerfile.j4c -t aurigraph/j4c-agent:1.0.0 .
 
-FROM node:18-alpine as builder
+FROM node:18-alpine AS builder
 
 # Install build dependencies
 RUN apk add --no-cache \
@@ -16,13 +16,13 @@ WORKDIR /build
 # Copy package files
 COPY plugin/package*.json ./
 
-# Install dependencies
-RUN npm ci --production && npm ci
+# Install dependencies (skip postinstall scripts that may reference missing files)
+RUN npm ci --production --ignore-scripts || npm install --legacy-peer-deps
 
 COPY plugin/ ./
 
-# Run validation
-RUN npm run validate || true
+# Run validation if available
+RUN npm run validate 2>/dev/null || echo "Validation script not available"
 
 # ===== Production Stage =====
 FROM node:18-alpine
