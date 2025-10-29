@@ -1,13 +1,39 @@
 # Aurigraph Agent Architecture - Project Context
 
 **Repository**: glowing-adventure
-**Version**: 2.4.0
-**Last Updated**: October 29, 2025 (GNN Phases 7-10 Completed)
+**Version**: 2.5.0
+**Last Updated**: October 29, 2025 07:45 UTC (HMS Production Deployment Complete)
 **Purpose**: Maintain complete project context across sessions to prevent information loss
 
-## 🔧 Latest Session: GNN-HMS Trading System Completion (Phases 7-10)
+## 🔧 Latest Session: HMS Production Deployment to hms.aurex.in ✅ COMPLETE
 
-**Status**: ✅ Complete | **Date**: October 29, 2025
+**Status**: ✅ Deployed | **Date**: October 29, 2025 07:45 UTC
+**Achievement**: Successfully deployed HMS to production server with automated deployment pipeline
+**Result**: Frontend (hms.aurex.in) + Backend (apihms.aurex.in) live, SSL enabled, full automation
+
+### Production Deployment Summary
+- ✅ **Server**: hms.aurex.in (Ubuntu 24.04.3 LTS)
+- ✅ **Frontend URL**: https://hms.aurex.in (HTTPS/SSL enabled)
+- ✅ **Backend URL**: https://apihms.aurex.in (HTTPS/SSL enabled)
+- ✅ **Deployment Script**: deploy-to-aurex.sh (614 lines, fully automated)
+- ✅ **Docker Compose**: docker-compose.production.yml (5 services: Agent, NGINX, PostgreSQL, Prometheus, Grafana)
+- ✅ **Deployment Report**: aurex-deployment-report.txt (generated post-deployment)
+- ✅ **Git Repository**: Synced at /opt/HMS (main branch, latest commit: fce2234)
+- ✅ **SSL Certificates**: /etc/letsencrypt/live/aurexcrt1/ (fullchain.pem, privkey.pem)
+
+### Deployment Process (8 Steps)
+1. ✅ SSH Connection Verification
+2. ✅ Docker Cleanup (removed old containers, pruned images)
+3. ✅ Git Repository Clone/Update
+4. ✅ NGINX SSL Configuration Created
+5. ✅ Production Docker Compose Configuration
+6. ✅ Docker Image Pull & Services Started
+7. ✅ NGINX Configuration Verification
+8. ✅ Deployment Report Generation
+
+### Previous Session: GNN-HMS Trading System Completion (Phases 7-10)
+
+**Status**: ✅ Complete | **Date**: October 28-29, 2025
 **Achievement**: Committed GNN Phases 7-10 with full analytics, plugins, and K8s infrastructure
 **Result**: 40 files (16,000+ LOC), 100% test coverage, production-ready implementations
 

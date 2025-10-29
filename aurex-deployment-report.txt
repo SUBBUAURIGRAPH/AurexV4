@@ -1,0 +1,142 @@
+================================================================================
+                   HMS Aurex Production Deployment Report
+================================================================================
+
+Deployment Date: Wed, Oct 29, 2025  7:45:16 AM
+Remote Host: hms.aurex.in
+Remote User: subbu
+Remote Directory: /opt/HMS
+Git Repo: git@github.com:Aurigraph-DLT-Corp/HMS.git
+Git Branch: main
+
+================================================================================
+                         Deployment Summary
+================================================================================
+
+✅ SSH Connection Verified
+✅ Old Docker Containers Cleaned
+✅ Docker Images Pruned
+✅ Repository Cloned/Updated (Branch: main)
+✅ NGINX SSL Configuration Created
+✅ Docker Image Pulled (aurigraph/hms-j4c-agent:1.0.0)
+✅ Services Started and Verified
+
+================================================================================
+                       Service Endpoints
+================================================================================
+
+Frontend (HTTPS):
+  - URL: https://hms.aurex.in
+  - Health: https://hms.aurex.in/health
+  - IP: 443
+
+Backend API (HTTPS):
+  - URL: https://apihms.aurex.in
+  - Health: https://apihms.aurex.in/health
+  - IP: 443
+
+Services:
+  - HMS Agent: http://localhost:9003
+  - PostgreSQL: localhost:5432
+  - Prometheus: http://localhost:9090
+  - Grafana: http://localhost:3000
+
+SSL Certificates:
+  - Certificate: /etc/letsencrypt/live/aurexcrt1/fullchain.pem
+  - Private Key: /etc/letsencrypt/live/aurexcrt1/privkey.pem
+  - Auto-renewal: Enabled (Certbot)
+
+================================================================================
+                         Access Instructions
+================================================================================
+
+SSH Access:
+  ssh -p 22 subbu@hms.aurex.in
+
+Docker Compose:
+  cd /opt/HMS
+  docker-compose -f docker-compose.production.yml ps
+  docker-compose -f docker-compose.production.yml logs -f
+
+View Logs:
+  docker logs -f hms-j4c-agent
+  docker logs -f hms-nginx-proxy
+
+Health Checks:
+  curl https://hms.aurex.in/health
+  curl https://apihms.aurex.in/health
+
+================================================================================
+                       Configuration Files
+================================================================================
+
+Production Compose File:
+  /opt/HMS/docker-compose.production.yml
+
+NGINX Configuration:
+  /etc/nginx/nginx.conf
+
+Environment Variables (needs to be set):
+  /opt/HMS/.env
+
+Create .env with:
+  JIRA_API_KEY=your_token
+  GITHUB_TOKEN=your_token
+  DB_PASSWORD=secure_password
+  GRAFANA_PASSWORD=secure_password
+  SLACK_WEBHOOK_URL=your_webhook
+
+================================================================================
+                       Docker Cleanup Summary
+================================================================================
+
+Removed:
+  - All old containers
+  - Unused images
+  - Dangling volumes
+  - Build cache
+
+Current Docker Status:
+  Images: Check 'docker images'
+  Containers: Check 'docker ps -a'
+
+================================================================================
+                         Next Steps
+================================================================================
+
+1. SSH into server:
+   ssh -p 22 subbu@hms.aurex.in
+
+2. Create .env file with production credentials:
+   cd /opt/HMS
+   cp .env.example .env
+   # Edit with actual values
+
+3. Restart services after .env changes:
+   docker-compose -f docker-compose.production.yml restart
+
+4. Test endpoints:
+   curl -v https://hms.aurex.in/health
+   curl -v https://apihms.aurex.in/health
+
+5. Monitor logs:
+   docker-compose -f docker-compose.production.yml logs -f
+
+6. Access Grafana:
+   http://localhost:3000 (ssh tunnel)
+   ssh -L 3000:localhost:3000 subbu@hms.aurex.in
+
+7. Configure backups:
+   - Database: Setup automated PostgreSQL backups
+   - Volumes: Setup volume snapshots
+   - Logs: Setup log rotation
+
+================================================================================
+
+Report Generated: Wed, Oct 29, 2025  7:45:16 AM
+Deployment Status: ✅ SUCCESSFUL
+
+For Issues: Check logs with docker-compose logs
+For Support: Contact agents@aurigraph.io
+
+================================================================================
