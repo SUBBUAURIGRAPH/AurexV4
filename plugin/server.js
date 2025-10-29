@@ -15,6 +15,7 @@ const JWTAuth = require('./auth/jwt-auth');
 const UserManager = require('./auth/user-manager');
 const RBACMiddleware = require('./auth/rbac-middleware');
 const AuthEndpoints = require('./auth/auth-endpoints');
+const SkillExecutor = require('./skill-execution/executor');
 
 // Configuration
 const PORT = process.env.PORT || 9003;
@@ -36,6 +37,12 @@ const authEndpoints = new AuthEndpoints(userManager, jwtAuth);
 const plugin = new AurigraphAgentsPlugin({
   environment: NODE_ENV,
   logLevel: process.env.LOG_LEVEL || 'info'
+});
+
+// Initialize skill executor (after plugin is created)
+const skillExecutor = new SkillExecutor({
+  plugin,
+  logger: console
 });
 
 // Create HTTP server
@@ -141,6 +148,191 @@ const server = http.createServer(async (req, res) => {
     if (pathname === '/health' && method === 'GET') {
       res.writeHead(200);
       res.end(JSON.stringify({ status: 'ok', message: 'HMS Agent - OK' }));
+      return;
+    }
+
+    // ============== Skill Execution Endpoints ==============
+
+    // Execute skill with standard execution
+    if (pathname === '/api/execute' && method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', async () => {
+        try {
+          const { agent, skill, task, parameters } = JSON.parse(body);
+
+          const result = await skillExecutor.executeSkill({
+            agentId: agent,
+            skillId: skill,
+            userId: authenticatedUser?.id,
+            sessionId: authenticatedUser?._payload?.jti,
+            parameters: parameters || {},
+            metadata: { task, source: 'api' }
+          });
+
+          res.writeHead(200);
+          res.end(JSON.stringify(result));
+        } catch (error) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+      });
+      return;
+    }
+
+    // Execute specific skill
+    if (pathname.match(/^\/api\/skills\/[^/]+\/execute$/) && method === 'POST') {
+      const skillId = pathname.split('/')[3];
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', async () => {
+        try {
+          const { parameters, timeout, retry } = JSON.parse(body);
+
+          let result;
+
+          // Apply retry if enabled
+          if (retry?.enabled) {
+            result = await skillExecutor.executeSkillWithRetry(
+              {
+                agentId: 'default-agent',
+                skillId,
+                userId: authenticatedUser?.id,
+                parameters: parameters || {}
+              },
+              retry.maxAttempts || 3,
+              retry.delayMs || 1000
+            );
+          }
+          // Apply timeout if specified
+          else if (timeout) {
+            result = await skillExecutor.executeSkillWithTimeout(
+              {
+                agentId: 'default-agent',
+                skillId,
+                userId: authenticatedUser?.id,
+                parameters: parameters || {}
+              },
+              timeout
+            );
+          }
+          // Standard execution
+          else {
+            result = await skillExecutor.executeSkill({
+              agentId: 'default-agent',
+              skillId,
+              userId: authenticatedUser?.id,
+              parameters: parameters || {}
+            });
+          }
+
+          res.writeHead(200);
+          res.end(JSON.stringify(result));
+        } catch (error) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+      });
+      return;
+    }
+
+    // Batch execute skills
+    if (pathname === '/api/executions/batch' && method === 'POST') {
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', async () => {
+        try {
+          const { executions } = JSON.parse(body);
+
+          if (!Array.isArray(executions)) {
+            res.writeHead(400);
+            res.end(JSON.stringify({ error: 'executions must be an array' }));
+            return;
+          }
+
+          const requests = executions.map(e => ({
+            agentId: e.agent || 'default-agent',
+            skillId: e.skill,
+            userId: authenticatedUser?.id,
+            parameters: e.parameters || {}
+          }));
+
+          const results = await skillExecutor.batchExecute(requests);
+
+          res.writeHead(200);
+          res.end(JSON.stringify({
+            batchId: `batch_${Date.now()}`,
+            status: 'completed',
+            results
+          }));
+        } catch (error) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+      });
+      return;
+    }
+
+    // Get execution history
+    if (pathname === '/api/executions/history' && method === 'GET') {
+      try {
+        const query = new URL(req.url, `http://${req.headers.host}`).searchParams;
+
+        const filters = {
+          skillId: query.get('skillId'),
+          agentId: query.get('agentId'),
+          userId: query.get('userId') || authenticatedUser?.id,
+          status: query.get('status'),
+          startDate: query.get('startDate'),
+          endDate: query.get('endDate'),
+          limit: parseInt(query.get('limit') || '100')
+        };
+
+        // Remove null/undefined filters
+        Object.keys(filters).forEach(k => filters[k] === null && delete filters[k]);
+
+        const history = skillExecutor.getExecutionHistory(filters);
+
+        res.writeHead(200);
+        res.end(JSON.stringify({
+          total: history.length,
+          results: history
+        }));
+      } catch (error) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: error.message }));
+      }
+      return;
+    }
+
+    // Get specific execution
+    if (pathname.match(/^\/api\/executions\/[^/]+$/) && method === 'GET') {
+      const executionId = pathname.split('/').pop();
+      const context = skillExecutor.getExecutionContext(executionId);
+
+      if (!context) {
+        res.writeHead(404);
+        res.end(JSON.stringify({ error: 'Execution not found' }));
+        return;
+      }
+
+      res.writeHead(200);
+      res.end(JSON.stringify(context));
+      return;
+    }
+
+    // Get execution statistics (admin only)
+    if (pathname === '/api/executions/stats' && method === 'GET') {
+      if (!authenticatedUser || !userManager.hasRole(authenticatedUser.id, 'admin')) {
+        res.writeHead(403);
+        res.end(JSON.stringify({ error: 'Admin access required' }));
+        return;
+      }
+
+      const stats = skillExecutor.getStatistics();
+
+      res.writeHead(200);
+      res.end(JSON.stringify(stats));
       return;
     }
 
@@ -347,6 +539,10 @@ server.listen(PORT, () => {
   console.log(`📝 Login: POST /auth/login`);
   console.log(`📝 Register: POST /auth/register`);
   console.log(`📝 Refresh Token: POST /auth/refresh`);
+  console.log(`\n⚡ Skill Execution Enabled`);
+  console.log(`🎯 Execute: POST /api/execute`);
+  console.log(`📊 History: GET /api/executions/history`);
+  console.log(`📈 Stats: GET /api/executions/stats (admin)`);
   console.log(`${'='.repeat(60)}\n`);
 
   // Initialize plugin environment in background
