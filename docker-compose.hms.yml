@@ -46,8 +46,8 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./nginx-dlt.conf:/etc/nginx/nginx.conf:ro
-      - /etc/letsencrypt/live/aurcrt:/etc/nginx/ssl:ro
+      - ./nginx-hms.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt/live/aurexcrt1:/etc/nginx/ssl:ro
       - hms-nginx-logs:/var/log/nginx
       - hms-nginx-cache:/var/cache/nginx
     networks:
