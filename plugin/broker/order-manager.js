@@ -1,7 +1,7 @@
 /**
  * Order Management System
- * Handles order lifecycle, tracking, and execution
- * @version 1.0.0
+ * Handles order lifecycle, tracking, and execution with validation and confirmation
+ * @version 2.0.0
  */
 
 const crypto = require('crypto');
@@ -9,7 +9,7 @@ const crypto = require('crypto');
 /**
  * OrderManager
  * @class
- * @description Manages order lifecycle and tracking
+ * @description Manages order lifecycle, validation, confirmation workflow, and tracking
  */
 class OrderManager {
   /**
@@ -17,20 +17,35 @@ class OrderManager {
    * @param {Object} config - Configuration
    * @param {Object} config.broker - Broker instance
    * @param {Object} config.logger - Logger instance
+   * @param {Object} config.positionTracker - Position tracker instance (optional)
+   * @param {Object} config.validationRules - Custom validation rules (optional)
    */
   constructor(config = {}) {
     this.broker = config.broker;
     this.logger = config.logger || console;
+    this.positionTracker = config.positionTracker;
+
     this.orders = new Map(); // Order ID -> Order details
     this.ordersByUser = new Map(); // User ID -> Order IDs
     this.executionHistory = [];
+    this.pendingConfirmations = new Map(); // Order ID -> Confirmation details
+
+    // Business rule validation
+    this.validationRules = {
+      minOrderValue: config.validationRules?.minOrderValue || 100, // Minimum $100
+      maxOrderValue: config.validationRules?.maxOrderValue || 1000000, // Max $1M
+      maxPositionSize: config.validationRules?.maxPositionSize || 0.3, // 30% of portfolio
+      maxDailyTrades: config.validationRules?.maxDailyTrades || 100,
+      minAccountBalance: config.validationRules?.minAccountBalance || 2000, // Pattern Day Trader rule
+      ...config.validationRules
+    };
   }
 
   /**
-   * Create new order
+   * Create and validate new order (returns pending confirmation)
    * @param {Object} orderRequest - Order details
    * @param {string} userId - User ID placing order
-   * @returns {Promise<Object>} Order confirmation
+   * @returns {Promise<Object>} Pending confirmation with order preview
    */
   async createOrder(orderRequest, userId = 'system') {
     try {
@@ -38,6 +53,12 @@ class OrderManager {
       const validation = this.validateOrderRequest(orderRequest);
       if (!validation.valid) {
         throw new Error(`Order validation failed: ${validation.errors.join(', ')}`);
+      }
+
+      // Validate business rules
+      const businessValidation = await this.validateBusinessRules(orderRequest, userId);
+      if (!businessValidation.valid) {
+        throw new Error(`Business rule validation failed: ${businessValidation.errors.join(', ')}`);
       }
 
       // Create local order record
@@ -52,7 +73,7 @@ class OrderManager {
         stopPrice: orderRequest.stop_price,
         timeInForce: orderRequest.time_in_force || 'day',
         extendedHours: orderRequest.extended_hours || false,
-        status: 'pending_submission',
+        status: 'pending_confirmation',
         brokerOrderId: null,
         createdAt: new Date(),
         submittedAt: null,
@@ -61,18 +82,22 @@ class OrderManager {
         filledQuantity: 0,
         averageFillPrice: null,
         commission: 0,
-        totalCost: 0
+        totalCost: 0,
+        estimatedCost: this.estimateOrderCost(orderRequest),
+        validationWarnings: businessValidation.warnings || []
       };
 
-      // Submit to broker
-      const brokerResponse = await this.broker.placeOrder(orderRequest);
+      // Store pending confirmation
+      const confirmationToken = this.generateConfirmationToken();
+      this.pendingConfirmations.set(confirmationToken, {
+        orderId: order.orderId,
+        order,
+        token: confirmationToken,
+        expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minute expiry
+        createdAt: new Date()
+      });
 
-      // Update order with broker response
-      order.brokerOrderId = brokerResponse.id;
-      order.status = brokerResponse.status || 'submitted';
-      order.submittedAt = new Date();
-
-      // Store order
+      // Store order in pending state
       this.orders.set(order.orderId, order);
 
       // Track by user
@@ -83,7 +108,7 @@ class OrderManager {
 
       // Log execution
       this.recordExecution({
-        action: 'ORDER_CREATED',
+        action: 'ORDER_PENDING_CONFIRMATION',
         orderId: order.orderId,
         userId,
         symbol: order.symbol,
@@ -91,11 +116,98 @@ class OrderManager {
         side: order.side
       });
 
-      this.logger.info(`Order created: ${order.orderId}`, order);
+      this.logger.info(`Order pending confirmation: ${order.orderId}`, { ...order, confirmationToken });
 
-      return order;
+      return {
+        success: true,
+        orderId: order.orderId,
+        confirmationToken,
+        order: {
+          symbol: order.symbol,
+          side: order.side,
+          type: order.type,
+          quantity: order.quantity,
+          limitPrice: order.limitPrice,
+          stopPrice: order.stopPrice,
+          estimatedCost: order.estimatedCost
+        },
+        warnings: order.validationWarnings,
+        expiresAt: this.pendingConfirmations.get(confirmationToken).expiresAt
+      };
     } catch (error) {
       this.logger.error('Failed to create order', { error: error.message });
+      throw error;
+    }
+  }
+
+  /**
+   * Confirm and execute pending order
+   * @param {string} confirmationToken - Confirmation token from createOrder
+   * @param {string} userId - User ID (for authorization)
+   * @returns {Promise<Object>} Order confirmation
+   */
+  async confirmOrder(confirmationToken, userId) {
+    try {
+      const confirmation = this.pendingConfirmations.get(confirmationToken);
+      if (!confirmation) {
+        throw new Error('Invalid or expired confirmation token');
+      }
+
+      // Check expiry
+      if (new Date() > confirmation.expiresAt) {
+        this.pendingConfirmations.delete(confirmationToken);
+        throw new Error('Confirmation token has expired');
+      }
+
+      const order = confirmation.order;
+
+      // Verify authorization
+      if (order.userId !== userId && userId !== 'system') {
+        throw new Error('Unauthorized: Cannot confirm another user\'s order');
+      }
+
+      // Submit to broker
+      const brokerResponse = await this.broker.placeOrder({
+        symbol: order.symbol,
+        side: order.side,
+        type: order.type,
+        quantity: order.quantity,
+        limit_price: order.limitPrice,
+        stop_price: order.stopPrice,
+        time_in_force: order.timeInForce,
+        extended_hours: order.extendedHours
+      });
+
+      // Update order with broker response
+      order.brokerOrderId = brokerResponse.id;
+      order.status = brokerResponse.status || 'submitted';
+      order.submittedAt = new Date();
+
+      // Remove from pending confirmations
+      this.pendingConfirmations.delete(confirmationToken);
+
+      // Log execution
+      this.recordExecution({
+        action: 'ORDER_SUBMITTED',
+        orderId: order.orderId,
+        userId,
+        symbol: order.symbol,
+        quantity: order.quantity,
+        side: order.side,
+        brokerOrderId: order.brokerOrderId
+      });
+
+      this.logger.info(`Order submitted to broker: ${order.orderId}`, order);
+
+      return {
+        success: true,
+        orderId: order.orderId,
+        brokerOrderId: order.brokerOrderId,
+        status: order.status,
+        submittedAt: order.submittedAt
+      };
+    } catch (error) {
+      this.logger.error('Failed to confirm order', { error: error.message });
       throw error;
     }
   }
@@ -333,10 +445,130 @@ class OrderManager {
       errors.push('Invalid order type');
     }
 
+    if (orderRequest.type === 'limit' && !orderRequest.limit_price) {
+      errors.push('Limit price required for limit orders');
+    }
+
+    if (orderRequest.type === 'stop' && !orderRequest.stop_price) {
+      errors.push('Stop price required for stop orders');
+    }
+
+    if (orderRequest.type === 'stop-limit' && (!orderRequest.limit_price || !orderRequest.stop_price)) {
+      errors.push('Both limit and stop prices required for stop-limit orders');
+    }
+
     return {
       valid: errors.length === 0,
       errors
     };
+  }
+
+  /**
+   * Validate order against business rules
+   * @private
+   * @param {Object} orderRequest - Order details
+   * @param {string} userId - User ID
+   * @returns {Promise<Object>} { valid: boolean, errors: Array, warnings: Array }
+   */
+  async validateBusinessRules(orderRequest, userId) {
+    const errors = [];
+    const warnings = [];
+
+    try {
+      // Estimate order cost
+      const estimatedCost = this.estimateOrderCost(orderRequest);
+
+      // Check minimum order value
+      if (estimatedCost < this.validationRules.minOrderValue) {
+        errors.push(`Order value ($${estimatedCost.toFixed(2)}) below minimum ($${this.validationRules.minOrderValue})`);
+      }
+
+      // Check maximum order value
+      if (estimatedCost > this.validationRules.maxOrderValue) {
+        errors.push(`Order value ($${estimatedCost.toFixed(2)}) exceeds maximum ($${this.validationRules.maxOrderValue})`);
+      }
+
+      // Check account balance if broker available
+      if (this.broker && orderRequest.side === 'buy') {
+        try {
+          const account = await this.broker.getAccount();
+
+          // Check if sufficient buying power
+          if (account.buying_power < estimatedCost) {
+            errors.push(`Insufficient buying power. Required: $${estimatedCost.toFixed(2)}, Available: $${account.buying_power.toFixed(2)}`);
+          }
+
+          // Check minimum account balance (Pattern Day Trader rule)
+          if (account.equity < this.validationRules.minAccountBalance) {
+            warnings.push(`Account balance ($${account.equity.toFixed(2)}) below recommended minimum (${this.validationRules.minAccountBalance})`);
+          }
+        } catch (error) {
+          this.logger.warn('Could not fetch account for validation', { error: error.message });
+        }
+      }
+
+      // Check daily trade count
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const todaysTrades = Array.from(this.orders.values()).filter(o => {
+        const orderDate = new Date(o.createdAt);
+        orderDate.setHours(0, 0, 0, 0);
+        return orderDate.getTime() === today.getTime() && o.userId === userId;
+      }).length;
+
+      if (todaysTrades >= this.validationRules.maxDailyTrades) {
+        errors.push(`Daily trade limit reached (${this.validationRules.maxDailyTrades})`);
+      }
+
+      // Check position size if position tracker available
+      if (this.positionTracker) {
+        try {
+          const positions = await this.positionTracker.getPositions();
+          const totalValue = positions.reduce((sum, p) => sum + (p.marketValue || 0), 0);
+          const maxPositionValue = totalValue * this.validationRules.maxPositionSize;
+
+          if (orderRequest.side === 'buy' && estimatedCost > maxPositionValue) {
+            warnings.push(`Order size exceeds recommended position limit (${(this.validationRules.maxPositionSize * 100).toFixed(0)}% of portfolio)`);
+          }
+        } catch (error) {
+          this.logger.warn('Could not fetch positions for validation', { error: error.message });
+        }
+      }
+
+      return {
+        valid: errors.length === 0,
+        errors,
+        warnings
+      };
+    } catch (error) {
+      this.logger.error('Business rule validation error', { error: error.message });
+      return {
+        valid: false,
+        errors: ['Validation system error: ' + error.message],
+        warnings
+      };
+    }
+  }
+
+  /**
+   * Estimate order cost based on market price
+   * @private
+   * @param {Object} orderRequest - Order details
+   * @returns {number} Estimated cost
+   */
+  estimateOrderCost(orderRequest) {
+    let estimatedPrice = 0;
+
+    if (orderRequest.type === 'limit') {
+      estimatedPrice = orderRequest.limit_price || 0;
+    } else if (orderRequest.type === 'market' || orderRequest.type === 'stop') {
+      // Assume market price is 100 for estimation if not provided
+      estimatedPrice = orderRequest.market_price || 100;
+    } else if (orderRequest.type === 'stop-limit') {
+      estimatedPrice = orderRequest.limit_price || 0;
+    }
+
+    return estimatedPrice * orderRequest.quantity;
   }
 
   /**
@@ -346,6 +578,70 @@ class OrderManager {
    */
   generateOrderId() {
     return `order_${Date.now()}_${crypto.randomBytes(8).toString('hex')}`;
+  }
+
+  /**
+   * Generate confirmation token
+   * @private
+   * @returns {string} Confirmation token
+   */
+  generateConfirmationToken() {
+    return `confirm_${Date.now()}_${crypto.randomBytes(16).toString('hex')}`;
+  }
+
+  /**
+   * Cancel pending confirmation
+   * @param {string} confirmationToken - Confirmation token
+   * @returns {Object} Cancellation result
+   */
+  cancelPendingConfirmation(confirmationToken) {
+    const confirmation = this.pendingConfirmations.get(confirmationToken);
+    if (!confirmation) {
+      return { success: false, message: 'Confirmation not found' };
+    }
+
+    const order = confirmation.order;
+    this.pendingConfirmations.delete(confirmationToken);
+    this.orders.delete(order.orderId);
+
+    this.recordExecution({
+      action: 'ORDER_CONFIRMATION_CANCELLED',
+      orderId: order.orderId,
+      userId: order.userId,
+      symbol: order.symbol
+    });
+
+    return { success: true, orderId: order.orderId };
+  }
+
+  /**
+   * Get pending confirmation details
+   * @param {string} confirmationToken - Confirmation token
+   * @returns {Object} Confirmation details or null
+   */
+  getPendingConfirmation(confirmationToken) {
+    const confirmation = this.pendingConfirmations.get(confirmationToken);
+    if (!confirmation) {
+      return null;
+    }
+
+    // Check if expired
+    if (new Date() > confirmation.expiresAt) {
+      this.pendingConfirmations.delete(confirmationToken);
+      return null;
+    }
+
+    return {
+      orderId: confirmation.order.orderId,
+      symbol: confirmation.order.symbol,
+      side: confirmation.order.side,
+      type: confirmation.order.type,
+      quantity: confirmation.order.quantity,
+      estimatedCost: confirmation.order.estimatedCost,
+      warnings: confirmation.order.validationWarnings,
+      expiresAt: confirmation.expiresAt,
+      createdAt: confirmation.createdAt
+    };
   }
 
   /**

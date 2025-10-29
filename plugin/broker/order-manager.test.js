@@ -1,6 +1,7 @@
 /**
  * Order Manager Tests
- * @version 1.0.0
+ * Tests for order lifecycle, validation, and confirmation workflow
+ * @version 2.0.0
  */
 
 const OrderManager = require('./order-manager');
@@ -543,6 +544,205 @@ describe('OrderManager', () => {
 
       const stats = orderManager.getStatistics();
       expect(stats.total).toBeGreaterThan(0);
+    });
+  });
+
+  describe('Order Confirmation Workflow (v2.0)', () => {
+    test('Should create order with pending confirmation', async () => {
+      mockBroker.getAccount = jest.fn().mockResolvedValue({
+        buying_power: 50000,
+        equity: 100000
+      });
+
+      const orderRequest = {
+        symbol: 'AAPL',
+        quantity: 10,
+        side: 'buy',
+        type: 'market',
+        market_price: 150
+      };
+
+      const result = await orderManager.createOrder(orderRequest, 'user123');
+
+      expect(result.success).toBe(true);
+      expect(result.orderId).toBeDefined();
+      expect(result.confirmationToken).toBeDefined();
+      expect(result.order.symbol).toBe('AAPL');
+      expect(result.order.quantity).toBe(10);
+      expect(result.expiresAt).toBeDefined();
+    });
+
+    test('Should confirm order and submit to broker', async () => {
+      mockBroker.getAccount = jest.fn().mockResolvedValue({
+        buying_power: 50000,
+        equity: 100000
+      });
+
+      mockBroker.placeOrder.mockResolvedValue({
+        id: 'broker_order_123',
+        status: 'submitted'
+      });
+
+      const orderRequest = {
+        symbol: 'AAPL',
+        quantity: 10,
+        side: 'buy',
+        type: 'market',
+        market_price: 150
+      };
+
+      const createResult = await orderManager.createOrder(orderRequest, 'user123');
+      const confirmResult = await orderManager.confirmOrder(createResult.confirmationToken, 'user123');
+
+      expect(confirmResult.success).toBe(true);
+      expect(confirmResult.brokerOrderId).toBe('broker_order_123');
+    });
+
+    test('Should reject expired confirmation token', async () => {
+      mockBroker.getAccount = jest.fn().mockResolvedValue({
+        buying_power: 50000,
+        equity: 100000
+      });
+
+      const orderRequest = {
+        symbol: 'AAPL',
+        quantity: 10,
+        side: 'buy',
+        type: 'market',
+        market_price: 150
+      };
+
+      const createResult = await orderManager.createOrder(orderRequest, 'user123');
+
+      // Expire the token
+      const confirmation = orderManager.pendingConfirmations.get(createResult.confirmationToken);
+      confirmation.expiresAt = new Date(Date.now() - 1000);
+
+      await expect(orderManager.confirmOrder(createResult.confirmationToken, 'user123')).rejects.toThrow();
+    });
+
+    test('Should prevent unauthorized order confirmation', async () => {
+      mockBroker.getAccount = jest.fn().mockResolvedValue({
+        buying_power: 50000,
+        equity: 100000
+      });
+
+      const orderRequest = {
+        symbol: 'AAPL',
+        quantity: 10,
+        side: 'buy',
+        type: 'market',
+        market_price: 150
+      };
+
+      const createResult = await orderManager.createOrder(orderRequest, 'user123');
+
+      await expect(orderManager.confirmOrder(createResult.confirmationToken, 'user456')).rejects.toThrow();
+    });
+
+    test('Should cancel pending confirmation', async () => {
+      mockBroker.getAccount = jest.fn().mockResolvedValue({
+        buying_power: 50000,
+        equity: 100000
+      });
+
+      const orderRequest = {
+        symbol: 'AAPL',
+        quantity: 10,
+        side: 'buy',
+        type: 'market',
+        market_price: 150
+      };
+
+      const createResult = await orderManager.createOrder(orderRequest, 'user123');
+      const cancelResult = orderManager.cancelPendingConfirmation(createResult.confirmationToken);
+
+      expect(cancelResult.success).toBe(true);
+      expect(orderManager.pendingConfirmations.has(createResult.confirmationToken)).toBe(false);
+    });
+
+    test('Should get pending confirmation details', async () => {
+      mockBroker.getAccount = jest.fn().mockResolvedValue({
+        buying_power: 50000,
+        equity: 100000
+      });
+
+      const orderRequest = {
+        symbol: 'AAPL',
+        quantity: 10,
+        side: 'buy',
+        type: 'market',
+        market_price: 150
+      };
+
+      const createResult = await orderManager.createOrder(orderRequest, 'user123');
+      const confirmation = orderManager.getPendingConfirmation(createResult.confirmationToken);
+
+      expect(confirmation).not.toBeNull();
+      expect(confirmation.symbol).toBe('AAPL');
+      expect(confirmation.quantity).toBe(10);
+    });
+  });
+
+  describe('Business Rule Validation (v2.0)', () => {
+    beforeEach(() => {
+      mockBroker.getAccount = jest.fn().mockResolvedValue({
+        buying_power: 50000,
+        equity: 100000
+      });
+      mockBroker.getPositions = jest.fn().mockResolvedValue([]);
+    });
+
+    test('Should reject order below minimum value', async () => {
+      const order = {
+        symbol: 'AAPL',
+        quantity: 1,
+        side: 'buy',
+        type: 'limit',
+        limit_price: 10 // Total: $10 (below $100 minimum)
+      };
+
+      await expect(orderManager.createOrder(order, 'user123')).rejects.toThrow();
+    });
+
+    test('Should reject order exceeding maximum value', async () => {
+      const order = {
+        symbol: 'AAPL',
+        quantity: 1000,
+        side: 'buy',
+        type: 'limit',
+        limit_price: 200 // Total: $200,000 (above $100,000 maximum)
+      };
+
+      await expect(orderManager.createOrder(order, 'user123')).rejects.toThrow();
+    });
+
+    test('Should reject order with insufficient buying power', async () => {
+      mockBroker.getAccount = jest.fn().mockResolvedValue({
+        buying_power: 500,
+        equity: 100000
+      });
+
+      const order = {
+        symbol: 'AAPL',
+        quantity: 10,
+        side: 'buy',
+        type: 'market',
+        market_price: 150 // Total: $1500
+      };
+
+      await expect(orderManager.createOrder(order, 'user123')).rejects.toThrow();
+    });
+
+    test('Should require limit price for limit orders', async () => {
+      const limitOrder = {
+        symbol: 'AAPL',
+        quantity: 10,
+        side: 'buy',
+        type: 'limit'
+      };
+
+      await expect(orderManager.createOrder(limitOrder, 'user123')).rejects.toThrow();
     });
   });
 });
