@@ -310,13 +310,22 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>🚀 HMS J4C Agent Dashboard</h1>
+            <div style="display: flex; justify-content: space-between; align-items: flex-start; width: 100%; margin-bottom: 15px;">
+                <h1>🚀 HMS J4C Agent Dashboard</h1>
+                <div style="display: flex; gap: 10px;">
+                    <a href="/" style="padding: 8px 15px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Dashboard</a>
+                    <a href="/charts-dashboard.html" style="padding: 8px 15px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">📈 Charts</a>
+                    <a href="/oms.html" style="padding: 8px 15px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">OMS</a>
+                    <a href="/trading.html" style="padding: 8px 15px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Trading</a>
+                    <a href="/portfolio.html" style="padding: 8px 15px; background: #667eea; color: white; text-decoration: none; border-radius: 6px; font-weight: 600;">Portfolio</a>
+                </div>
+            </div>
             <div class="header-info">
                 <div class="info-item">
                     Status: <span class="status-badge status-ok" id="statusBadge">● Healthy</span>
                 </div>
                 <div class="info-item">
-                    Version: <strong>1.0.0</strong>
+                    Version: <strong>1.1.0</strong>
                 </div>
                 <div class="info-item">
                     Agents: <strong><span id="agentCount">--</span></strong>

@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Charts - HMS Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns@3.0.0/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            color: #333;
+        }
+        .container { max-width: 1600px; margin: 0 auto; }
+        .header {
+            background: white;
+            padding: 20px 30px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .header h1 { font-size: 24px; color: #667eea; }
+        .nav-links { display: flex; gap: 15px; }
+        .nav-link {
+            padding: 10px 15px;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            color: #333;
+            font-weight: 500;
+        }
+        .chart-controls {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+        }
+        .control-group {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+        .control-group label { font-weight: 600; }
+        .control-group input,
+        .control-group select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+        }
+        .btn {
+            padding: 8px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        .btn:hover { background: #764ba2; }
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        .chart-card {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .chart-card h3 {
+            margin-bottom: 15px;
+            color: #667eea;
+            font-size: 16px;
+        }
+        .chart-container {
+            position: relative;
+            height: 400px;
+        }
+        .data-table {
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-top: 20px;
+        }
+        .data-table h3 { margin-bottom: 15px; color: #667eea; font-size: 16px; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        table th {
+            background: #f8f9fa;
+            padding: 12px;
+            text-align: left;
+            font-weight: 600;
+            border-bottom: 2px solid #ddd;
+            font-size: 12px;
+        }
+        table td {
+            padding: 10px 12px;
+            border-bottom: 1px solid #eee;
+            font-size: 13px;
+        }
+        .up { color: #28a745; font-weight: 600; }
+        .down { color: #dc3545; font-weight: 600; }
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+        }
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .stat-label { color: #999; font-size: 12px; text-transform: uppercase; }
+        .stat-value { font-size: 20px; font-weight: 700; color: #333; margin-top: 5px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📈 Interactive Charts Dashboard</h1>
+            <div class="nav-links">
+                <a href="/" class="nav-link">Dashboard</a>
+                <a href="/oms.html" class="nav-link">OMS</a>
+                <a href="/trading.html" class="nav-link">Trading</a>
+                <a href="/portfolio.html" class="nav-link">Portfolio</a>
+            </div>
+        </div>
+
+        <div class="chart-controls">
+            <div class="control-group">
+                <label>Symbol:</label>
+                <input type="text" id="symbolInput" placeholder="e.g., AAPL" value="AAPL" maxlength="10">
+            </div>
+            <div class="control-group">
+                <label>Interval:</label>
+                <select id="intervalSelect">
+                    <option value="1min">1 Minute</option>
+                    <option value="5min" selected>5 Minutes</option>
+                    <option value="15min">15 Minutes</option>
+                    <option value="30min">30 Minutes</option>
+                    <option value="60min">1 Hour</option>
+                </select>
+            </div>
+            <button class="btn" onclick="loadCharts()">Load Data</button>
+            <button class="btn" onclick="clearCharts()" style="background: #999;">Clear</button>
+        </div>
+
+        <div id="errorMessage"></div>
+
+        <div class="stats-grid" id="statsGrid"></div>
+
+        <div class="charts-grid">
+            <div class="chart-card">
+                <h3>Price Chart</h3>
+                <div class="chart-container">
+                    <canvas id="priceChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <h3>Volume Chart</h3>
+                <div class="chart-container">
+                    <canvas id="volumeChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <h3>Candlestick Chart (OHLC)</h3>
+                <div class="chart-container">
+                    <canvas id="candleChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <h3>Moving Average (20/50)</h3>
+                <div class="chart-container">
+                    <canvas id="maChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="data-table">
+            <h3>Price History</h3>
+            <table id="historyTable">
+                <thead>
+                    <tr>
+                        <th>Time</th>
+                        <th>Price</th>
+                        <th>Change</th>
+                        <th>Change %</th>
+                    </tr>
+                </thead>
+                <tbody id="historyBody">
+                    <tr><td colspan="4" class="loading">No data loaded</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        let charts = {};
+        let currentData = null;
+        let token = localStorage.getItem('accessToken');
+
+        async function loadCharts() {
+            const symbol = document.getElementById('symbolInput').value.toUpperCase();
+            const interval = document.getElementById('intervalSelect').value;
+            const errorDiv = document.getElementById('errorMessage');
+
+            if (!symbol) {
+                errorDiv.innerHTML = '<div class="error">Please enter a symbol</div>';
+                return;
+            }
+
+            try {
+                errorDiv.innerHTML = '';
+
+                // Load intraday data
+                const response = await fetch(
+                    `/api/market/intraday/${symbol}?interval=${interval}`,
+                    { headers: { 'Authorization': `Bearer ${token}` } }
+                );
+
+                if (!response.ok) {
+                    throw new Error('Failed to fetch market data');
+                }
+
+                const data = await response.json();
+                currentData = data.data;
+
+                // Load and display charts
+                displayPriceChart(symbol, data.data);
+                displayVolumeChart(symbol, data.data);
+                displayCandleChart(symbol, data.data);
+                displayMAChart(symbol, data.data);
+                displayHistoryTable(symbol, data.data);
+                displayStats(symbol, data.data);
+
+            } catch (error) {
+                errorDiv.innerHTML = `<div class="error">❌ ${error.message}</div>`;
+            }
+        }
+
+        function displayPriceChart(symbol, data) {
+            const ctx = document.getElementById('priceChart').getContext('2d');
+
+            if (charts.price) charts.price.destroy();
+
+            charts.price = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => new Date(d.timestamp).toLocaleTimeString()),
+                    datasets: [{
+                        label: `${symbol} Price`,
+                        data: data.map(d => d.close),
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.4,
+                        pointRadius: 0
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: true } },
+                    scales: {
+                        y: { beginAtZero: false }
+                    }
+                }
+            });
+        }
+
+        function displayVolumeChart(symbol, data) {
+            const ctx = document.getElementById('volumeChart').getContext('2d');
+
+            if (charts.volume) charts.volume.destroy();
+
+            charts.volume = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: data.map(d => new Date(d.timestamp).toLocaleTimeString()),
+                    datasets: [{
+                        label: 'Volume',
+                        data: data.map(d => d.volume),
+                        backgroundColor: 'rgba(102, 126, 234, 0.6)',
+                        borderColor: '#667eea',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: true } },
+                    scales: {
+                        y: { beginAtZero: true }
+                    }
+                }
+            });
+        }
+
+        function displayCandleChart(symbol, data) {
+            const ctx = document.getElementById('candleChart').getContext('2d');
+
+            if (charts.candle) charts.candle.destroy();
+
+            const candleData = data.map((d, i) => ({
+                x: new Date(d.timestamp),
+                o: d.open,
+                h: d.high,
+                l: d.low,
+                c: d.close
+            }));
+
+            // Simple candlestick visualization using line chart with high/low bands
+            charts.candle = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => new Date(d.timestamp).toLocaleTimeString()),
+                    datasets: [
+                        {
+                            label: 'High',
+                            data: data.map(d => d.high),
+                            borderColor: '#28a745',
+                            backgroundColor: 'transparent',
+                            borderWidth: 1,
+                            pointRadius: 0,
+                            borderDash: [5, 5]
+                        },
+                        {
+                            label: 'Close',
+                            data: data.map(d => d.close),
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            borderWidth: 2,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Low',
+                            data: data.map(d => d.low),
+                            borderColor: '#dc3545',
+                            backgroundColor: 'transparent',
+                            borderWidth: 1,
+                            pointRadius: 0,
+                            borderDash: [5, 5]
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: true } },
+                    scales: {
+                        y: { beginAtZero: false }
+                    }
+                }
+            });
+        }
+
+        function displayMAChart(symbol, data) {
+            const ctx = document.getElementById('maChart').getContext('2d');
+
+            if (charts.ma) charts.ma.destroy();
+
+            const ma20 = calculateMA(data, 20);
+            const ma50 = calculateMA(data, 50);
+
+            charts.ma = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => new Date(d.timestamp).toLocaleTimeString()),
+                    datasets: [
+                        {
+                            label: `${symbol} Price`,
+                            data: data.map(d => d.close),
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                            borderWidth: 2,
+                            fill: false,
+                            tension: 0.4,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'MA 20',
+                            data: ma20,
+                            borderColor: '#ffc107',
+                            backgroundColor: 'transparent',
+                            borderWidth: 1,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            borderDash: [3, 3]
+                        },
+                        {
+                            label: 'MA 50',
+                            data: ma50,
+                            borderColor: '#dc3545',
+                            backgroundColor: 'transparent',
+                            borderWidth: 1,
+                            tension: 0.4,
+                            pointRadius: 0,
+                            borderDash: [5, 5]
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: true } },
+                    scales: {
+                        y: { beginAtZero: false }
+                    }
+                }
+            });
+        }
+
+        function calculateMA(data, period) {
+            return data.map((_, i) => {
+                if (i < period - 1) return null;
+                const sum = data.slice(i - period + 1, i + 1)
+                    .reduce((acc, d) => acc + d.close, 0);
+                return sum / period;
+            });
+        }
+
+        function displayHistoryTable(symbol, data) {
+            const tbody = document.getElementById('historyBody');
+            tbody.innerHTML = data.map(d => {
+                const timestamp = new Date(d.timestamp);
+                const change = (d.close - d.open).toFixed(2);
+                const changePercent = ((change / d.open) * 100).toFixed(2);
+                const changeClass = change >= 0 ? 'up' : 'down';
+
+                return `
+                    <tr>
+                        <td>${timestamp.toLocaleString()}</td>
+                        <td>$${d.close.toFixed(2)}</td>
+                        <td class="${changeClass}">${change > 0 ? '+' : ''}${change}</td>
+                        <td class="${changeClass}">${changePercent > 0 ? '+' : ''}${changePercent}%</td>
+                    </tr>
+                `;
+            }).join('');
+        }
+
+        function displayStats(symbol, data) {
+            const latest = data[data.length - 1];
+            const first = data[0];
+            const change = latest.close - first.open;
+            const changePercent = ((change / first.open) * 100).toFixed(2);
+            const high = Math.max(...data.map(d => d.high));
+            const low = Math.min(...data.map(d => d.low));
+
+            const statsGrid = document.getElementById('statsGrid');
+            statsGrid.innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-label">Current Price</div>
+                    <div class="stat-value">$${latest.close.toFixed(2)}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Change</div>
+                    <div class="stat-value ${change >= 0 ? 'up' : 'down'}">
+                        ${change >= 0 ? '+' : ''}${change.toFixed(2)} (${changePercent}%)
+                    </div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">High</div>
+                    <div class="stat-value">$${high.toFixed(2)}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Low</div>
+                    <div class="stat-value">$${low.toFixed(2)}</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-label">Volume</div>
+                    <div class="stat-value">${(latest.volume / 1000000).toFixed(2)}M</div>
+                </div>
+            `;
+        }
+
+        function clearCharts() {
+            Object.values(charts).forEach(chart => chart?.destroy());
+            charts = {};
+            currentData = null;
+            document.getElementById('historyBody').innerHTML =
+                '<tr><td colspan="4" class="loading">No data loaded</td></tr>';
+            document.getElementById('statsGrid').innerHTML = '';
+            document.getElementById('errorMessage').innerHTML = '';
+        }
+
+        // Load on page ready
+        window.addEventListener('load', () => {
+            if (!token) {
+                document.getElementById('errorMessage').innerHTML =
+                    '<div class="error">❌ Not authenticated. Please <a href="/">login</a></div>';
+            }
+        });
+    </script>
+</body>
+</html>
