@@ -1,0 +1,170 @@
+name: HMS Docker Build & Push
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'Dockerfile.j4c'
+      - 'plugin/**'
+      - '.github/workflows/hms-docker-build-push.yml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'Dockerfile.j4c'
+      - 'plugin/**'
+  workflow_dispatch:
+    inputs:
+      push_image:
+        description: 'Push image to registry'
+        required: false
+        default: 'false'
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: aurigraph/hms-j4c-agent
+  DOCKERFILE: Dockerfile.j4c
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to Docker Hub
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Extract version from package.json
+        id: version
+        run: |
+          VERSION=$(grep '"version"' plugin/package.json | sed 's/.*"version": "\(.*\)".*/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Build version: $VERSION"
+
+      - name: Build and test Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          push: false
+          load: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Run image tests
+        run: |
+          docker run --rm ${{ env.IMAGE_NAME }}:latest node -v
+          docker run --rm ${{ env.IMAGE_NAME }}:latest npm list
+
+      - name: Push image to registry
+        if: github.event_name != 'pull_request' && (github.ref == 'refs/heads/main' || github.event.inputs.push_image == 'true')
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ${{ env.DOCKERFILE }}
+          push: true
+          tags: |
+            ${{ env.IMAGE_NAME }}:latest
+            ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Update deployment manifest
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        run: |
+          sed -i "s|image: ${{ env.IMAGE_NAME }}:.*|image: ${{ env.IMAGE_NAME }}:${{ steps.version.outputs.version }}|g" \
+            docker-compose.hms.yml \
+            docker-compose.swarm.yml \
+            k8s/gnn-components-deployment.yaml || true
+
+      - name: Create Pull Request for manifest update
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        uses: peter-evans/create-pull-request@v5
+        with:
+          commit-message: 'chore: Update docker image version to ${{ steps.version.outputs.version }}'
+          title: 'chore: Update docker image version to ${{ steps.version.outputs.version }}'
+          body: 'Automated docker image version update'
+          branch: 'chore/docker-image-${{ steps.version.outputs.version }}'
+
+  security-scan:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name != 'pull_request'
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ env.IMAGE_NAME }}:latest
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [build, security-scan]
+    if: always()
+
+    steps:
+      - name: Notify Slack
+        if: failure()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "HMS Docker Build Failed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "❌ HMS Docker Build *Failed*\n\nRepo: ${{ github.repository }}\nBranch: ${{ github.ref }}\nCommit: ${{ github.sha }}\nAuthor: ${{ github.actor }}"
+                  }
+                }
+              ]
+            }
+
+      - name: Notify success
+        if: success()
+        uses: slackapi/slack-github-action@v1.24.0
+        with:
+          webhook-url: ${{ secrets.SLACK_WEBHOOK_URL }}
+          payload: |
+            {
+              "text": "HMS Docker Build Successful",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "✅ HMS Docker Build *Successful*\n\nImage: ${{ env.IMAGE_NAME }}:latest\nRepo: ${{ github.repository }}\nBranch: ${{ github.ref }}"
+                  }
+                }
+              ]
+            }

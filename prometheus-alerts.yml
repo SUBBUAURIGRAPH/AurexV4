@@ -1,0 +1,233 @@
+groups:
+  - name: hms_agent
+    interval: 30s
+    rules:
+      # HMS J4C Agent Health Alerts
+      - alert: AgentDown
+        expr: up{job="hms-agent"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: agent
+        annotations:
+          summary: "HMS Agent is down"
+          description: "HMS J4C Agent has been unreachable for more than 2 minutes."
+          runbook: "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting#agent-down"
+
+      - alert: HighMemoryUsage
+        expr: container_memory_usage_bytes{name="hms-j4c-agent"} / 1073741824 > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: agent
+        annotations:
+          summary: "High memory usage on HMS Agent"
+          description: "HMS J4C Agent memory usage is above 80% ({{ $value }}GB)"
+          runbook: "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting#high-memory"
+
+      - alert: HighCPUUsage
+        expr: rate(container_cpu_usage_seconds_total{name="hms-j4c-agent"}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          component: agent
+        annotations:
+          summary: "High CPU usage on HMS Agent"
+          description: "HMS J4C Agent CPU usage is above 80% ({{ printf \"%.2f\" $value }}%)"
+          runbook: "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting#high-cpu"
+
+      - alert: DiskSpaceRunningOut
+        expr: node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"} < 0.1
+        for: 5m
+        labels:
+          severity: critical
+          component: infrastructure
+        annotations:
+          summary: "Low disk space"
+          description: "Disk space is below 10% available ({{ printf \"%.2f\" $value }}%)"
+          runbook: "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting#disk-space"
+
+  - name: database
+    interval: 30s
+    rules:
+      # PostgreSQL Database Health Alerts
+      - alert: PostgreSQLDown
+        expr: pg_up == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "PostgreSQL database has been unreachable for more than 2 minutes."
+          runbook: "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting#postgres-down"
+
+      - alert: PostgreSQLConnectionsHigh
+        expr: pg_stat_activity_count > 90
+        for: 5m
+        labels:
+          severity: warning
+          component: database
+        annotations:
+          summary: "High number of PostgreSQL connections"
+          description: "PostgreSQL connection count is {{ $value }}, approaching limit of 100"
+          runbook: "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting#postgres-connections"
+
+      - alert: PostgreSQLTransactionIDWrapAround
+        expr: pg_txid_current_xid_lag > 1000000000
+        for: 5m
+        labels:
+          severity: critical
+          component: database
+        annotations:
+          summary: "PostgreSQL transaction ID wrap around warning"
+          description: "PostgreSQL transaction ID lag is {{ $value }} transactions from overflow"
+          runbook: "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting#postgres-txid"
+
+  - name: nginx
+    interval: 30s
+    rules:
+      # NGINX Reverse Proxy Alerts
+      - alert: NGINXDown
+        expr: up{job="nginx"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: proxy
+        annotations:
+          summary: "NGINX reverse proxy is down"
+          description: "NGINX has been unreachable for more than 2 minutes."
+          runbook: "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting#nginx-down"
+
+      - alert: NGINXHighErrorRate
+        expr: rate(nginx_http_requests_total{status=~"5.."}[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: proxy
+        annotations:
+          summary: "High error rate on NGINX"
+          description: "NGINX 5xx error rate is {{ printf \"%.2f\" $value }}% over the last 5 minutes"
+          runbook: "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting#nginx-errors"
+
+      - alert: NGINXConnectionsHigh
+        expr: nginx_connections_active > 1000
+        for: 5m
+        labels:
+          severity: warning
+          component: proxy
+        annotations:
+          summary: "High number of active connections on NGINX"
+          description: "NGINX active connections: {{ $value }}"
+          runbook: "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting#nginx-connections"
+
+  - name: prometheus
+    interval: 30s
+    rules:
+      # Prometheus Monitoring Alerts
+      - alert: PrometheusDown
+        expr: up{job="prometheus"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: monitoring
+        annotations:
+          summary: "Prometheus is down"
+          description: "Prometheus has been unreachable for more than 2 minutes."
+          runbook: "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting#prometheus-down"
+
+      - alert: PrometheusHighMemory
+        expr: process_resident_memory_bytes{job="prometheus"} / 1073741824 > 1
+        for: 5m
+        labels:
+          severity: warning
+          component: monitoring
+        annotations:
+          summary: "High memory usage on Prometheus"
+          description: "Prometheus memory usage is {{ printf \"%.2f\" $value }}GB"
+          runbook: "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting#prometheus-memory"
+
+      - alert: PrometheusStorageCapacity
+        expr: prometheus_tsdb_symbol_table_size_bytes / 1073741824 > 50
+        for: 5m
+        labels:
+          severity: warning
+          component: monitoring
+        annotations:
+          summary: "Prometheus TSDB approaching capacity"
+          description: "Prometheus TSDB size is {{ printf \"%.2f\" $value }}GB"
+          runbook: "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting#prometheus-storage"
+
+  - name: trading_system
+    interval: 30s
+    rules:
+      # Trading System Business Alerts
+      - alert: TradingSystemHighLatency
+        expr: hms_agent_request_duration_seconds{quantile="0.99"} > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "High latency in trading system"
+          description: "99th percentile API latency is {{ printf \"%.2f\" $value }}s"
+          runbook: "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting#high-latency"
+
+      - alert: TradingSystemErrorRate
+        expr: rate(hms_agent_errors_total[5m]) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+          component: trading
+        annotations:
+          summary: "High error rate in trading system"
+          description: "Error rate is {{ printf \"%.2f\" $value }}% over the last 5 minutes"
+          runbook: "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting#high-error-rate"
+
+      - alert: PortfolioCalculationFailure
+        expr: increase(hms_portfolio_calc_failures_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          component: trading
+        annotations:
+          summary: "Portfolio calculation failure detected"
+          description: "Portfolio calculation has failed {{ $value }} times in the last 5 minutes"
+          runbook: "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting#portfolio-calc-failure"
+
+      - alert: PatternDetectionFailure
+        expr: increase(hms_pattern_detection_failures_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+          component: trading
+        annotations:
+          summary: "Pattern detection failure detected"
+          description: "Pattern detection has failed {{ $value }} times in the last 5 minutes"
+          runbook: "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting#pattern-detection-failure"
+
+  - name: service_mesh
+    interval: 30s
+    rules:
+      # Service Health Alerts
+      - alert: MultipleServicesDown
+        expr: count(up == 0) > 2
+        for: 2m
+        labels:
+          severity: critical
+          component: infrastructure
+        annotations:
+          summary: "Multiple services are down"
+          description: "{{ $value }} services are currently down"
+          runbook: "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting#multiple-services-down"
+
+      - alert: ServiceRestartingFrequently
+        expr: increase(container_last_seen[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          component: infrastructure
+        annotations:
+          summary: "Service is restarting frequently"
+          description: "Service {{ $labels.name }} has restarted {{ $value }} times in the last 5 minutes"
+          runbook: "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting#frequent-restarts"
