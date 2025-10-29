@@ -17,6 +17,8 @@ const RBACMiddleware = require('./auth/rbac-middleware');
 const AuthEndpoints = require('./auth/auth-endpoints');
 const SkillExecutor = require('./skill-execution/executor');
 const MarketDataClient = require('./market-data/client');
+const AlpacaBroker = require('./broker/alpaca-broker');
+const OrderManager = require('./broker/order-manager');
 
 // Configuration
 const PORT = process.env.PORT || 9003;
@@ -24,6 +26,11 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 const JWT_SECRET = process.env.JWT_SECRET || undefined;
 const MARKET_DATA_PROVIDER = process.env.MARKET_DATA_PROVIDER || 'alpha-vantage';
 const MARKET_DATA_API_KEY = process.env.MARKET_DATA_API_KEY;
+
+// Broker configuration
+const ALPACA_API_KEY = process.env.ALPACA_API_KEY;
+const ALPACA_API_SECRET = process.env.ALPACA_API_SECRET;
+const ALPACA_PAPER_TRADING = process.env.ALPACA_PAPER_TRADING !== 'false';
 
 // Initialize authentication modules
 const jwtAuth = new JWTAuth({
@@ -61,6 +68,29 @@ if (MARKET_DATA_API_KEY) {
     console.log(`✅ Market Data Client initialized: ${MARKET_DATA_PROVIDER}`);
   } catch (error) {
     console.warn('⚠️  Market Data Client initialization failed:', error.message);
+  }
+}
+
+// Initialize broker (optional if API credentials provided)
+let alpacaBroker = null;
+let orderManager = null;
+if (ALPACA_API_KEY && ALPACA_API_SECRET) {
+  try {
+    alpacaBroker = new AlpacaBroker({
+      apiKey: ALPACA_API_KEY,
+      apiSecret: ALPACA_API_SECRET,
+      paperTrading: ALPACA_PAPER_TRADING,
+      logger: console
+    });
+
+    orderManager = new OrderManager({
+      broker: alpacaBroker,
+      logger: console
+    });
+
+    console.log(`✅ Alpaca Broker initialized (Paper Trading: ${ALPACA_PAPER_TRADING})`);
+  } catch (error) {
+    console.warn('⚠️  Broker initialization failed:', error.message);
   }
 }
 
@@ -558,6 +588,298 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // ============== Broker/Trading Endpoints ==============
+
+    // Check broker connection status
+    if (pathname === '/api/broker/status' && method === 'GET') {
+      if (!alpacaBroker) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Broker not available' }));
+        return;
+      }
+
+      const status = alpacaBroker.getStatus();
+      const capabilities = alpacaBroker.getCapabilities();
+
+      res.writeHead(200);
+      res.end(JSON.stringify({
+        status,
+        capabilities
+      }));
+      return;
+    }
+
+    // Get account information
+    if (pathname === '/api/account' && method === 'GET') {
+      if (!alpacaBroker || !alpacaBroker.account) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Broker not connected' }));
+        return;
+      }
+
+      res.writeHead(200);
+      res.end(JSON.stringify({
+        account: alpacaBroker.account
+      }));
+      return;
+    }
+
+    // Get all positions
+    if (pathname === '/api/positions' && method === 'GET') {
+      if (!alpacaBroker) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Broker not available' }));
+        return;
+      }
+
+      const positions = Array.from(alpacaBroker.positions.values());
+      res.writeHead(200);
+      res.end(JSON.stringify({
+        total: positions.length,
+        positions
+      }));
+      return;
+    }
+
+    // Get position for specific symbol
+    if (pathname.match(/^\/api\/positions\/[^/]+$/) && method === 'GET') {
+      if (!alpacaBroker) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Broker not available' }));
+        return;
+      }
+
+      const symbol = pathname.split('/').pop().toUpperCase();
+      const position = alpacaBroker.positions.get(symbol);
+
+      if (!position) {
+        res.writeHead(404);
+        res.end(JSON.stringify({ error: 'Position not found' }));
+        return;
+      }
+
+      res.writeHead(200);
+      res.end(JSON.stringify({ position }));
+      return;
+    }
+
+    // Close position
+    if (pathname.match(/^\/api\/positions\/[^/]+$/) && method === 'DELETE') {
+      if (!alpacaBroker) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Broker not available' }));
+        return;
+      }
+
+      const symbol = pathname.split('/').pop().toUpperCase();
+      try {
+        const result = await alpacaBroker.closePosition(symbol);
+        res.writeHead(200);
+        res.end(JSON.stringify({
+          success: true,
+          symbol,
+          result
+        }));
+      } catch (error) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: error.message }));
+      }
+      return;
+    }
+
+    // Calculate P&L for position
+    if (pathname.match(/^\/api\/pnl\/[^/]+$/) && method === 'GET') {
+      if (!alpacaBroker) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Broker not available' }));
+        return;
+      }
+
+      const symbol = pathname.split('/').pop().toUpperCase();
+      const query = new URL(req.url, `http://${req.headers.host}`).searchParams;
+      const currentPrice = parseFloat(query.get('price'));
+
+      if (isNaN(currentPrice)) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: 'price parameter required and must be a number' }));
+        return;
+      }
+
+      const pnl = alpacaBroker.calculatePnL(symbol, currentPrice);
+      if (!pnl) {
+        res.writeHead(404);
+        res.end(JSON.stringify({ error: 'Position not found' }));
+        return;
+      }
+
+      res.writeHead(200);
+      res.end(JSON.stringify({ pnl }));
+      return;
+    }
+
+    // Place new order
+    if (pathname === '/api/orders' && method === 'POST') {
+      if (!orderManager) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Order management not available' }));
+        return;
+      }
+
+      let body = '';
+      req.on('data', chunk => { body += chunk.toString(); });
+      req.on('end', async () => {
+        try {
+          const orderRequest = JSON.parse(body);
+          const userId = authenticatedUser?.id || 'system';
+
+          const order = await orderManager.createOrder(orderRequest, userId);
+
+          res.writeHead(201);
+          res.end(JSON.stringify({
+            success: true,
+            order
+          }));
+        } catch (error) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: error.message }));
+        }
+      });
+      return;
+    }
+
+    // Get all orders for user
+    if (pathname === '/api/orders' && method === 'GET') {
+      if (!orderManager) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Order management not available' }));
+        return;
+      }
+
+      const query = new URL(req.url, `http://${req.headers.host}`).searchParams;
+      const userId = authenticatedUser?.id || 'system';
+      const filters = {
+        status: query.get('status'),
+        symbol: query.get('symbol'),
+        side: query.get('side')
+      };
+
+      // Remove null filters
+      Object.keys(filters).forEach(k => filters[k] === null && delete filters[k]);
+
+      const orders = orderManager.getOrdersByUser(userId, filters);
+
+      res.writeHead(200);
+      res.end(JSON.stringify({
+        total: orders.length,
+        orders
+      }));
+      return;
+    }
+
+    // Get specific order status
+    if (pathname.match(/^\/api\/orders\/[^/]+$/) && method === 'GET') {
+      if (!orderManager) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Order management not available' }));
+        return;
+      }
+
+      const orderId = pathname.split('/').pop();
+      try {
+        const order = await orderManager.getOrderStatus(orderId);
+        res.writeHead(200);
+        res.end(JSON.stringify({ order }));
+      } catch (error) {
+        res.writeHead(404);
+        res.end(JSON.stringify({ error: error.message }));
+      }
+      return;
+    }
+
+    // Cancel specific order
+    if (pathname.match(/^\/api\/orders\/[^/]+$/) && method === 'DELETE') {
+      if (!orderManager) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Order management not available' }));
+        return;
+      }
+
+      const orderId = pathname.split('/').pop();
+      const userId = authenticatedUser?.id || 'system';
+
+      try {
+        const result = await orderManager.cancelOrder(orderId, userId);
+        res.writeHead(200);
+        res.end(JSON.stringify(result));
+      } catch (error) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: error.message }));
+      }
+      return;
+    }
+
+    // Get active orders
+    if (pathname === '/api/orders/active' && method === 'GET') {
+      if (!orderManager) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Order management not available' }));
+        return;
+      }
+
+      const orders = orderManager.getActiveOrders();
+      res.writeHead(200);
+      res.end(JSON.stringify({
+        total: orders.length,
+        orders
+      }));
+      return;
+    }
+
+    // Get order execution history
+    if (pathname === '/api/orders/history' && method === 'GET') {
+      if (!orderManager) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Order management not available' }));
+        return;
+      }
+
+      const query = new URL(req.url, `http://${req.headers.host}`).searchParams;
+      const filters = {
+        userId: query.get('userId'),
+        action: query.get('action'),
+        limit: parseInt(query.get('limit') || '100')
+      };
+
+      // Only filter by own user if not admin
+      if (!authenticatedUser || !userManager.hasRole(authenticatedUser.id, 'admin')) {
+        filters.userId = authenticatedUser?.id;
+      }
+
+      const history = orderManager.getExecutionHistory(filters);
+      res.writeHead(200);
+      res.end(JSON.stringify({
+        total: history.length,
+        history
+      }));
+      return;
+    }
+
+    // Get order statistics
+    if (pathname === '/api/orders/stats' && method === 'GET') {
+      if (!orderManager) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Order management not available' }));
+        return;
+      }
+
+      const userId = authenticatedUser?.id || 'system';
+      const stats = orderManager.getStatistics(userId);
+
+      res.writeHead(200);
+      res.end(JSON.stringify({ stats }));
+      return;
+    }
+
     // ============== Admin Endpoints ==============
 
     // Get authentication stats
@@ -772,6 +1094,20 @@ server.listen(PORT, () => {
     console.log(`📈 Intraday: GET /api/market/intraday/:symbol`);
     console.log(`📉 History: GET /api/market/history/:symbol`);
     console.log(`🔍 Search: GET /api/market/search?q=keyword`);
+  }
+
+  if (alpacaBroker && orderManager) {
+    console.log(`\n📈 Trading/Broker Enabled (Alpaca - Paper: ${ALPACA_PAPER_TRADING})`);
+    console.log(`💼 Account: GET /api/account`);
+    console.log(`📊 Broker Status: GET /api/broker/status`);
+    console.log(`💰 Positions: GET /api/positions`);
+    console.log(`💹 P&L: GET /api/pnl/:symbol?price=X`);
+    console.log(`🛒 Place Order: POST /api/orders`);
+    console.log(`📋 Orders: GET /api/orders`);
+    console.log(`❌ Cancel Order: DELETE /api/orders/:orderId`);
+    console.log(`📈 Active Orders: GET /api/orders/active`);
+    console.log(`📑 History: GET /api/orders/history`);
+    console.log(`📊 Stats: GET /api/orders/stats`);
   }
   console.log(`${'='.repeat(60)}\n`);
 
