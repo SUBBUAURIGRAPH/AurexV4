@@ -1,0 +1,424 @@
+---
+# GNN-HMS Trading System - ConfigMaps
+# Version: 1.0.0
+# Purpose: Centralized configuration management for all GNN components
+
+# ============================================================================
+# MAIN GNN-HMS CONFIGURATION
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gnn-hms-config
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: configuration
+    version: "1.0.0"
+data:
+  # Environment settings
+  NODE_ENV: "production"
+  LOG_LEVEL: "info"
+  ENABLE_METRICS: "true"
+  ENABLE_TRACING: "true"
+
+  # System configuration
+  SYSTEM_MODE: "production"
+  DEPLOYMENT_STRATEGY: "blue-green"
+  HEALTH_CHECK_INTERVAL: "30000"
+
+  # Performance tuning
+  MAX_CONNECTIONS: "1000"
+  CONNECTION_TIMEOUT: "30000"
+  REQUEST_TIMEOUT: "60000"
+
+  # Cache settings
+  CACHE_ENABLED: "true"
+  CACHE_TTL: "3600"
+  CACHE_MAX_SIZE: "10000"
+
+  # Monitoring and alerting
+  ALERT_THRESHOLD: "0.7"
+  MONITORING_INTERVAL: "5000"
+  METRICS_RETENTION: "7776000"  # 90 days
+
+  # Trading system
+  TRADING_MODE: "live"
+  RISK_LIMIT: "0.5"
+  MAX_POSITION_SIZE: "0.1"
+  REBALANCE_THRESHOLD: "0.05"
+
+  # Multi-region configuration
+  REGIONS: "us-east-1,us-west-2,eu-west-1,ap-southeast-1"
+  PRIMARY_REGION: "us-east-1"
+  FAILOVER_ENABLED: "true"
+
+  # Database connections
+  DATABASE_POOL_SIZE: "50"
+  DATABASE_TIMEOUT: "5000"
+
+  # API configuration
+  API_RATE_LIMIT: "10000"
+  API_TIMEOUT: "30000"
+
+  # Logging
+  LOG_FORMAT: "json"
+  LOG_RETENTION_DAYS: "90"
+
+---
+# ============================================================================
+# GNN TRADING MANAGER CONFIGURATION
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gnn-trading-manager-config
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-trading-manager
+data:
+  # Trading Manager specific settings
+  GRAPH_UPDATE_INTERVAL: "5000"
+  GRAPH_MAX_NODES: "10000"
+  GRAPH_MAX_EDGES: "100000"
+  CORRELATION_THRESHOLD: "0.3"
+
+  # Node feature configuration
+  FEATURE_DIMENSIONS: "128"
+  EMBEDDING_SIZE: "64"
+
+  # Learning parameters
+  MESSAGE_PASSING_ROUNDS: "3"
+  AGGREGATION_FUNCTION: "mean"
+
+  # Cache configuration
+  FEATURE_CACHE_SIZE: "5000"
+  EMBEDDING_CACHE_SIZE: "5000"
+
+---
+# ============================================================================
+# GNN HMS INTEGRATION CONFIGURATION
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gnn-hms-integration-config
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-hms-integration
+data:
+  # Integration settings
+  INTEGRATION_MODE: "full"
+  COMPONENT_DISCOVERY: "kubernetes"
+  SERVICE_MESH_ENABLED: "false"
+
+  # Component endpoints (K8s service names)
+  TRADING_MANAGER_HOST: "gnn-trading-manager"
+  TRADING_MANAGER_PORT: "8001"
+  MARKET_RECOGNIZER_HOST: "gnn-market-recognizer"
+  MARKET_RECOGNIZER_PORT: "8003"
+  PORTFOLIO_OPTIMIZER_HOST: "gnn-portfolio-optimizer"
+  PORTFOLIO_OPTIMIZER_PORT: "8004"
+  RISK_DETECTOR_HOST: "gnn-risk-detector"
+  RISK_DETECTOR_PORT: "8005"
+  STRATEGY_LEARNER_HOST: "gnn-strategy-learner"
+  STRATEGY_LEARNER_PORT: "8006"
+
+  # Orchestration settings
+  STATE_MANAGEMENT: "distributed"
+  STATE_SYNC_INTERVAL: "1000"
+  CONSISTENCY_LEVEL: "eventual"
+
+  # Circuit breaker
+  CIRCUIT_BREAKER_ENABLED: "true"
+  CIRCUIT_BREAKER_THRESHOLD: "5"
+  CIRCUIT_BREAKER_TIMEOUT: "60000"
+
+---
+# ============================================================================
+# GNN MARKET RECOGNIZER CONFIGURATION
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gnn-market-recognizer-config
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-market-recognizer
+data:
+  # Market recognition settings
+  PATTERN_MATCHING_THRESHOLD: "0.8"
+  ANOMALY_DETECTION_THRESHOLD: "2.5"
+  REGIME_DETECTION_WINDOW: "500"
+
+  # Supported patterns
+  PATTERN_COUNT: "50"
+  PATTERN_TYPES: "trend,volatility,correlation,anomaly,regime"
+
+  # Signal generation
+  SIGNAL_CONFIDENCE_MIN: "0.6"
+  SIGNAL_STRENGTH_WEIGHT: "0.5"
+  RISK_ADJUSTMENT_ENABLED: "true"
+
+  # Cache
+  PATTERN_CACHE_SIZE: "10000"
+  SIGNAL_CACHE_TTL: "300"
+
+---
+# ============================================================================
+# GNN PORTFOLIO OPTIMIZER CONFIGURATION
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gnn-portfolio-optimizer-config
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-portfolio-optimizer
+data:
+  # Optimization settings
+  OPTIMIZATION_METHOD: "modern-portfolio-theory"
+  RISK_FREE_RATE: "0.02"
+  TARGET_RETURN: "0.10"
+  TARGET_VOLATILITY: "0.15"
+
+  # Constraints
+  MIN_ALLOCATION: "0.01"
+  MAX_ALLOCATION: "0.30"
+  CONCENTRATION_LIMIT: "0.50"
+
+  # Rebalancing
+  REBALANCE_THRESHOLD: "0.05"
+  REBALANCE_FREQUENCY: "weekly"
+  MAX_TRANSACTION_COST: "0.001"
+
+  # Risk metrics
+  VAR_CONFIDENCE: "0.95"
+  CVAR_CONFIDENCE: "0.95"
+  DRAWDOWN_LIMIT: "-0.20"
+
+  # Optimization timeout
+  OPTIMIZATION_TIMEOUT: "30000"
+  MAX_ITERATIONS: "1000"
+
+---
+# ============================================================================
+# GNN RISK DETECTOR CONFIGURATION
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gnn-risk-detector-config
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-risk-detector
+data:
+  # Risk detection settings
+  MONITORING_ENABLED: "true"
+  MONITORING_INTERVAL: "5000"
+  ALERT_AGGREGATION_INTERVAL: "10000"
+
+  # Risk thresholds
+  CONCENTRATION_RISK_THRESHOLD: "0.30"
+  CORRELATION_RISK_THRESHOLD: "0.75"
+  LIQUIDITY_RISK_THRESHOLD: "0.20"
+  VOLATILITY_RISK_THRESHOLD: "0.50"
+
+  # Alert levels
+  INFO_THRESHOLD: "0.30"
+  WARNING_THRESHOLD: "0.50"
+  CRITICAL_THRESHOLD: "0.75"
+
+  # Risk scoring
+  PORTFOLIO_RISK_WEIGHT: "0.4"
+  MARKET_RISK_WEIGHT: "0.3"
+  OPERATIONAL_RISK_WEIGHT: "0.2"
+  STRATEGIC_RISK_WEIGHT: "0.1"
+
+  # Alert management
+  ALERT_RETENTION_DAYS: "90"
+  DUPLICATE_ALERT_WINDOW: "300"
+  AUTO_RECOVERY_ENABLED: "true"
+
+---
+# ============================================================================
+# GNN STRATEGY LEARNER CONFIGURATION
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gnn-strategy-learner-config
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-strategy-learner
+data:
+  # Learning settings
+  LEARNING_MODE: "continuous"
+  LEARNING_RATE: "0.001"
+  LEARNING_RATE_DECAY: "0.999"
+
+  # Batch settings
+  BATCH_SIZE: "32"
+  EPOCHS: "10"
+  EARLY_STOPPING_ENABLED: "true"
+  EARLY_STOPPING_PATIENCE: "5"
+
+  # Data collection
+  DATA_COLLECTION_INTERVAL: "300000"
+  MIN_SAMPLES_FOR_LEARNING: "100"
+  MAX_HISTORICAL_SAMPLES: "1000000"
+
+  # Model configuration
+  MODEL_TYPE: "graph-neural-network"
+  HIDDEN_LAYER_SIZE: "256"
+  DROPOUT_RATE: "0.2"
+
+  # Performance tracking
+  PERFORMANCE_METRIC: "sharpe-ratio"
+  MIN_PERFORMANCE_IMPROVEMENT: "0.01"
+
+  # Transfer learning
+  TRANSFER_LEARNING_ENABLED: "true"
+  ASSET_CLASS_TRANSFER: "true"
+
+---
+# ============================================================================
+# GNN PRODUCTION DEPLOYMENT CONFIGURATION
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gnn-production-deployment-config
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-production-deployment
+data:
+  # Deployment settings
+  DEPLOYMENT_STRATEGY: "blue-green"
+  DEPLOYMENT_TIMEOUT: "600000"
+  ROLLBACK_ON_FAILURE: "true"
+
+  # Health checks
+  HEALTH_CHECK_INTERVAL: "30000"
+  HEALTH_CHECK_TIMEOUT: "10000"
+  HEALTH_CHECK_RETRIES: "3"
+
+  # Quality gates
+  CODE_QUALITY_THRESHOLD: "90"
+  TEST_COVERAGE_THRESHOLD: "80"
+  PERFORMANCE_THRESHOLD_P95: "200"
+  PERFORMANCE_THRESHOLD_P99: "500"
+
+  # Traffic shifting
+  CANARY_ENABLED: "true"
+  CANARY_INITIAL_TRAFFIC: "0.05"
+  CANARY_INCREMENT: "0.05"
+  CANARY_INTERVAL: "300000"
+
+  # Monitoring
+  MONITORING_ENABLED: "true"
+  METRICS_COLLECTION_INTERVAL: "10000"
+  LOG_AGGREGATION_ENABLED: "true"
+
+  # Incident response
+  AUTO_INCIDENT_DETECTION: "true"
+  INCIDENT_THRESHOLD: "0.05"
+  AUTO_ROLLBACK_ENABLED: "true"
+
+---
+# ============================================================================
+# DATABASE CONFIGURATION
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gnn-database-config
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: database
+data:
+  # Database settings
+  DATABASE_TYPE: "mongodb"
+  DATABASE_HOST: "gnn-hms-mongodb"
+  DATABASE_PORT: "27017"
+  DATABASE_POOL_SIZE: "50"
+  DATABASE_TIMEOUT: "5000"
+
+  # Replication
+  REPLICATION_ENABLED: "true"
+  REPLICA_SET: "gnn-hms-rs"
+  REPLICATION_LAG_TOLERANCE: "1000"
+
+---
+# ============================================================================
+# MESSAGE QUEUE CONFIGURATION
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gnn-mq-config
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: message-queue
+data:
+  # Message queue settings
+  MQ_TYPE: "kafka"
+  MQ_BROKERS: "kafka-0.kafka:9092,kafka-1.kafka:9092,kafka-2.kafka:9092"
+  MQ_CONSUMER_GROUP: "gnn-hms-group"
+
+  # Topics
+  MARKET_DATA_TOPIC: "gnn-market-data"
+  TRADE_EXECUTION_TOPIC: "gnn-trade-execution"
+  RISK_ALERTS_TOPIC: "gnn-risk-alerts"
+  STRATEGY_SIGNALS_TOPIC: "gnn-strategy-signals"
+
+  # Message settings
+  MESSAGE_RETENTION: "604800"  # 7 days
+  PARTITION_COUNT: "10"
+  REPLICATION_FACTOR: "3"
+
+---
+# ============================================================================
+# OBSERVABILITY CONFIGURATION
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gnn-observability-config
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: observability
+data:
+  # Prometheus settings
+  PROMETHEUS_ENABLED: "true"
+  PROMETHEUS_SCRAPE_INTERVAL: "15s"
+  PROMETHEUS_RETENTION: "15d"
+
+  # Jaeger tracing
+  JAEGER_ENABLED: "true"
+  JAEGER_AGENT_HOST: "jaeger-agent"
+  JAEGER_AGENT_PORT: "6831"
+  JAEGER_SAMPLER_TYPE: "probabilistic"
+  JAEGER_SAMPLER_PARAM: "0.1"
+
+  # ELK Stack logging
+  ELASTICSEARCH_ENABLED: "true"
+  ELASTICSEARCH_HOST: "elasticsearch"
+  ELASTICSEARCH_PORT: "9200"
+  KIBANA_HOST: "kibana"
+  KIBANA_PORT: "5601"
+
+  # Alerting
+  ALERTMANAGER_ENABLED: "true"
+  ALERTMANAGER_HOST: "alertmanager"
+  ALERTMANAGER_PORT: "9093"

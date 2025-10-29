@@ -1,0 +1,197 @@
+---
+# GNN-HMS Trading System - Helm Chart
+# Version: 1.0.0
+# Kubernetes 1.24+ Compatible
+
+apiVersion: v2
+name: gnn-hms-trading-system
+description: A comprehensive Helm chart for deploying the GNN-HMS Algorithmic Trading System on Kubernetes
+
+type: application
+version: 1.0.0
+appVersion: "1.0.0"
+
+# Chart metadata
+keywords:
+  - gnn
+  - graph-neural-networks
+  - algorithmic-trading
+  - kubernetes
+  - hms
+  - portfolio-optimization
+  - risk-management
+
+home: https://github.com/Aurigraph-DLT-Corp/gnn-hms-trading-system
+sources:
+  - https://github.com/Aurigraph-DLT-Corp/gnn-hms-trading-system
+
+maintainers:
+  - name: Aurigraph Trading Operations
+    email: trading-ops@aurigraph.io
+    url: https://aurigraph.io
+
+# Chart dependencies
+dependencies:
+  - name: mongodb
+    version: "13.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: mongodb.enabled
+    tags:
+      - database
+
+  - name: kafka
+    version: "21.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: kafka.enabled
+    tags:
+      - messaging
+
+  - name: redis
+    version: "17.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: redis.enabled
+    tags:
+      - cache
+
+  - name: prometheus
+    version: "15.x.x"
+    repository: https://prometheus-community.github.io/helm-charts
+    condition: prometheus.enabled
+    tags:
+      - monitoring
+
+  - name: grafana
+    version: "6.x.x"
+    repository: https://grafana.github.io/helm-charts
+    condition: grafana.enabled
+    tags:
+      - monitoring
+
+  - name: elasticsearch
+    version: "19.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: elasticsearch.enabled
+    tags:
+      - logging
+
+  - name: kibana
+    version: "10.x.x"
+    repository: https://charts.bitnami.com/bitnami
+    condition: kibana.enabled
+    tags:
+      - logging
+
+  - name: fluent-bit
+    version: "0.x.x"
+    repository: https://fluent.github.io/helm-charts
+    condition: fluent-bit.enabled
+    tags:
+      - logging
+
+  - name: ingress-nginx
+    version: "4.x.x"
+    repository: https://kubernetes.github.io/ingress-nginx
+    condition: ingress-nginx.enabled
+    tags:
+      - ingress
+
+  - name: cert-manager
+    version: "v1.x.x"
+    repository: https://charts.jetstack.io
+    condition: cert-manager.enabled
+    tags:
+      - tls
+
+---
+# Helm Chart Documentation
+
+# CHART VALUES OVERVIEW:
+#
+# This Helm chart provides a production-ready deployment of the GNN-HMS
+# Algorithmic Trading System with the following features:
+#
+# 1. 7 GNN Components
+#    - gnn-trading-manager: Foundation & Graph Management
+#    - gnn-hms-integration: Unified Orchestration Layer
+#    - gnn-market-recognizer: Real-time Pattern Detection
+#    - gnn-portfolio-optimizer: Advanced Allocation Engine
+#    - gnn-risk-detector: Multi-level Risk Analysis
+#    - gnn-strategy-learner: Continuous Learning Engine
+#    - gnn-production-deployment: Enterprise Deployment Manager
+#
+# 2. Supporting Infrastructure
+#    - MongoDB: Data persistence
+#    - Kafka: Event streaming
+#    - Redis: Distributed caching
+#    - Prometheus: Metrics collection
+#    - Grafana: Visualization
+#    - Elasticsearch/Kibana: Log aggregation
+#    - NGINX Ingress: API gateway
+#    - Cert-Manager: TLS certificates
+#
+# 3. Kubernetes Features
+#    - Namespace isolation
+#    - RBAC and service accounts
+#    - Resource limits and requests
+#    - Health checks and probes
+#    - Auto-scaling (HPA)
+#    - Persistent volumes
+#    - Network policies
+#    - Secrets management
+#
+# INSTALLATION:
+#
+# 1. Basic Installation:
+#    helm install gnn-hms ./gnn-hms-trading-system
+#
+# 2. With Custom Values:
+#    helm install gnn-hms ./gnn-hms-trading-system -f values.yaml
+#
+# 3. Production Deployment:
+#    helm install gnn-hms ./gnn-hms-trading-system -f values-prod.yaml
+#
+# 4. Development Deployment:
+#    helm install gnn-hms ./gnn-hms-trading-system -f values-dev.yaml
+#
+# UPGRADE:
+#
+# helm upgrade gnn-hms ./gnn-hms-trading-system -f values.yaml
+#
+# ROLLBACK:
+#
+# helm rollback gnn-hms <revision>
+#
+# UNINSTALL:
+#
+# helm uninstall gnn-hms
+#
+# STRUCTURE:
+#
+# gnn-hms-trading-system/
+# ├── Chart.yaml
+# ├── values.yaml
+# ├── values-dev.yaml
+# ├── values-staging.yaml
+# ├── values-prod.yaml
+# ├── templates/
+# │   ├── namespace.yaml
+# │   ├── serviceaccount.yaml
+# │   ├── configmap.yaml
+# │   ├── secret.yaml
+# │   ├── deployment-trading-manager.yaml
+# │   ├── deployment-hms-integration.yaml
+# │   ├── deployment-market-recognizer.yaml
+# │   ├── deployment-portfolio-optimizer.yaml
+# │   ├── deployment-risk-detector.yaml
+# │   ├── statefulset-strategy-learner.yaml
+# │   ├── deployment-production-deployment.yaml
+# │   ├── service.yaml
+# │   ├── ingress.yaml
+# │   ├── hpa.yaml
+# │   ├── pvc.yaml
+# │   ├── networkpolicy.yaml
+# │   ├── NOTES.txt
+# │   └── _helpers.tpl
+# ├── charts/
+# │   └── (dependency charts)
+# └── README.md
