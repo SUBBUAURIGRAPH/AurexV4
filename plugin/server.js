@@ -8,6 +8,8 @@
 
 const http = require('http');
 const path = require('path');
+const fs = require('fs');
+const url = require('url');
 const AurigraphAgentsPlugin = require('./index');
 
 // Configuration
@@ -126,13 +128,67 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // Root endpoint
+    // Root endpoint - serve dashboard UI
     if (pathname === '/' && method === 'GET') {
+      const dashboardPath = path.join(__dirname, 'public', 'index.html');
+      try {
+        const html = fs.readFileSync(dashboardPath, 'utf-8');
+        res.setHeader('Content-Type', 'text/html; charset=utf-8');
+        res.writeHead(200);
+        res.end(html);
+      } catch (error) {
+        // Fallback to JSON if dashboard not available
+        res.setHeader('Content-Type', 'application/json');
+        res.writeHead(200);
+        res.end(JSON.stringify({
+          name: plugin.name,
+          version: plugin.version,
+          status: 'running',
+          dashboard: '/dashboard',
+          endpoints: {
+            health: '/health',
+            metrics: '/metrics',
+            agents: '/api/agents',
+            skills: '/api/skills',
+            execute: '/api/execute'
+          }
+        }));
+      }
+      return;
+    }
+
+    // Serve static files from public directory
+    if (pathname.startsWith('/public/')) {
+      const filePath = path.join(__dirname, pathname);
+      try {
+        const content = fs.readFileSync(filePath);
+        const ext = path.extname(filePath);
+        const contentType = {
+          '.js': 'application/javascript',
+          '.css': 'text/css',
+          '.png': 'image/png',
+          '.jpg': 'image/jpeg',
+          '.gif': 'image/gif'
+        }[ext] || 'application/octet-stream';
+        res.setHeader('Content-Type', contentType);
+        res.writeHead(200);
+        res.end(content);
+      } catch (error) {
+        res.writeHead(404);
+        res.end(JSON.stringify({ error: 'File not found' }));
+      }
+      return;
+    }
+
+    // API documentation
+    if (pathname === '/api' && method === 'GET') {
+      res.setHeader('Content-Type', 'application/json');
       res.writeHead(200);
       res.end(JSON.stringify({
         name: plugin.name,
         version: plugin.version,
         status: 'running',
+        dashboard: '/',
         endpoints: {
           health: '/health',
           metrics: '/metrics',
@@ -161,9 +217,10 @@ server.listen(PORT, () => {
   console.log(`HMS J4C Agent Server v${plugin.version}`);
   console.log(`${'='.repeat(60)}`);
   console.log(`🚀 Server running on http://0.0.0.0:${PORT}`);
-  console.log(`📊 Health: http://localhost:${PORT}/health`);
+  console.log(`📊 Dashboard: http://localhost:${PORT}/`);
+  console.log(`💻 Health: http://localhost:${PORT}/health`);
   console.log(`📈 Metrics: http://localhost:${PORT}/metrics`);
-  console.log(`🔧 API Docs: http://localhost:${PORT}/`);
+  console.log(`🔧 API Docs: http://localhost:${PORT}/api`);
   console.log(`${'='.repeat(60)}\n`);
 
   // Initialize plugin environment in background
