@@ -16,11 +16,14 @@ const UserManager = require('./auth/user-manager');
 const RBACMiddleware = require('./auth/rbac-middleware');
 const AuthEndpoints = require('./auth/auth-endpoints');
 const SkillExecutor = require('./skill-execution/executor');
+const MarketDataClient = require('./market-data/client');
 
 // Configuration
 const PORT = process.env.PORT || 9003;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 const JWT_SECRET = process.env.JWT_SECRET || undefined;
+const MARKET_DATA_PROVIDER = process.env.MARKET_DATA_PROVIDER || 'alpha-vantage';
+const MARKET_DATA_API_KEY = process.env.MARKET_DATA_API_KEY;
 
 // Initialize authentication modules
 const jwtAuth = new JWTAuth({
@@ -44,6 +47,22 @@ const skillExecutor = new SkillExecutor({
   plugin,
   logger: console
 });
+
+// Initialize market data client (optional if API key provided)
+let marketDataClient = null;
+if (MARKET_DATA_API_KEY) {
+  try {
+    marketDataClient = new MarketDataClient({
+      provider: MARKET_DATA_PROVIDER,
+      apiKey: MARKET_DATA_API_KEY,
+      cacheTTL: 60,
+      logger: console
+    });
+    console.log(`✅ Market Data Client initialized: ${MARKET_DATA_PROVIDER}`);
+  } catch (error) {
+    console.warn('⚠️  Market Data Client initialization failed:', error.message);
+  }
+}
 
 // Create HTTP server
 const server = http.createServer(async (req, res) => {
@@ -336,6 +355,209 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // ============== Market Data Endpoints ==============
+
+    // Get quote for single symbol
+    if (pathname.match(/^\/api\/market\/quotes\/[^/]+$/) && method === 'GET') {
+      if (!marketDataClient) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Market data service not available' }));
+        return;
+      }
+
+      const symbol = pathname.split('/').pop();
+      try {
+        const quote = await marketDataClient.getQuote(symbol, true);
+        res.writeHead(200);
+        res.end(JSON.stringify({
+          success: true,
+          ...quote
+        }));
+      } catch (error) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: error.message }));
+      }
+      return;
+    }
+
+    // Get quotes for multiple symbols
+    if (pathname === '/api/market/quotes' && method === 'GET') {
+      if (!marketDataClient) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Market data service not available' }));
+        return;
+      }
+
+      try {
+        const query = new URL(req.url, `http://${req.headers.host}`).searchParams;
+        const symbolsStr = query.get('symbols');
+
+        if (!symbolsStr) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: 'symbols parameter required' }));
+          return;
+        }
+
+        const symbols = symbolsStr.split(',').map(s => s.trim());
+        const quotes = await marketDataClient.getQuotes(symbols);
+
+        res.writeHead(200);
+        res.end(JSON.stringify({
+          success: true,
+          quotes
+        }));
+      } catch (error) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: error.message }));
+      }
+      return;
+    }
+
+    // Get intraday data
+    if (pathname.match(/^\/api\/market\/intraday\/[^/]+$/) && method === 'GET') {
+      if (!marketDataClient) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Market data service not available' }));
+        return;
+      }
+
+      const symbol = pathname.split('/').pop();
+      const query = new URL(req.url, `http://${req.headers.host}`).searchParams;
+      const interval = query.get('interval') || '5min';
+
+      try {
+        const data = await marketDataClient.getIntraday(symbol, interval);
+        res.writeHead(200);
+        res.end(JSON.stringify({
+          success: true,
+          symbol,
+          interval,
+          dataPoints: data.length,
+          data
+        }));
+      } catch (error) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: error.message }));
+      }
+      return;
+    }
+
+    // Get price history for symbol
+    if (pathname.match(/^\/api\/market\/history\/[^/]+$/) && method === 'GET') {
+      if (!marketDataClient) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Market data service not available' }));
+        return;
+      }
+
+      const symbol = pathname.split('/').pop();
+      const query = new URL(req.url, `http://${req.headers.host}`).searchParams;
+      const limit = parseInt(query.get('limit') || '100');
+
+      try {
+        const history = marketDataClient.getPriceHistory(symbol, limit);
+        res.writeHead(200);
+        res.end(JSON.stringify({
+          success: true,
+          symbol,
+          entries: history.length,
+          history
+        }));
+      } catch (error) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: error.message }));
+      }
+      return;
+    }
+
+    // Search for symbols
+    if (pathname === '/api/market/search' && method === 'GET') {
+      if (!marketDataClient) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Market data service not available' }));
+        return;
+      }
+
+      try {
+        const query = new URL(req.url, `http://${req.headers.host}`).searchParams;
+        const keywords = query.get('q');
+
+        if (!keywords) {
+          res.writeHead(400);
+          res.end(JSON.stringify({ error: 'q parameter required' }));
+          return;
+        }
+
+        const results = await marketDataClient.search(keywords);
+        res.writeHead(200);
+        res.end(JSON.stringify({
+          success: true,
+          query: keywords,
+          results
+        }));
+      } catch (error) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: error.message }));
+      }
+      return;
+    }
+
+    // Get cache statistics (admin only)
+    if (pathname === '/api/market/cache' && method === 'GET') {
+      if (!marketDataClient) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Market data service not available' }));
+        return;
+      }
+
+      if (!authenticatedUser || !userManager.hasRole(authenticatedUser.id, 'admin')) {
+        res.writeHead(403);
+        res.end(JSON.stringify({ error: 'Admin access required' }));
+        return;
+      }
+
+      try {
+        const stats = marketDataClient.getCacheStats();
+        res.writeHead(200);
+        res.end(JSON.stringify({
+          success: true,
+          ...stats
+        }));
+      } catch (error) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: error.message }));
+      }
+      return;
+    }
+
+    // Clear cache (admin only)
+    if (pathname === '/api/market/cache' && method === 'DELETE') {
+      if (!marketDataClient) {
+        res.writeHead(503);
+        res.end(JSON.stringify({ error: 'Market data service not available' }));
+        return;
+      }
+
+      if (!authenticatedUser || !userManager.hasRole(authenticatedUser.id, 'admin')) {
+        res.writeHead(403);
+        res.end(JSON.stringify({ error: 'Admin access required' }));
+        return;
+      }
+
+      try {
+        marketDataClient.clearCache();
+        res.writeHead(200);
+        res.end(JSON.stringify({
+          success: true,
+          message: 'Cache cleared'
+        }));
+      } catch (error) {
+        res.writeHead(400);
+        res.end(JSON.stringify({ error: error.message }));
+      }
+      return;
+    }
+
     // ============== Admin Endpoints ==============
 
     // Get authentication stats
@@ -543,6 +765,14 @@ server.listen(PORT, () => {
   console.log(`🎯 Execute: POST /api/execute`);
   console.log(`📊 History: GET /api/executions/history`);
   console.log(`📈 Stats: GET /api/executions/stats (admin)`);
+
+  if (marketDataClient) {
+    console.log(`\n📊 Market Data Enabled (${MARKET_DATA_PROVIDER})`);
+    console.log(`💹 Quote: GET /api/market/quotes/:symbol`);
+    console.log(`📈 Intraday: GET /api/market/intraday/:symbol`);
+    console.log(`📉 History: GET /api/market/history/:symbol`);
+    console.log(`🔍 Search: GET /api/market/search?q=keyword`);
+  }
   console.log(`${'='.repeat(60)}\n`);
 
   // Initialize plugin environment in background
