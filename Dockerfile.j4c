@@ -1,6 +1,6 @@
-# J4C Agent Plugin - Docker Dockerfile
+# HMS J4C Agent - Docker Dockerfile
 # Version: 1.0.0
-# Build: docker build -f Dockerfile.j4c -t aurigraph/j4c-agent:1.0.0 .
+# Build: docker build -f Dockerfile.j4c -t aurigraph/hms-j4c-agent:1.0.0 .
 
 FROM node:18-alpine AS builder
 
@@ -42,13 +42,22 @@ WORKDIR /app
 # Copy from builder
 COPY --from=builder --chown=nodejs:nodejs /build /app
 
+# Copy agents directory (required by the plugin)
+COPY --chown=nodejs:nodejs agents /agents
+
+# Copy optional directories if they exist
+RUN mkdir -p /skills /src && \
+    ([ -d src/skills ] && cp -r src/skills/* /skills/ 2>/dev/null || true) && \
+    ([ -d src ] && cp -r src/* /src/ 2>/dev/null || true) && \
+    chown -R nodejs:nodejs /skills /src /agents || true
+
 # Set environment
 ENV NODE_ENV=production \
     PORT=9003 \
     LOG_LEVEL=info
 
 # Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:9003/health || exit 1
 
 # Switch to non-root user
@@ -61,10 +70,10 @@ EXPOSE 9003
 ENTRYPOINT ["/sbin/tini", "--"]
 
 # Start application
-CMD ["node", "index.js"]
+CMD ["node", "server.js"]
 
 # Labels
 LABEL maintainer="Aurigraph Development Team <engineering@aurigraph.io>" \
       version="1.0.0" \
-      description="J4C Agent Plugin with HubSpot and Claude Code integration" \
-      org.opencontainers.image.source="https://github.com/Aurigraph-DLT-Corp/glowing-adventure"
+      description="HMS J4C Agent Plugin with Trading and DevOps capabilities" \
+      org.opencontainers.image.source="https://github.com/Aurigraph-DLT-Corp/HMS"
