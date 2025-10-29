@@ -284,6 +284,9 @@ EOSSH
 
 print_success "NGINX SSL configuration created in project directory"
 
+# Note: NGINX config will be stored in /opt/HMS/nginx/nginx.conf
+# Docker Compose will mount this config for the NGINX container
+
 # Step 5: Create Docker Compose for Aurex Production
 print_header "Step 5: Creating Production Docker Compose Configuration"
 
