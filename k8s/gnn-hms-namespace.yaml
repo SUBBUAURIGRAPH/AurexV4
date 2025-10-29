@@ -1,0 +1,154 @@
+---
+# GNN-HMS Trading System - Kubernetes Namespace
+# Version: 1.0.0
+# Kubernetes 1.24+ Compatible
+# Purpose: Isolated namespace for complete GNN-HMS system deployment
+
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gnn-hms
+  labels:
+    name: gnn-hms
+    app: gnn-hms-trading-system
+    environment: production
+    version: "1.0.0"
+    managed-by: kubernetes
+  annotations:
+    description: "GNN-HMS Algorithmic Trading System - Production Namespace"
+    contact: "trading-ops@aurigraph.io"
+    created-date: "2025-10-28"
+    purpose: "Complete Graph Neural Network integration with HMS trading platform"
+
+---
+# Resource Quota for namespace
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: gnn-hms-quota
+  namespace: gnn-hms
+spec:
+  hard:
+    requests.cpu: "100"
+    requests.memory: "200Gi"
+    limits.cpu: "150"
+    limits.memory: "300Gi"
+    pods: "500"
+    services: "50"
+    persistentvolumeclaims: "20"
+    configmaps: "50"
+    secrets: "50"
+  scopeSelector:
+    matchExpressions:
+    - operator: In
+      scopeName: PriorityClass
+      values: ["high", "medium", "low"]
+
+---
+# Network Policy for namespace isolation
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gnn-hms-default-deny
+  namespace: gnn-hms
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: gnn-hms
+  egress:
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: gnn-hms
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+
+---
+# Priority Class for mission-critical components
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: gnn-hms-critical
+value: 1000
+globalDefault: false
+description: "Priority class for critical GNN-HMS components"
+
+---
+# Priority Class for normal components
+apiVersion: scheduling.k8s.io/v1
+kind: PriorityClass
+metadata:
+  name: gnn-hms-normal
+value: 100
+globalDefault: false
+description: "Priority class for normal GNN-HMS components"
+
+---
+# RBAC - Service Account for GNN components
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: gnn-hms-sa
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+
+---
+# RBAC - ClusterRole for GNN components
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: gnn-hms-role
+rules:
+- apiGroups: [""]
+  resources: ["configmaps", "secrets", "services"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["apps"]
+  resources: ["deployments", "statefulsets"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: [""]
+  resources: ["pods", "pods/log"]
+  verbs: ["get", "list", "watch"]
+- apiGroups: ["metrics.k8s.io"]
+  resources: ["pods", "nodes"]
+  verbs: ["get", "list"]
+
+---
+# RBAC - ClusterRoleBinding
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: gnn-hms-rolebinding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: gnn-hms-role
+subjects:
+- kind: ServiceAccount
+  name: gnn-hms-sa
+  namespace: gnn-hms
+
+---
+# Pod Disruption Budget for high availability
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: gnn-hms-pdb
+  namespace: gnn-hms
+spec:
+  minAvailable: 2
+  selector:
+    matchLabels:
+      app: gnn-hms-trading-system

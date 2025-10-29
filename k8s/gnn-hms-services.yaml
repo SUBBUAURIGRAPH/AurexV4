@@ -1,0 +1,399 @@
+---
+# GNN-HMS Trading System - Kubernetes Services
+# Version: 1.0.0
+# Purpose: Service definitions for all 7 GNN components and system endpoints
+
+# ============================================================================
+# 1. GNN TRADING MANAGER SERVICE
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: gnn-trading-manager
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-trading-manager
+    version: "1.0.0"
+  annotations:
+    description: "GNN Trading Manager - Foundation & Graph Management"
+spec:
+  type: ClusterIP
+  selector:
+    app: gnn-hms-trading-system
+    component: gnn-trading-manager
+  ports:
+  - name: http
+    port: 8001
+    targetPort: 8001
+    protocol: TCP
+  - name: metrics
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
+
+---
+# ============================================================================
+# 2. GNN HMS INTEGRATION SERVICE
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: gnn-hms-integration
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-hms-integration
+    version: "1.0.0"
+  annotations:
+    description: "GNN HMS Integration - Unified Orchestration Layer"
+spec:
+  type: ClusterIP
+  selector:
+    app: gnn-hms-trading-system
+    component: gnn-hms-integration
+  ports:
+  - name: http
+    port: 8002
+    targetPort: 8002
+    protocol: TCP
+  - name: metrics
+    port: 9091
+    targetPort: 9091
+    protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
+
+---
+# ============================================================================
+# 3. GNN MARKET RECOGNIZER SERVICE
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: gnn-market-recognizer
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-market-recognizer
+    version: "1.0.0"
+  annotations:
+    description: "GNN Market Recognizer - Real-time Pattern Detection"
+spec:
+  type: ClusterIP
+  selector:
+    app: gnn-hms-trading-system
+    component: gnn-market-recognizer
+  ports:
+  - name: http
+    port: 8003
+    targetPort: 8003
+    protocol: TCP
+  - name: metrics
+    port: 9092
+    targetPort: 9092
+    protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
+
+---
+# ============================================================================
+# 4. GNN PORTFOLIO OPTIMIZER SERVICE
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: gnn-portfolio-optimizer
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-portfolio-optimizer
+    version: "1.0.0"
+  annotations:
+    description: "GNN Portfolio Optimizer - Advanced Allocation Engine"
+spec:
+  type: ClusterIP
+  selector:
+    app: gnn-hms-trading-system
+    component: gnn-portfolio-optimizer
+  ports:
+  - name: http
+    port: 8004
+    targetPort: 8004
+    protocol: TCP
+  - name: metrics
+    port: 9093
+    targetPort: 9093
+    protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
+
+---
+# ============================================================================
+# 5. GNN RISK DETECTOR SERVICE
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: gnn-risk-detector
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-risk-detector
+    version: "1.0.0"
+  annotations:
+    description: "GNN Risk Detector - Multi-level Risk Analysis"
+spec:
+  type: ClusterIP
+  selector:
+    app: gnn-hms-trading-system
+    component: gnn-risk-detector
+  ports:
+  - name: http
+    port: 8005
+    targetPort: 8005
+    protocol: TCP
+  - name: metrics
+    port: 9094
+    targetPort: 9094
+    protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
+
+---
+# ============================================================================
+# 6. GNN STRATEGY LEARNER SERVICE (Headless for StatefulSet)
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: gnn-strategy-learner
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-strategy-learner
+    version: "1.0.0"
+  annotations:
+    description: "GNN Strategy Learner - Continuous Learning Engine (Headless)"
+spec:
+  type: ClusterIP
+  clusterIP: None  # Headless service for StatefulSet
+  selector:
+    app: gnn-hms-trading-system
+    component: gnn-strategy-learner
+  ports:
+  - name: http
+    port: 8006
+    targetPort: 8006
+    protocol: TCP
+  - name: metrics
+    port: 9095
+    targetPort: 9095
+    protocol: TCP
+
+---
+# ============================================================================
+# 7. GNN PRODUCTION DEPLOYMENT SERVICE
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: gnn-production-deployment
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-production-deployment
+    version: "1.0.0"
+  annotations:
+    description: "GNN Production Deployment - Enterprise Deployment & Monitoring"
+spec:
+  type: ClusterIP
+  selector:
+    app: gnn-hms-trading-system
+    component: gnn-production-deployment
+  ports:
+  - name: http
+    port: 8007
+    targetPort: 8007
+    protocol: TCP
+  - name: metrics
+    port: 9096
+    targetPort: 9096
+    protocol: TCP
+  sessionAffinity: ClientIP
+  sessionAffinityConfig:
+    clientIP:
+      timeoutSeconds: 3600
+
+---
+# ============================================================================
+# MAIN API GATEWAY SERVICE (LoadBalancer - Entry Point)
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: gnn-hms-api-gateway
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: api-gateway
+    version: "1.0.0"
+  annotations:
+    description: "GNN-HMS API Gateway - Main Entry Point"
+    service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+spec:
+  type: LoadBalancer
+  selector:
+    app: gnn-hms-trading-system
+    component: gnn-hms-integration
+  ports:
+  - name: http
+    port: 80
+    targetPort: 8002
+    protocol: TCP
+  - name: https
+    port: 443
+    targetPort: 8002
+    protocol: TCP
+  sessionAffinity: ClientIP
+  externalTrafficPolicy: Local
+
+---
+# ============================================================================
+# METRICS AGGREGATOR SERVICE
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: gnn-hms-metrics
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: metrics-aggregator
+    version: "1.0.0"
+  annotations:
+    description: "GNN-HMS Metrics Aggregator"
+spec:
+  type: ClusterIP
+  selector:
+    app: gnn-hms-trading-system
+  ports:
+  - name: prometheus
+    port: 9090
+    targetPort: 9090
+    protocol: TCP
+  sessionAffinity: None
+
+---
+# ============================================================================
+# LOGGING AGGREGATOR SERVICE
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: gnn-hms-logging
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: logging-aggregator
+    version: "1.0.0"
+  annotations:
+    description: "GNN-HMS Logging Aggregator"
+spec:
+  type: ClusterIP
+  selector:
+    app: gnn-hms-trading-system
+  ports:
+  - name: logs
+    port: 5000
+    targetPort: 5000
+    protocol: TCP
+
+---
+# ============================================================================
+# INTERNAL CACHE SERVICE (Redis-like - for distributed caching)
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: gnn-hms-cache
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: cache
+    version: "1.0.0"
+  annotations:
+    description: "GNN-HMS Distributed Cache Service"
+spec:
+  type: ClusterIP
+  clusterIP: None  # Headless for internal use
+  selector:
+    app: gnn-hms-trading-system
+  ports:
+  - name: cache
+    port: 6379
+    targetPort: 6379
+    protocol: TCP
+
+---
+# ============================================================================
+# MONITORING DASHBOARD SERVICE
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: gnn-hms-dashboard
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: dashboard
+    version: "1.0.0"
+  annotations:
+    description: "GNN-HMS Monitoring Dashboard"
+spec:
+  type: ClusterIP
+  selector:
+    app: gnn-hms-trading-system
+  ports:
+  - name: dashboard
+    port: 3000
+    targetPort: 3000
+    protocol: TCP
+
+---
+# ============================================================================
+# ALERTING SERVICE
+# ============================================================================
+apiVersion: v1
+kind: Service
+metadata:
+  name: gnn-hms-alerts
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: alerts
+    version: "1.0.0"
+  annotations:
+    description: "GNN-HMS Alert Management Service"
+spec:
+  type: ClusterIP
+  selector:
+    app: gnn-hms-trading-system
+    component: gnn-risk-detector
+  ports:
+  - name: alerts
+    port: 8888
+    targetPort: 8005
+    protocol: TCP

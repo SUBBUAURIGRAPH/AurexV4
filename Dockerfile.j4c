@@ -1,0 +1,79 @@
+# HMS J4C Agent - Docker Dockerfile
+# Version: 1.0.0
+# Build: docker build -f Dockerfile.j4c -t aurigraph/hms-j4c-agent:1.0.0 .
+
+FROM node:18-alpine AS builder
+
+# Install build dependencies
+RUN apk add --no-cache \
+    python3 \
+    make \
+    g++ \
+    git
+
+WORKDIR /build
+
+# Copy package files
+COPY plugin/package*.json ./
+
+# Install dependencies (skip postinstall scripts that may reference missing files)
+RUN npm ci --production --ignore-scripts || npm install --legacy-peer-deps
+
+COPY plugin/ ./
+
+# Run validation if available
+RUN npm run validate 2>/dev/null || echo "Validation script not available"
+
+# ===== Production Stage =====
+FROM node:18-alpine
+
+# Install runtime dependencies
+RUN apk add --no-cache \
+    curl \
+    ca-certificates \
+    tini
+
+# Create non-root user
+RUN addgroup -g 1001 -S nodejs && \
+    adduser -S nodejs -u 1001
+
+WORKDIR /app
+
+# Copy from builder
+COPY --from=builder --chown=nodejs:nodejs /build /app
+
+# Copy agents directory (required by the plugin)
+COPY --chown=nodejs:nodejs agents /agents
+
+# Copy optional directories if they exist
+RUN mkdir -p /skills /src && \
+    ([ -d src/skills ] && cp -r src/skills/* /skills/ 2>/dev/null || true) && \
+    ([ -d src ] && cp -r src/* /src/ 2>/dev/null || true) && \
+    chown -R nodejs:nodejs /skills /src /agents || true
+
+# Set environment
+ENV NODE_ENV=production \
+    PORT=9003 \
+    LOG_LEVEL=info
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD curl -f http://localhost:9003/health || exit 1
+
+# Switch to non-root user
+USER nodejs
+
+# Expose ports
+EXPOSE 9003
+
+# Entry point
+ENTRYPOINT ["/sbin/tini", "--"]
+
+# Start application
+CMD ["node", "server.js"]
+
+# Labels
+LABEL maintainer="Aurigraph Development Team <engineering@aurigraph.io>" \
+      version="1.0.0" \
+      description="HMS J4C Agent Plugin with Trading and DevOps capabilities" \
+      org.opencontainers.image.source="https://github.com/Aurigraph-DLT-Corp/HMS"

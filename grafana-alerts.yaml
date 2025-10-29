@@ -1,0 +1,197 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-alerts-config
+data:
+  alerts.yaml: |
+    apiVersion: 1
+    groups:
+      - name: 'HMS Alert Policies'
+        interval: 1m
+        rules:
+          # Critical Severity Alerts
+          - uid: hms-critical-agent-down
+            title: 'HMS Agent Down'
+            condition: 'C'
+            data:
+              - refId: 'A'
+                queryType: ''
+                relativeTimeRange:
+                  from: 600
+                  to: 0
+                datasourceUid: 'prometheus-uid'
+                model:
+                  expr: 'up{job="hms-agent"} == 0'
+                  intervalFactor: 2
+                  refId: 'A'
+              - refId: 'C'
+                queryType: ''
+                datasourceUid: '__expr__'
+                model:
+                  conditions:
+                    - evaluator:
+                        params:
+                          - 0
+                        type: 'lt'
+                      operator:
+                        type: 'and'
+                      query:
+                        params:
+                          - 'A'
+                      reducer:
+                        params: []
+                        type: 'avg'
+                      type: 'query'
+                  datasourceUid: '__expr__'
+                  expression: 'A'
+                  hide: false
+                  intervalMs: 1000
+                  maxDataPoints: 43200
+                  reducer: 'avg'
+                  refId: 'C'
+                  type: 'threshold'
+            noDataState: 'NoData'
+            execErrState: 'Alerting'
+            for: '2m'
+            annotations:
+              description: 'HMS J4C Agent is down and not responding to requests.'
+              runbook_url: 'https://github.com/Aurigraph-DLT-Corp/glowing-adventure/wiki/Troubleshooting'
+              summary: 'HMS Agent is unreachable'
+            labels:
+              severity: 'critical'
+              team: 'devops'
+              component: 'agent'
+
+          # Warning Severity Alerts
+          - uid: hms-warn-high-memory
+            title: 'High Memory Usage'
+            condition: 'C'
+            data:
+              - refId: 'A'
+                queryType: ''
+                relativeTimeRange:
+                  from: 300
+                  to: 0
+                datasourceUid: 'prometheus-uid'
+                model:
+                  expr: 'container_memory_usage_bytes{name="hms-j4c-agent"} / 1073741824 > 0.8'
+                  refId: 'A'
+              - refId: 'C'
+                queryType: ''
+                datasourceUid: '__expr__'
+                model:
+                  conditions:
+                    - evaluator:
+                        params:
+                          - 0
+                        type: 'gt'
+                      operator:
+                        type: 'and'
+                      query:
+                        params:
+                          - 'A'
+                      type: 'query'
+                  expression: 'A'
+                  refId: 'C'
+            noDataState: 'NoData'
+            execErrState: 'Alerting'
+            for: '5m'
+            annotations:
+              description: 'HMS Agent memory usage is above 80% of allocated capacity'
+              summary: 'High memory consumption detected'
+            labels:
+              severity: 'warning'
+              team: 'devops'
+              component: 'agent'
+
+notificationChannels:
+  - uid: slack-notification
+    type: slack
+    name: 'Slack - DevOps Channel'
+    settings:
+      url: '${SLACK_WEBHOOK_URL}'
+      channel: '#devops-alerts'
+      mentionGroups: '@devops-team'
+    secureSettings:
+      url: '${SLACK_WEBHOOK_URL}'
+
+contactPoints:
+  - name: 'Slack Critical'
+    type: slack
+    settings:
+      url: '${SLACK_WEBHOOK_URL}'
+      channel: '#critical-alerts'
+      title: 'HMS Critical Alert: {{ .GroupLabels.alertname }}'
+      text: |
+        {{ range .Alerts }}
+          Alert: {{ .Labels.alertname }}
+          Component: {{ .Labels.component }}
+          Severity: {{ .Labels.severity }}
+          Description: {{ .Annotations.description }}
+          Runbook: {{ .Annotations.runbook_url }}
+        {{ end }}
+    receiver: 'slack-critical'
+
+  - name: 'Slack Warnings'
+    type: slack
+    settings:
+      url: '${SLACK_WEBHOOK_URL_WARNING}'
+      channel: '#warnings'
+      title: 'HMS Warning: {{ .GroupLabels.alertname }}'
+      text: |
+        {{ range .Alerts }}
+          Alert: {{ .Labels.alertname }}
+          Component: {{ .Labels.component }}
+          Description: {{ .Annotations.description }}
+        {{ end }}
+    receiver: 'slack-warning'
+
+  - name: 'Email - DevOps'
+    type: email
+    settings:
+      addresses: 'devops@aurigraph.io'
+      singleEmail: true
+    receiver: 'email-devops'
+
+routingPolicies:
+  - groupBy: ['alertname', 'cluster', 'service']
+    groupWait: '10s'
+    groupInterval: '10s'
+    repeatInterval: '12h'
+    receiver: 'slack-critical'
+    routes:
+      - match:
+          severity: 'critical'
+        receiver: 'slack-critical'
+        continueMatching: true
+
+      - match:
+          severity: 'warning'
+        receiver: 'slack-warnings'
+        groupWait: '30s'
+        groupInterval: '5m'
+        repeatInterval: '4h'
+
+      - match:
+          component: 'database'
+        receiver: 'email-devops'
+
+templates:
+  - name: 'default'
+    template: |
+      {{ define "slack.default.title" -}}
+      [{{ .Status | toUpper -}}
+      {{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{- else }}: {{ .Alerts.Resolved | len }}{{- end }}
+      ] HMS Alert: {{ .GroupLabels.alertname }}
+      {{- end }}
+      {{ define "slack.default.text" -}}
+      {{ range .Alerts -}}
+      *Alert:* {{ .Labels.alertname }} - `{{ .Labels.severity }}`
+      *Component:* {{ .Labels.component }}
+      *Description:* {{ .Annotations.description }}
+      *Details:*
+      {{ range .Labels.SortedPairs -}} • *{{ .Name }}:* `{{ .Value }}`
+      {{ end }}
+      {{ if .Annotations.runbook_url }}*Runbook:* {{ .Annotations.runbook_url }}{{ end }}
+      {{ end }}
+      {{- end }}

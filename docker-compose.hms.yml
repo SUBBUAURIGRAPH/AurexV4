@@ -1,0 +1,154 @@
+version: '3.9'
+
+services:
+  # HMS J4C Agent - Main Application
+  hms-j4c-agent:
+    image: aurigraph/hms-j4c-agent:1.0.0
+    container_name: hms-j4c-agent
+    working_dir: /app
+    environment:
+      - NODE_ENV=production
+      - PORT=9003
+      - LOG_LEVEL=info
+      - JIRA_API_KEY=${JIRA_API_KEY:-}
+      - JIRA_EMAIL=${JIRA_EMAIL:-}
+      - JIRA_BASE_URL=${JIRA_BASE_URL:-https://aurigraph.atlassian.net}
+      - GITHUB_TOKEN=${GITHUB_TOKEN:-}
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - HUBSPOT_API_KEY=${HUBSPOT_API_KEY:-}
+      - HUBSPOT_PORTAL_ID=${HUBSPOT_PORTAL_ID:-}
+    ports:
+      - "9003:9003"
+    networks:
+      - hms-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9003/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    labels:
+      - "com.aurigraph.service=hms-j4c-agent"
+      - "com.aurigraph.version=1.0.0"
+      - "com.aurigraph.component=trading"
+    volumes:
+      - hms-logs:/app/logs
+    depends_on:
+      - postgres
+      - prometheus
+
+  # NGINX Reverse Proxy with SSL/TLS
+  nginx-proxy:
+    image: nginx:1.25-alpine
+    container_name: hms-nginx-proxy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx-hms.conf:/etc/nginx/nginx.conf:ro
+      - /etc/letsencrypt/live/aurexcrt1:/etc/nginx/ssl:ro
+      - hms-nginx-logs:/var/log/nginx
+      - hms-nginx-cache:/var/cache/nginx
+    networks:
+      - hms-network
+    depends_on:
+      - hms-j4c-agent
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "com.aurigraph.service=hms-nginx-proxy"
+      - "com.aurigraph.component=proxy"
+
+  # PostgreSQL Database for HMS
+  postgres:
+    image: postgres:15-alpine
+    container_name: hms-postgres
+    environment:
+      - POSTGRES_USER=${DB_USER:-hms_user}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-hms_secure_password_change_me}
+      - POSTGRES_DB=${DB_NAME:-hms_db}
+      - POSTGRES_INITDB_ARGS=--encoding=UTF8 --locale=C
+    volumes:
+      - hms-postgres-data:/var/lib/postgresql/data
+    networks:
+      - hms-network
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-hms_user}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    labels:
+      - "com.aurigraph.service=hms-postgres"
+      - "com.aurigraph.component=database"
+
+  # Prometheus for Metrics Collection
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: hms-prometheus
+    volumes:
+      - ./prometheus-dlt.yml:/etc/prometheus/prometheus.yml:ro
+      - hms-prometheus-data:/prometheus
+    networks:
+      - hms-network
+    ports:
+      - "9090:9090"
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+    restart: unless-stopped
+    labels:
+      - "com.aurigraph.service=hms-prometheus"
+      - "com.aurigraph.component=monitoring"
+
+  # Grafana for Monitoring Dashboards
+  grafana:
+    image: grafana/grafana:latest
+    container_name: hms-grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD:-admin}
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+      - GF_USERS_ALLOW_SIGN_UP=false
+      - GF_SERVER_ROOT_URL=http://localhost:3000
+    volumes:
+      - hms-grafana-data:/var/lib/grafana
+      - ./grafana-dashboards:/etc/grafana/provisioning/dashboards
+    networks:
+      - hms-network
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    labels:
+      - "com.aurigraph.service=hms-grafana"
+      - "com.aurigraph.component=dashboard"
+
+volumes:
+  hms-logs:
+    driver: local
+  hms-postgres-data:
+    driver: local
+  hms-nginx-logs:
+    driver: local
+  hms-nginx-cache:
+    driver: local
+  hms-prometheus-data:
+    driver: local
+  hms-grafana-data:
+    driver: local
+
+networks:
+  hms-network:
+    driver: bridge
+    name: hms-network

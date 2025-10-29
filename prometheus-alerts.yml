@@ -1,0 +1,111 @@
+groups:
+  - name: hms_alerts
+    interval: 30s
+    rules:
+      # Application Health Alerts
+      - alert: HMSAgentDown
+        expr: up{job="hms-j4c-agent"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: hms-j4c-agent
+        annotations:
+          summary: "HMS Agent is DOWN"
+          description: "HMS J4C Agent unreachable for 2 minutes"
+          action: "Check: docker ps | grep hms-j4c-agent"
+
+      - alert: HMSHealthCheckFailing
+        expr: http_request_duration_seconds_count{path="/health", status!="200"} > 0
+        for: 1m
+        labels:
+          severity: warning
+          component: hms-j4c-agent
+        annotations:
+          summary: "HMS health check failing"
+          description: "Health endpoint returning non-200 status"
+          action: "curl https://hms.aurex.in/health"
+
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes{job="hms-j4c-agent"} / 1024 / 1024 > 500
+        for: 5m
+        labels:
+          severity: warning
+          component: hms-j4c-agent
+        annotations:
+          summary: "High memory usage (>500MB)"
+          description: "HMS Agent memory usage excessive"
+
+      - alert: NginxProxyDown
+        expr: up{job="hms-nginx-proxy"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: nginx
+        annotations:
+          summary: "NGINX proxy is DOWN"
+          description: "NGINX container unreachable"
+
+      - alert: PostgresDown
+        expr: up{job="hms-postgres"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          component: postgres
+        annotations:
+          summary: "PostgreSQL database is DOWN"
+          description: "Database container unreachable"
+
+      - alert: HighErrorRate
+        expr: (sum(rate(http_requests_total{status=~"5.."}[5m])) / sum(rate(http_requests_total[5m]))) > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          component: hms-j4c-agent
+        annotations:
+          summary: "High error rate (>5%)"
+          description: "HTTP 5xx error rate exceeds 5%"
+          action: "Check logs: docker logs hms-j4c-agent"
+
+      - alert: HighRequestLatency
+        expr: histogram_quantile(0.99, rate(http_request_duration_seconds_bucket[5m])) > 5
+        for: 5m
+        labels:
+          severity: warning
+          component: hms-j4c-agent
+        annotations:
+          summary: "High p99 latency (>5s)"
+          description: "API response time very slow"
+
+      - alert: SSLCertificateExpiringSoon
+        expr: ssl_certificate_expiry_timestamp < (time() + 30 * 24 * 60 * 60)
+        labels:
+          severity: warning
+          component: nginx
+        annotations:
+          summary: "SSL certificate expires in <30 days"
+          description: "Renew certificate soon"
+          action: "certbot renew"
+
+      - alert: ServiceRestartingFrequently
+        expr: changes(container_last_seen{job="hms-j4c-agent"}[10m]) > 3
+        labels:
+          severity: warning
+          component: hms-j4c-agent
+        annotations:
+          summary: "Service restarting frequently"
+          description: ">3 restarts in 10 minutes"
+
+  - name: hms_recording_rules
+    interval: 1m
+    rules:
+      - record: http:requests:rate5m
+        expr: rate(http_requests_total[5m])
+
+      - record: http:errors:rate5m
+        expr: rate(http_requests_total{status=~"5.."}[5m])
+
+      - record: http:latency:p95
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m]))
+
+      - record: hms:availability:percent
+        expr: (count(up{job="hms-j4c-agent"} == 1) / count(up{job="hms-j4c-agent"})) * 100

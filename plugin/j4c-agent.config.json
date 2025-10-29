@@ -1,0 +1,459 @@
+{
+  "pluginName": "J4C Agent - Aurigraph Team",
+  "pluginVersion": "1.0.0",
+  "pluginId": "j4c-agent",
+  "description": "J4C (Jeeves for Claude Code) Agent plugin configured for the Aurigraph development team with team workflows, best practices, and Master SOP integration",
+  "releaseDate": "2025-10-27",
+  "author": "Aurigraph Development Team",
+  "repository": "https://github.com/Aurigraph-DLT-Corp/glowing-adventure",
+  "documentation": {
+    "readme": "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/blob/main/docs/MASTER_SOP_README.md",
+    "implementation": "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/blob/main/docs/MASTER_SOP_IMPLEMENTATION_GUIDE.md",
+    "masterSOP": "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/blob/main/agents/Master%20SOP.md"
+  },
+  "team": {
+    "name": "Aurigraph Development Team",
+    "members": 12,
+    "roles": [
+      "DLT Developer",
+      "Trading Operations Specialist",
+      "DevOps Engineer",
+      "QA Engineer",
+      "Project Manager",
+      "Security & Compliance Officer",
+      "Data Engineer",
+      "Frontend Developer",
+      "SRE/Reliability Engineer",
+      "Digital Marketing Specialist",
+      "HR/Onboarding Manager",
+      "GNN Heuristic Agent Specialist"
+    ]
+  },
+  "agents": {
+    "enabled": ["all"],
+    "disabled": [],
+    "priority": [
+      "dlt-developer",
+      "devops-engineer",
+      "qa-engineer",
+      "trading-operations"
+    ],
+    "aliases": {
+      "dlt": "dlt-developer",
+      "trading": "trading-operations",
+      "devops": "devops-engineer",
+      "qa": "qa-engineer",
+      "pm": "project-manager",
+      "security": "security-compliance",
+      "data": "data-engineer",
+      "frontend": "frontend-developer",
+      "sre": "sre-reliability",
+      "marketing": "digital-marketing",
+      "onboarding": "employee-onboarding",
+      "hr": "employee-onboarding",
+      "gnn": "gnn-heuristic-agent"
+    }
+  },
+  "skills": {
+    "priority": [
+      "deploy-wizard",
+      "jira-sync",
+      "test-runner",
+      "backtest-manager",
+      "security-scanner",
+      "code-review",
+      "performance-profiler",
+      "documentation-generator"
+    ],
+    "autoload": true,
+    "retryFailedSkills": true,
+    "maxConcurrentSkills": 5,
+    "skillTimeout": 300000
+  },
+  "workflows": {
+    "development": {
+      "name": "Development Workflow",
+      "description": "Standard development workflow following SPARC methodology",
+      "stages": [
+        {
+          "name": "Specification",
+          "agent": "project-manager",
+          "skills": ["jira-sync", "documentation-generator"],
+          "duration": 2
+        },
+        {
+          "name": "Pseudocode",
+          "agent": "frontend-developer",
+          "skills": ["code-review"],
+          "duration": 2
+        },
+        {
+          "name": "Architecture",
+          "agent": "dlt-developer",
+          "skills": ["design-review"],
+          "duration": 3
+        },
+        {
+          "name": "Refinement",
+          "agent": "devops-engineer",
+          "skills": ["performance-profiler"],
+          "duration": 2
+        },
+        {
+          "name": "Completion",
+          "agent": "qa-engineer",
+          "skills": ["test-runner", "security-scanner"],
+          "duration": 2
+        }
+      ]
+    },
+    "deployment": {
+      "name": "Deployment Workflow",
+      "description": "Safe deployment workflow with verification gates",
+      "stages": [
+        {
+          "name": "Pre-deployment Check",
+          "agent": "devops-engineer",
+          "skills": ["security-scanner", "test-runner"],
+          "requireConfirmation": true
+        },
+        {
+          "name": "Deploy to Dev",
+          "agent": "devops-engineer",
+          "skills": ["deploy-wizard"],
+          "environment": "development"
+        },
+        {
+          "name": "Deploy to Staging",
+          "agent": "devops-engineer",
+          "skills": ["deploy-wizard"],
+          "environment": "staging"
+        },
+        {
+          "name": "Production Approval",
+          "agent": "project-manager",
+          "requireConfirmation": true
+        },
+        {
+          "name": "Deploy to Production",
+          "agent": "devops-engineer",
+          "skills": ["deploy-wizard"],
+          "environment": "production"
+        }
+      ]
+    },
+    "testing": {
+      "name": "Testing Workflow",
+      "description": "Comprehensive testing workflow targeting 80%+ coverage",
+      "stages": [
+        {
+          "name": "Unit Tests",
+          "agent": "qa-engineer",
+          "skills": ["test-runner"],
+          "targetCoverage": 80
+        },
+        {
+          "name": "Integration Tests",
+          "agent": "qa-engineer",
+          "skills": ["test-runner"],
+          "targetCoverage": 85
+        },
+        {
+          "name": "Security Tests",
+          "agent": "security-compliance",
+          "skills": ["security-scanner"],
+          "targetCoverage": 90
+        },
+        {
+          "name": "Performance Tests",
+          "agent": "devops-engineer",
+          "skills": ["performance-profiler"],
+          "targetCoverage": 75
+        }
+      ]
+    },
+    "onboarding": {
+      "name": "Employee Onboarding Workflow",
+      "description": "90-day structured onboarding process",
+      "stages": [
+        {
+          "name": "Pre-Onboarding",
+          "agent": "employee-onboarding",
+          "skills": ["welcome-setup", "it-provisioning"],
+          "duration": 14
+        },
+        {
+          "name": "Day 1 Orientation",
+          "agent": "employee-onboarding",
+          "skills": ["orientation-guide"],
+          "duration": 1
+        },
+        {
+          "name": "Week 1 Integration",
+          "agent": "employee-onboarding",
+          "skills": ["training-delivery"],
+          "duration": 7
+        },
+        {
+          "name": "30-Day Review",
+          "agent": "employee-onboarding",
+          "skills": ["progress-assessment"],
+          "duration": 30
+        },
+        {
+          "name": "60-Day Milestone",
+          "agent": "employee-onboarding",
+          "skills": ["skill-evaluation"],
+          "duration": 60
+        },
+        {
+          "name": "90-Day Evaluation",
+          "agent": "employee-onboarding",
+          "skills": ["final-assessment"],
+          "duration": 90
+        }
+      ]
+    },
+    "marketing": {
+      "name": "Marketing Campaign Workflow",
+      "description": "5-stage marketing campaign management process",
+      "stages": [
+        {
+          "name": "Campaign Definition",
+          "agent": "digital-marketing",
+          "skills": ["campaign-setup", "audience-segmentation"],
+          "duration": 7
+        },
+        {
+          "name": "Strategy Development",
+          "agent": "digital-marketing",
+          "skills": ["content-planning", "channel-selection"],
+          "duration": 7
+        },
+        {
+          "name": "Execution",
+          "agent": "digital-marketing",
+          "skills": ["content-creation", "email-setup", "social-scheduling"],
+          "duration": 14
+        },
+        {
+          "name": "Optimization",
+          "agent": "digital-marketing",
+          "skills": ["performance-tracking", "ab-testing"],
+          "duration": 30
+        },
+        {
+          "name": "Measurement & Reporting",
+          "agent": "digital-marketing",
+          "skills": ["roi-analysis", "reporting"],
+          "duration": 7
+        }
+      ]
+    },
+    "jira-github-sync": {
+      "name": "JIRA-GitHub Sync Workflow",
+      "description": "Synchronize JIRA tickets with GitHub repository - scan open tickets, verify code implementation, and update tickets with findings",
+      "stages": [
+        {
+          "name": "JIRA Scan",
+          "agent": "project-manager",
+          "skills": ["jira-github-sync"],
+          "description": "Scan all open JIRA tickets from specified project",
+          "duration": 5
+        },
+        {
+          "name": "GitHub Scan",
+          "agent": "devops-engineer",
+          "skills": ["jira-github-sync"],
+          "description": "Recursively scan GitHub repository for relevant code files",
+          "duration": 10
+        },
+        {
+          "name": "Code Verification",
+          "agent": "qa-engineer",
+          "skills": ["jira-github-sync"],
+          "description": "Verify code implementation against ticket requirements",
+          "duration": 15
+        },
+        {
+          "name": "JIRA Update",
+          "agent": "project-manager",
+          "skills": ["jira-github-sync"],
+          "description": "Automatically update JIRA tickets with verification results and code links",
+          "duration": 5,
+          "requireConfirmation": false
+        }
+      ],
+      "configuration": {
+        "projectKey": "AV11",
+        "status": ["Open", "In Progress"],
+        "branch": "main",
+        "updateCustomField": true,
+        "scheduleInterval": "0 0 * * *",
+        "maxConcurrentVerifications": 5,
+        "relevanceThreshold": 0.3
+      },
+      "triggers": [
+        {
+          "type": "schedule",
+          "interval": "daily",
+          "time": "00:00 UTC"
+        },
+        {
+          "type": "manual",
+          "command": "j4c workflow run jira-github-sync"
+        },
+        {
+          "type": "webhook",
+          "event": "github.push",
+          "branches": ["main", "develop"]
+        }
+      ]
+    }
+  },
+  "bestPractices": {
+    "testing": {
+      "minimumCoverage": 80,
+      "types": ["unit", "integration", "security", "performance"],
+      "failOnCoverageBelow": 75
+    },
+    "documentation": {
+      "required": true,
+      "standard": "Master SOP",
+      "templates": true
+    },
+    "codeReview": {
+      "required": true,
+      "minimumReviewers": 2,
+      "timeLimit": "48h"
+    },
+    "security": {
+      "requireScan": true,
+      "failOnCritical": true,
+      "failOnHigh": false
+    },
+    "deployment": {
+      "requireConfirmation": true,
+      "requireTests": true,
+      "requireDocs": true,
+      "stagingFirst": true
+    }
+  },
+  "defaults": {
+    "timeout": 300,
+    "retries": 3,
+    "verbose": true,
+    "confirmDestructive": true,
+    "environment": "development"
+  },
+  "integrations": {
+    "hermes": {
+      "enabled": true,
+      "api": "${HERMES_API_URL:http://localhost:8005}",
+      "auth": "${HERMES_API_KEY}",
+      "timeout": 30000,
+      "retries": 3
+    },
+    "jira": {
+      "enabled": true,
+      "url": "${JIRA_URL:https://aurigraphdlt.atlassian.net}",
+      "auth": "${JIRA_API_KEY}",
+      "project": "AV11",
+      "board": 987,
+      "syncInterval": 3600
+    },
+    "github": {
+      "enabled": true,
+      "repo": "Aurigraph-DLT-Corp/glowing-adventure",
+      "auth": "${GITHUB_TOKEN}",
+      "branch": "main",
+      "autoSync": true
+    },
+    "slack": {
+      "enabled": true,
+      "webhook": "${SLACK_WEBHOOK_URL}",
+      "channel": "#engineering",
+      "notifications": {
+        "deploymentStart": true,
+        "deploymentComplete": true,
+        "deploymentFailed": true,
+        "testResults": true,
+        "securityIssues": true
+      }
+    }
+  },
+  "metrics": {
+    "enabled": true,
+    "endpoint": "https://metrics.aurigraph.io/agents",
+    "anonymous": false,
+    "trackUsage": true,
+    "trackSuccess": true,
+    "trackErrors": true,
+    "trackPerformance": true,
+    "metricsInterval": 60000,
+    "retentionDays": 90
+  },
+  "logging": {
+    "level": "info",
+    "file": "~/.claude/logs/j4c-agent.log",
+    "maxSize": "50MB",
+    "maxFiles": 10,
+    "includeTimestamp": true,
+    "includeContext": true
+  },
+  "updates": {
+    "checkOnStart": true,
+    "autoUpdate": false,
+    "channel": "stable",
+    "checkInterval": 86400000
+  },
+  "ui": {
+    "colors": true,
+    "interactive": true,
+    "progress": true,
+    "notifications": true,
+    "theme": "aurigraph-dark"
+  },
+  "security": {
+    "requireConfirmation": {
+      "deploy": true,
+      "delete": true,
+      "production": true,
+      "security-critical": true
+    },
+    "sandbox": false,
+    "allowRemoteExecution": false,
+    "validateCertificates": true,
+    "encryptSensitiveData": true
+  },
+  "notifications": {
+    "enabled": true,
+    "channels": ["slack", "email"],
+    "events": {
+      "agentInvoked": true,
+      "skillExecuted": true,
+      "workflowStarted": true,
+      "workflowCompleted": true,
+      "errors": true
+    }
+  },
+  "compliance": {
+    "enabled": true,
+    "standards": ["ISO27001", "SOC2", "GDPR"],
+    "auditLogging": true,
+    "dataRetention": "90 days",
+    "pii": {
+      "detection": true,
+      "masking": true
+    }
+  },
+  "performance": {
+    "cachingEnabled": true,
+    "cacheTTL": 3600,
+    "maxParallelOperations": 5,
+    "rateLimiting": {
+      "enabled": true,
+      "requestsPerMinute": 100
+    }
+  }
+}

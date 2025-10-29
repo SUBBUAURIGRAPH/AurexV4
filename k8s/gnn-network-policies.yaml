@@ -1,0 +1,750 @@
+---
+# GNN-HMS Trading System - Network Security Policies
+# Version: 1.0.0
+# Purpose: Fine-grained network access control between components
+
+# ============================================================================
+# DEFAULT DENY INGRESS POLICY
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gnn-hms-default-deny-ingress
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+  - Ingress
+  # No ingress rules - deny all by default
+
+---
+# ============================================================================
+# DEFAULT DENY EGRESS POLICY (except DNS and critical services)
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gnn-hms-default-deny-egress
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: network-policy
+spec:
+  podSelector: {}
+  policyTypes:
+  - Egress
+  egress:
+  # Allow DNS
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+
+---
+# ============================================================================
+# GNN TRADING MANAGER NETWORK POLICY
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gnn-trading-manager-netpol
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-trading-manager
+spec:
+  podSelector:
+    matchLabels:
+      component: gnn-trading-manager
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow from HMS Integration
+  - from:
+    - podSelector:
+        matchLabels:
+          component: gnn-hms-integration
+    ports:
+    - protocol: TCP
+      port: 8001
+  # Allow from Production Deployment (monitoring)
+  - from:
+    - podSelector:
+        matchLabels:
+          component: gnn-production-deployment
+    ports:
+    - protocol: TCP
+      port: 9090
+  egress:
+  # Allow to other GNN components
+  - to:
+    - podSelector:
+        matchLabels:
+          app: gnn-hms-trading-system
+    ports:
+    - protocol: TCP
+      port: 8001
+    - protocol: TCP
+      port: 8002
+    - protocol: TCP
+      port: 8003
+    - protocol: TCP
+      port: 8004
+    - protocol: TCP
+      port: 8005
+    - protocol: TCP
+      port: 8006
+    - protocol: TCP
+      port: 8007
+  # Allow DNS
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+
+---
+# ============================================================================
+# GNN HMS INTEGRATION NETWORK POLICY
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gnn-hms-integration-netpol
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-hms-integration
+spec:
+  podSelector:
+    matchLabels:
+      component: gnn-hms-integration
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow from Ingress controller
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8002
+  # Allow from other GNN components
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gnn-hms-trading-system
+    ports:
+    - protocol: TCP
+      port: 8002
+  egress:
+  # Allow to all GNN components
+  - to:
+    - podSelector:
+        matchLabels:
+          app: gnn-hms-trading-system
+    ports:
+    - protocol: TCP
+      port: 8001
+    - protocol: TCP
+      port: 8002
+    - protocol: TCP
+      port: 8003
+    - protocol: TCP
+      port: 8004
+    - protocol: TCP
+      port: 8005
+    - protocol: TCP
+      port: 8006
+    - protocol: TCP
+      port: 8007
+  # Allow to MongoDB
+  - to:
+    - podSelector:
+        matchLabels:
+          app: mongodb
+    ports:
+    - protocol: TCP
+      port: 27017
+  # Allow to Kafka
+  - to:
+    - podSelector:
+        matchLabels:
+          app: kafka
+    ports:
+    - protocol: TCP
+      port: 9092
+  # Allow DNS
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+
+---
+# ============================================================================
+# GNN MARKET RECOGNIZER NETWORK POLICY
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gnn-market-recognizer-netpol
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-market-recognizer
+spec:
+  podSelector:
+    matchLabels:
+      component: gnn-market-recognizer
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow from HMS Integration
+  - from:
+    - podSelector:
+        matchLabels:
+          component: gnn-hms-integration
+    ports:
+    - protocol: TCP
+      port: 8003
+  # Allow from other GNN components
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gnn-hms-trading-system
+    ports:
+    - protocol: TCP
+      port: 8003
+    - protocol: TCP
+      port: 9092
+  egress:
+  # Allow to Kafka (market data)
+  - to:
+    - podSelector:
+        matchLabels:
+          app: kafka
+    ports:
+    - protocol: TCP
+      port: 9092
+  # Allow to MongoDB
+  - to:
+    - podSelector:
+        matchLabels:
+          app: mongodb
+    ports:
+    - protocol: TCP
+      port: 27017
+  # Allow to other GNN components
+  - to:
+    - podSelector:
+        matchLabels:
+          app: gnn-hms-trading-system
+    ports:
+    - protocol: TCP
+      port: 8005  # Risk Detector
+      port: 8006  # Strategy Learner
+  # Allow DNS
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+
+---
+# ============================================================================
+# GNN PORTFOLIO OPTIMIZER NETWORK POLICY
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gnn-portfolio-optimizer-netpol
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-portfolio-optimizer
+spec:
+  podSelector:
+    matchLabels:
+      component: gnn-portfolio-optimizer
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow from HMS Integration
+  - from:
+    - podSelector:
+        matchLabels:
+          component: gnn-hms-integration
+    ports:
+    - protocol: TCP
+      port: 8004
+  # Allow from other GNN components
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gnn-hms-trading-system
+    ports:
+    - protocol: TCP
+      port: 8004
+  egress:
+  # Allow to MongoDB
+  - to:
+    - podSelector:
+        matchLabels:
+          app: mongodb
+    ports:
+    - protocol: TCP
+      port: 27017
+  # Allow to Trading Manager
+  - to:
+    - podSelector:
+        matchLabels:
+          component: gnn-trading-manager
+    ports:
+    - protocol: TCP
+      port: 8001
+  # Allow DNS
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+
+---
+# ============================================================================
+# GNN RISK DETECTOR NETWORK POLICY
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gnn-risk-detector-netpol
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-risk-detector
+spec:
+  podSelector:
+    matchLabels:
+      component: gnn-risk-detector
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow from HMS Integration
+  - from:
+    - podSelector:
+        matchLabels:
+          component: gnn-hms-integration
+    ports:
+    - protocol: TCP
+      port: 8005
+  # Allow from other GNN components
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gnn-hms-trading-system
+    ports:
+    - protocol: TCP
+      port: 8005
+      port: 9094
+  egress:
+  # Allow to Kafka (for alerts)
+  - to:
+    - podSelector:
+        matchLabels:
+          app: kafka
+    ports:
+    - protocol: TCP
+      port: 9092
+  # Allow to MongoDB
+  - to:
+    - podSelector:
+        matchLabels:
+          app: mongodb
+    ports:
+    - protocol: TCP
+      port: 27017
+  # Allow to all GNN components (monitoring)
+  - to:
+    - podSelector:
+        matchLabels:
+          app: gnn-hms-trading-system
+    ports:
+    - protocol: TCP
+      port: 8001
+    - protocol: TCP
+      port: 8002
+    - protocol: TCP
+      port: 8003
+    - protocol: TCP
+      port: 8004
+    - protocol: TCP
+      port: 8005
+    - protocol: TCP
+      port: 8006
+    - protocol: TCP
+      port: 8007
+  # Allow to Alertmanager (external)
+  - to:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+      podSelector:
+        matchLabels:
+          app: alertmanager
+    ports:
+    - protocol: TCP
+      port: 9093
+  # Allow DNS
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+
+---
+# ============================================================================
+# GNN STRATEGY LEARNER NETWORK POLICY
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gnn-strategy-learner-netpol
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-strategy-learner
+spec:
+  podSelector:
+    matchLabels:
+      component: gnn-strategy-learner
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow from HMS Integration
+  - from:
+    - podSelector:
+        matchLabels:
+          component: gnn-hms-integration
+    ports:
+    - protocol: TCP
+      port: 8006
+  # Allow from other GNN components
+  - from:
+    - podSelector:
+        matchLabels:
+          app: gnn-hms-trading-system
+    ports:
+    - protocol: TCP
+      port: 8006
+      port: 9095
+  egress:
+  # Allow to MongoDB
+  - to:
+    - podSelector:
+        matchLabels:
+          app: mongodb
+    ports:
+    - protocol: TCP
+      port: 27017
+  # Allow to Kafka
+  - to:
+    - podSelector:
+        matchLabels:
+          app: kafka
+    ports:
+    - protocol: TCP
+      port: 9092
+  # Allow to all GNN components
+  - to:
+    - podSelector:
+        matchLabels:
+          app: gnn-hms-trading-system
+    ports:
+    - protocol: TCP
+      port: 8001
+    - protocol: TCP
+      port: 8002
+    - protocol: TCP
+      port: 8003
+    - protocol: TCP
+      port: 8004
+    - protocol: TCP
+      port: 8005
+  # Allow DNS
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+
+---
+# ============================================================================
+# GNN PRODUCTION DEPLOYMENT NETWORK POLICY
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gnn-production-deployment-netpol
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-production-deployment
+spec:
+  podSelector:
+    matchLabels:
+      component: gnn-production-deployment
+  policyTypes:
+  - Ingress
+  - Egress
+  ingress:
+  # Allow from HMS Integration
+  - from:
+    - podSelector:
+        matchLabels:
+          component: gnn-hms-integration
+    ports:
+    - protocol: TCP
+      port: 8007
+  # Allow from Prometheus
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+      podSelector:
+        matchLabels:
+          app: prometheus
+    ports:
+    - protocol: TCP
+      port: 9096
+  egress:
+  # Allow to all GNN components (for health checks and monitoring)
+  - to:
+    - podSelector:
+        matchLabels:
+          app: gnn-hms-trading-system
+    ports:
+    - protocol: TCP
+      port: 8001
+    - protocol: TCP
+      port: 8002
+    - protocol: TCP
+      port: 8003
+    - protocol: TCP
+      port: 8004
+    - protocol: TCP
+      port: 8005
+    - protocol: TCP
+      port: 8006
+    - protocol: TCP
+      port: 8007
+    - protocol: TCP
+      port: 9090
+    - protocol: TCP
+      port: 9091
+    - protocol: TCP
+      port: 9092
+    - protocol: TCP
+      port: 9093
+    - protocol: TCP
+      port: 9094
+    - protocol: TCP
+      port: 9095
+    - protocol: TCP
+      port: 9096
+  # Allow to Kubernetes API (for deployments)
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          component: kube-apiserver
+    ports:
+    - protocol: TCP
+      port: 443
+  # Allow DNS
+  - to:
+    - namespaceSelector: {}
+      podSelector:
+        matchLabels:
+          k8s-app: kube-dns
+    ports:
+    - protocol: UDP
+      port: 53
+
+---
+# ============================================================================
+# INGRESS CONTROLLER NETWORK POLICY
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gnn-hms-ingress-netpol
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: ingress
+spec:
+  podSelector:
+    matchLabels:
+      component: gnn-hms-integration
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow from internet (ingress controller)
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: ingress-nginx
+    ports:
+    - protocol: TCP
+      port: 8002
+
+---
+# ============================================================================
+# CROSS-NAMESPACE ACCESS - Allow monitoring namespace to scrape metrics
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: gnn-hms-allow-monitoring
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: monitoring-access
+spec:
+  podSelector:
+    matchLabels:
+      app: gnn-hms-trading-system
+  policyTypes:
+  - Ingress
+  ingress:
+  # Allow from monitoring namespace
+  - from:
+    - namespaceSelector:
+        matchLabels:
+          name: monitoring
+    ports:
+    - protocol: TCP
+      port: 9090
+    - protocol: TCP
+      port: 9091
+    - protocol: TCP
+      port: 9092
+    - protocol: TCP
+      port: 9093
+    - protocol: TCP
+      port: 9094
+    - protocol: TCP
+      port: 9095
+    - protocol: TCP
+      port: 9096
+
+---
+# ============================================================================
+# NETWORK POLICY DOCUMENTATION
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gnn-network-policy-doc
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: documentation
+data:
+  network-security-guide.md: |
+    # GNN-HMS Network Security Policies
+
+    ## Overview
+    - Default deny ingress and egress for all pods
+    - Explicit allow rules for required communications
+    - Component-to-component communication within namespace
+    - External access only through LoadBalancer/Ingress
+
+    ## Traffic Flow Rules
+
+    ### Inbound Traffic
+    1. **Ingress Controller** → **HMS Integration** (port 8002)
+    2. **GNN Components** → **Any GNN Component** (internal communication)
+    3. **Prometheus** → **All Components** (metrics on ports 9090-9096)
+
+    ### Outbound Traffic
+    1. **All Components** → **Kubernetes DNS** (UDP 53)
+    2. **Integration** → **All Other Components** (orchestration)
+    3. **Market Recognizer** → **Kafka** (market data)
+    4. **Risk Detector** → **Kafka** (alerts)
+    5. **Strategy Learner** → **Kafka** (training data)
+    6. **All Components** → **MongoDB** (data persistence)
+    7. **Risk Detector** → **Alertmanager** (alert escalation)
+    8. **Production Deployment** → **Kubernetes API** (deployment management)
+
+    ## Component Communication Matrix
+
+    | From | To | Port | Protocol | Purpose |
+    |------|----|----|----------|---------|
+    | Integration | Trading Manager | 8001 | TCP | Orchestration |
+    | Integration | Market Recognizer | 8003 | TCP | Pattern queries |
+    | Integration | Portfolio Optimizer | 8004 | TCP | Allocation requests |
+    | Integration | Risk Detector | 8005 | TCP | Risk monitoring |
+    | Integration | Strategy Learner | 8006 | TCP | Model queries |
+    | Market Recognizer | Risk Detector | 8005 | TCP | Signal alerts |
+    | Market Recognizer | Strategy Learner | 8006 | TCP | Training data |
+    | All | Kafka | 9092 | TCP | Event streaming |
+    | All | MongoDB | 27017 | TCP | Data persistence |
+
+    ## Security Best Practices Implemented
+    1. Default deny policies
+    2. Least privilege access
+    3. Namespace isolation
+    4. Role-based access control (RBAC)
+    5. Service account limitations
+    6. Network segmentation
+    7. Metrics authentication
+    8. Audit logging enabled
+
+    ## Monitoring Network Policies
+    ```bash
+    # List all network policies
+    kubectl get networkpolicies -n gnn-hms
+
+    # Describe a policy
+    kubectl describe networkpolicy <name> -n gnn-hms
+
+    # Test connectivity (from pod)
+    kubectl exec -it <pod> -n gnn-hms -- /bin/sh
+    # Inside pod: curl http://<service>:<port>
+
+    # Check denied connections in logs
+    kubectl logs -n gnn-hms -l app=gnn-hms-trading-system --grep="denied"
+    ```

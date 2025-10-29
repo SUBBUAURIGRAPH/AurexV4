@@ -1,0 +1,313 @@
+{
+  "hubspot": {
+    "enabled": true,
+    "apiKey": "${HUBSPOT_API_KEY}",
+    "portalId": "${HUBSPOT_PORTAL_ID}",
+    "apiUrl": "https://api.hubapi.com",
+    "apiVersion": "v3",
+    "description": "HubSpot CRM integration for J4C Agent plugin"
+  },
+  "claudeCode": {
+    "enabled": true,
+    "apiUrl": "${CLAUDE_CODE_API_URL:http://localhost:9000}",
+    "apiKey": "${CLAUDE_CODE_API_KEY}",
+    "description": "Claude Code integration endpoint"
+  },
+  "sync": {
+    "enabled": true,
+    "autoSync": true,
+    "syncInterval": 3600000,
+    "syncOnStartup": true,
+    "dataTypes": ["contacts", "deals", "companies", "campaigns"],
+    "retryAttempts": 3,
+    "retryDelay": 5000,
+    "description": "Automatic synchronization settings"
+  },
+  "caching": {
+    "enabled": true,
+    "ttl": 300000,
+    "maxSize": 1000,
+    "description": "Response caching configuration"
+  },
+  "contacts": {
+    "enabled": true,
+    "autoImport": true,
+    "properties": [
+      "firstname",
+      "lastname",
+      "email",
+      "phone",
+      "company",
+      "lifecyclestage",
+      "hs_lead_status",
+      "hs_analytics_score"
+    ],
+    "defaultLimit": 100,
+    "description": "Contact management settings"
+  },
+  "deals": {
+    "enabled": true,
+    "autoImport": true,
+    "properties": [
+      "dealname",
+      "dealstage",
+      "amount",
+      "closedate",
+      "hubspot_owner_id",
+      "dealtype",
+      "description"
+    ],
+    "defaultLimit": 100,
+    "stages": [
+      "negotiation",
+      "closedwon",
+      "closedlost",
+      "appointmentscheduled",
+      "qualifiedtobuy",
+      "presentationscheduled",
+      "decisionmakerboughtin"
+    ],
+    "description": "Deal management settings"
+  },
+  "companies": {
+    "enabled": true,
+    "autoImport": true,
+    "properties": [
+      "name",
+      "domain",
+      "industry",
+      "numberofemployees",
+      "annualrevenue",
+      "lifecyclestage",
+      "country",
+      "city"
+    ],
+    "defaultLimit": 100,
+    "description": "Company management settings"
+  },
+  "campaigns": {
+    "enabled": true,
+    "autoImport": true,
+    "types": [
+      "email",
+      "social",
+      "content",
+      "landing_page",
+      "webinar",
+      "event",
+      "offline",
+      "other"
+    ],
+    "description": "Campaign management settings"
+  },
+  "emails": {
+    "enabled": true,
+    "trackOpens": true,
+    "trackClicks": true,
+    "defaultTemplate": "default",
+    "fromAddress": "${HUBSPOT_FROM_EMAIL:noreply@aurigraph.io}",
+    "description": "Email integration settings"
+  },
+  "agents": {
+    "integrationPoints": {
+      "digitalMarketing": {
+        "enabled": true,
+        "skills": [
+          "campaign-setup",
+          "email-setup",
+          "content-planning",
+          "performance-tracking",
+          "audience-segmentation",
+          "campaign-automation"
+        ],
+        "description": "Digital Marketing agent integration"
+      },
+      "projectManager": {
+        "enabled": true,
+        "skills": [
+          "deal-tracking",
+          "opportunity-management",
+          "revenue-forecasting"
+        ],
+        "description": "Project Manager agent integration"
+      },
+      "customerSupport": {
+        "enabled": true,
+        "skills": [
+          "ticket-management",
+          "customer-communication",
+          "customer-analytics"
+        ],
+        "description": "Customer Support agent integration"
+      }
+    }
+  },
+  "workflows": {
+    "contactLifecycle": {
+      "enabled": true,
+      "triggers": {
+        "newContact": "contact_created",
+        "stageChange": "lifecyclestage_changed",
+        "leadScore": "hs_analytics_score_changed"
+      },
+      "actions": [
+        "send_welcome_email",
+        "add_to_segment",
+        "create_task",
+        "notify_owner"
+      ],
+      "description": "Contact lifecycle automation"
+    },
+    "dealManagement": {
+      "enabled": true,
+      "triggers": {
+        "dealCreated": "deal_created",
+        "stageChange": "dealstage_changed",
+        "amountChange": "amount_changed"
+      },
+      "actions": [
+        "notify_team",
+        "update_forecast",
+        "send_notification"
+      ],
+      "description": "Deal management automation"
+    },
+    "campaignExecution": {
+      "enabled": true,
+      "triggers": {
+        "campaignStart": "campaign_started",
+        "campaignEnd": "campaign_ended"
+      },
+      "actions": [
+        "generate_report",
+        "update_analytics",
+        "send_summary"
+      ],
+      "description": "Campaign execution automation"
+    }
+  },
+  "analytics": {
+    "enabled": true,
+    "trackingEvents": [
+      "contact_created",
+      "contact_updated",
+      "deal_created",
+      "deal_updated",
+      "deal_won",
+      "deal_lost",
+      "campaign_started",
+      "campaign_ended",
+      "email_sent",
+      "email_opened",
+      "email_clicked"
+    ],
+    "reportingFrequency": "daily",
+    "dashboardRefresh": 3600000,
+    "retention": {
+      "events": 90,
+      "reports": 365,
+      "archives": 2555
+    },
+    "description": "Analytics and reporting settings"
+  },
+  "security": {
+    "enabled": true,
+    "encryption": true,
+    "apiKeyEncryption": true,
+    "dataValidation": true,
+    "rateLimit": 500,
+    "rateLimitWindow": 60000,
+    "allowedOrigins": [
+      "https://app.hubapi.com",
+      "https://claude.anthropic.com",
+      "http://localhost:*"
+    ],
+    "auditLogging": true,
+    "description": "Security and access control settings"
+  },
+  "notifications": {
+    "enabled": true,
+    "channels": ["slack", "email"],
+    "events": {
+      "syncStarted": true,
+      "syncCompleted": true,
+      "syncFailed": true,
+      "dealUpdated": true,
+      "contactUpdated": true,
+      "campaignStarted": true,
+      "apiErrors": true
+    },
+    "slack": {
+      "enabled": true,
+      "webhook": "${SLACK_WEBHOOK_HUBSPOT:}",
+      "channel": "#crm-updates"
+    },
+    "email": {
+      "enabled": true,
+      "recipients": ["${NOTIFICATION_EMAIL}"],
+      "onError": true,
+      "onSuccess": false
+    },
+    "description": "Notification settings"
+  },
+  "logging": {
+    "level": "info",
+    "file": "~/.claude/logs/hubspot-integration.log",
+    "maxSize": "50MB",
+    "maxFiles": 10,
+    "includeTimestamp": true,
+    "includeContext": true,
+    "logSensitiveData": false,
+    "description": "Logging configuration"
+  },
+  "performance": {
+    "batchSize": 100,
+    "maxConcurrentRequests": 10,
+    "requestTimeout": 30000,
+    "connectionPoolSize": 5,
+    "cacheSize": 1000,
+    "description": "Performance tuning"
+  },
+  "errorHandling": {
+    "retryFailedRequests": true,
+    "retryAttempts": 3,
+    "retryDelay": 5000,
+    "exponentialBackoff": true,
+    "fallbackBehavior": "cache",
+    "description": "Error handling strategy"
+  },
+  "integrationTypes": {
+    "realtime": {
+      "enabled": true,
+      "webhooks": true,
+      "eventStream": true
+    },
+    "scheduled": {
+      "enabled": true,
+      "syncInterval": 3600000,
+      "fullSyncInterval": 86400000
+    },
+    "onDemand": {
+      "enabled": true,
+      "manualTrigger": true
+    }
+  },
+  "features": {
+    "contactSync": true,
+    "dealTracking": true,
+    "campaignManagement": true,
+    "emailAutomation": true,
+    "analyticsReporting": true,
+    "customFields": true,
+    "workflowAutomation": true,
+    "apiExtensions": true
+  },
+  "metadata": {
+    "version": "1.0.0",
+    "releaseDate": "2025-10-27",
+    "lastUpdated": "2025-10-27",
+    "author": "Aurigraph Development Team",
+    "repository": "https://github.com/Aurigraph-DLT-Corp/glowing-adventure",
+    "documentation": "https://github.com/Aurigraph-DLT-Corp/glowing-adventure/blob/main/plugin/HUBSPOT_INTEGRATION.md"
+  }
+}

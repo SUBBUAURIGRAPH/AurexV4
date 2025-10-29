@@ -1,0 +1,48 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'j4c-agent-monitor'
+
+# Alerting configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: []
+
+# Load rules
+rule_files: []
+
+scrape_configs:
+  # J4C Agent Plugin
+  - job_name: 'j4c-agent'
+    static_configs:
+      - targets: ['j4c-agent:9003']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # NGINX Reverse Proxy
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['nginx-proxy:8080']
+    metrics_path: '/status'
+    scrape_interval: 30s
+
+  # PostgreSQL (if using Postgres exporter)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+    scrape_interval: 30s
+
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s
+
+  # Grafana
+  - job_name: 'grafana'
+    static_configs:
+      - targets: ['grafana:3000']
+    scrape_interval: 30s

@@ -1,0 +1,564 @@
+---
+# GNN-HMS Trading System - Ingress Configuration
+# Version: 1.0.0
+# Purpose: Advanced routing, SSL/TLS, and API gateway configuration
+
+# ============================================================================
+# MAIN API INGRESS (NGINX)
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gnn-hms-main-ingress
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: ingress
+    version: "1.0.0"
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+
+    # NGINX specific annotations
+    nginx.ingress.kubernetes.io/rate-limit: "10000"
+    nginx.ingress.kubernetes.io/rate-limit-window: "1m"
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "50m"
+    nginx.ingress.kubernetes.io/proxy-connect-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "60"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "60"
+
+    # Security headers
+    nginx.ingress.kubernetes.io/configuration-snippet: |
+      more_set_headers "X-Frame-Options: DENY";
+      more_set_headers "X-Content-Type-Options: nosniff";
+      more_set_headers "X-XSS-Protection: 1; mode=block";
+      more_set_headers "Content-Security-Policy: default-src 'self'";
+      more_set_headers "Strict-Transport-Security: max-age=31536000; includeSubDomains";
+
+    # CORS configuration
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "https://gnn-hms.aurigraph.io"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET,POST,PUT,DELETE,OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type,Authorization,X-API-Key"
+
+    # Logging
+    nginx.ingress.kubernetes.io/enable-access-log: "true"
+    nginx.ingress.kubernetes.io/enable-rewrite-log: "true"
+
+spec:
+  tls:
+  - hosts:
+    - gnn-hms.aurigraph.io
+    - api.gnn-hms.aurigraph.io
+    - trading.gnn-hms.aurigraph.io
+    - dashboard.gnn-hms.aurigraph.io
+    secretName: gnn-hms-tls
+
+  rules:
+  # ========================================================================
+  # API GATEWAY - Main Entry Point
+  # ========================================================================
+  - host: api.gnn-hms.aurigraph.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-hms-api-gateway
+            port:
+              number: 80
+
+  # ========================================================================
+  # TRADING MANAGER
+  # ========================================================================
+  - host: trading.gnn-hms.aurigraph.io
+    http:
+      paths:
+      - path: /trading-manager
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-trading-manager
+            port:
+              number: 8001
+      - path: /integration
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-hms-integration
+            port:
+              number: 8002
+
+  # ========================================================================
+  # MARKET RECOGNIZER
+  # ========================================================================
+  - host: market.gnn-hms.aurigraph.io
+    http:
+      paths:
+      - path: /patterns
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-market-recognizer
+            port:
+              number: 8003
+      - path: /signals
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-market-recognizer
+            port:
+              number: 8003
+
+  # ========================================================================
+  # PORTFOLIO OPTIMIZER
+  # ========================================================================
+  - host: portfolio.gnn-hms.aurigraph.io
+    http:
+      paths:
+      - path: /optimize
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-portfolio-optimizer
+            port:
+              number: 8004
+      - path: /rebalance
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-portfolio-optimizer
+            port:
+              number: 8004
+
+  # ========================================================================
+  # RISK DETECTOR & ALERTS
+  # ========================================================================
+  - host: risk.gnn-hms.aurigraph.io
+    http:
+      paths:
+      - path: /risk
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-risk-detector
+            port:
+              number: 8005
+      - path: /alerts
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-hms-alerts
+            port:
+              number: 8888
+
+  # ========================================================================
+  # STRATEGY LEARNER
+  # ========================================================================
+  - host: learning.gnn-hms.aurigraph.io
+    http:
+      paths:
+      - path: /strategies
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-strategy-learner
+            port:
+              number: 8006
+      - path: /models
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-strategy-learner
+            port:
+              number: 8006
+
+  # ========================================================================
+  # MONITORING DASHBOARD
+  # ========================================================================
+  - host: dashboard.gnn-hms.aurigraph.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-hms-dashboard
+            port:
+              number: 3000
+
+---
+# ============================================================================
+# METRICS/PROMETHEUS INGRESS
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gnn-hms-metrics-ingress
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: metrics-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    nginx.ingress.kubernetes.io/auth-type: "basic"
+    nginx.ingress.kubernetes.io/auth-secret: "gnn-metrics-auth"
+    nginx.ingress.kubernetes.io/auth-realm: "GNN-HMS Metrics"
+
+spec:
+  tls:
+  - hosts:
+    - metrics.gnn-hms.aurigraph.io
+    secretName: gnn-hms-tls
+
+  rules:
+  - host: metrics.gnn-hms.aurigraph.io
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-hms-metrics
+            port:
+              number: 9090
+
+---
+# ============================================================================
+# INTERNAL API INGRESS (For microservices communication)
+# ============================================================================
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: gnn-hms-internal-ingress
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: internal-ingress
+  annotations:
+    kubernetes.io/ingress.class: "nginx"
+    nginx.ingress.kubernetes.io/internal-traffic: "true"
+
+spec:
+  rules:
+  # Trading Manager
+  - host: gnn-trading-manager.gnn-hms.svc.cluster.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-trading-manager
+            port:
+              number: 8001
+
+  # HMS Integration
+  - host: gnn-hms-integration.gnn-hms.svc.cluster.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-hms-integration
+            port:
+              number: 8002
+
+  # Market Recognizer
+  - host: gnn-market-recognizer.gnn-hms.svc.cluster.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-market-recognizer
+            port:
+              number: 8003
+
+  # Portfolio Optimizer
+  - host: gnn-portfolio-optimizer.gnn-hms.svc.cluster.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-portfolio-optimizer
+            port:
+              number: 8004
+
+  # Risk Detector
+  - host: gnn-risk-detector.gnn-hms.svc.cluster.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-risk-detector
+            port:
+              number: 8005
+
+  # Strategy Learner
+  - host: gnn-strategy-learner.gnn-hms.svc.cluster.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-strategy-learner
+            port:
+              number: 8006
+
+  # Production Deployment
+  - host: gnn-production-deployment.gnn-hms.svc.cluster.local
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: gnn-production-deployment
+            port:
+              number: 8007
+
+---
+# ============================================================================
+# BASIC AUTH SECRET FOR METRICS (htpasswd)
+# ============================================================================
+apiVersion: v1
+kind: Secret
+metadata:
+  name: gnn-metrics-auth
+  namespace: gnn-hms
+type: Opaque
+stringData:
+  auth: "admin:$2y$05$rrWnJGKKK5Jz9JKrDHF5/.5zDVz/XqvNDrKzqvF.Zv5cTQvs3HFES"
+
+---
+# ============================================================================
+# ISTIO SERVICE MESH - VIRTUAL SERVICE (Optional)
+# ============================================================================
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: gnn-hms-main-vs
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+spec:
+  hosts:
+  - api.gnn-hms.aurigraph.io
+  http:
+  - match:
+    - uri:
+        prefix: "/trading-manager"
+    route:
+    - destination:
+        host: gnn-trading-manager
+        port:
+          number: 8001
+      weight: 100
+    timeout: 30s
+    retries:
+      attempts: 3
+      perTryTimeout: 10s
+
+  - match:
+    - uri:
+        prefix: "/integration"
+    route:
+    - destination:
+        host: gnn-hms-integration
+        port:
+          number: 8002
+      weight: 100
+    timeout: 30s
+
+  - match:
+    - uri:
+        prefix: "/market"
+    route:
+    - destination:
+        host: gnn-market-recognizer
+        port:
+          number: 8003
+      weight: 100
+    timeout: 30s
+
+  - match:
+    - uri:
+        prefix: "/portfolio"
+    route:
+    - destination:
+        host: gnn-portfolio-optimizer
+        port:
+          number: 8004
+      weight: 100
+    timeout: 60s
+
+  - match:
+    - uri:
+        prefix: "/risk"
+    route:
+    - destination:
+        host: gnn-risk-detector
+        port:
+          number: 8005
+      weight: 100
+    timeout: 30s
+
+  - match:
+    - uri:
+        prefix: "/learning"
+    route:
+    - destination:
+        host: gnn-strategy-learner
+        port:
+          number: 8006
+      weight: 100
+    timeout: 120s
+
+---
+# ============================================================================
+# ISTIO DESTINATION RULE (For circuit breaking and load balancing)
+# ============================================================================
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: gnn-hms-main-dr
+  namespace: gnn-hms
+spec:
+  host: "*.gnn-hms.svc.cluster.local"
+  trafficPolicy:
+    connectionPool:
+      tcp:
+        maxConnections: 1000
+      http:
+        http1MaxPendingRequests: 1000
+        h2UpgradePolicy: UPGRADE
+        maxRequestsPerConnection: 100
+    loadBalancer:
+      simple: LEAST_CONN
+    outlierDetection:
+      consecutive5xxErrors: 5
+      interval: 30s
+      baseEjectionTime: 30s
+      maxEjectionPercent: 50
+      minRequestVolume: 100
+      splitExternalLocalOriginErrors: true
+  subsets:
+  - name: v1
+    labels:
+      version: "1.0.0"
+  - name: canary
+    labels:
+      version: "1.0.1-canary"
+
+---
+# ============================================================================
+# REQUEST AUTHENTICATION POLICY (Optional - with JWT)
+# ============================================================================
+apiVersion: security.istio.io/v1beta1
+kind: RequestAuthentication
+metadata:
+  name: gnn-hms-auth
+  namespace: gnn-hms
+spec:
+  jwtRules:
+  - issuer: "https://auth.aurigraph.io"
+    jwksUri: "https://auth.aurigraph.io/.well-known/jwks.json"
+    audiences: "gnn-hms-api"
+
+---
+# ============================================================================
+# AUTHORIZATION POLICY (Optional - RBAC for APIs)
+# ============================================================================
+apiVersion: security.istio.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: gnn-hms-authz
+  namespace: gnn-hms
+spec:
+  selector:
+    matchLabels:
+      app: gnn-hms-trading-system
+  action: ALLOW
+  rules:
+  - from:
+    - source:
+        principals: ["cluster.local/ns/gnn-hms/sa/gnn-hms-sa"]
+    to:
+    - operation:
+        methods: ["GET", "POST", "PUT", "DELETE"]
+        paths: ["/api/*"]
+
+  - from:
+    - source:
+        namespaces: ["gnn-hms"]
+    to:
+    - operation:
+        methods: ["GET"]
+        paths: ["/health/*"]
+
+---
+# ============================================================================
+# CERTIFICATE ISSUER (Let's Encrypt)
+# ============================================================================
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: trading-ops@aurigraph.io
+    privateKeySecretRef:
+      name: letsencrypt-prod
+    solvers:
+    - http01:
+        ingress:
+          class: nginx
+    - dns01:
+        route53:
+          region: us-east-1
+          hostedZoneID: YOUR_HOSTED_ZONE_ID
+          accessKeyID: YOUR_ACCESS_KEY_ID
+          secretAccessKeySecretRef:
+            name: route53-credentials
+            key: secret-access-key
+
+---
+# ============================================================================
+# CERTIFICATE FOR GNN-HMS DOMAIN
+# ============================================================================
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: gnn-hms-cert
+  namespace: gnn-hms
+spec:
+  secretName: gnn-hms-tls
+  duration: 2160h  # 90 days
+  renewBefore: 720h  # 30 days
+  commonName: gnn-hms.aurigraph.io
+  dnsNames:
+  - gnn-hms.aurigraph.io
+  - api.gnn-hms.aurigraph.io
+  - trading.gnn-hms.aurigraph.io
+  - market.gnn-hms.aurigraph.io
+  - portfolio.gnn-hms.aurigraph.io
+  - risk.gnn-hms.aurigraph.io
+  - learning.gnn-hms.aurigraph.io
+  - dashboard.gnn-hms.aurigraph.io
+  - metrics.gnn-hms.aurigraph.io
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
