@@ -2,8 +2,8 @@
 
 /**
  * HMS J4C Agent - HTTP Server
- * Wraps the Aurigraph plugin as a web service
- * @version 1.0.0
+ * Wraps the Aurigraph plugin as a web service with authentication
+ * @version 1.1.0
  */
 
 const http = require('http');
@@ -11,10 +11,26 @@ const path = require('path');
 const fs = require('fs');
 const url = require('url');
 const AurigraphAgentsPlugin = require('./index');
+const JWTAuth = require('./auth/jwt-auth');
+const UserManager = require('./auth/user-manager');
+const RBACMiddleware = require('./auth/rbac-middleware');
+const AuthEndpoints = require('./auth/auth-endpoints');
 
 // Configuration
 const PORT = process.env.PORT || 9003;
 const NODE_ENV = process.env.NODE_ENV || 'development';
+const JWT_SECRET = process.env.JWT_SECRET || undefined;
+
+// Initialize authentication modules
+const jwtAuth = new JWTAuth({
+  secret: JWT_SECRET,
+  accessTokenExpiry: 3600, // 1 hour
+  refreshTokenExpiry: 86400 // 24 hours
+});
+
+const userManager = new UserManager();
+const rbacMiddleware = new RBACMiddleware(userManager, jwtAuth);
+const authEndpoints = new AuthEndpoints(userManager, jwtAuth);
 
 // Initialize plugin
 const plugin = new AurigraphAgentsPlugin({
@@ -27,7 +43,7 @@ const server = http.createServer(async (req, res) => {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, DELETE, PUT');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-API-Key');
   res.setHeader('Content-Type', 'application/json');
 
   // Handle CORS preflight
@@ -37,15 +53,115 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  const url = new URL(req.url, `http://${req.headers.host}`);
-  const pathname = url.pathname;
+  const parsedURL = new URL(req.url, `http://${req.headers.host}`);
+  const pathname = parsedURL.pathname;
   const method = req.method;
 
   try {
+    // Check authorization
+    const authResult = rbacMiddleware.authorize(req);
+    if (!authResult.authorized) {
+      res.writeHead(401);
+      res.end(JSON.stringify({
+        error: 'Unauthorized',
+        reason: authResult.reason
+      }));
+      return;
+    }
+
+    const authenticatedUser = authResult.user;
+
+    // ============== Authentication Endpoints ==============
+
+    // Login endpoint
+    if (pathname === '/auth/login' && method === 'POST') {
+      await authEndpoints.handleLogin(req, res);
+      return;
+    }
+
+    // Register endpoint
+    if (pathname === '/auth/register' && method === 'POST') {
+      await authEndpoints.handleRegister(req, res);
+      return;
+    }
+
+    // Token refresh endpoint
+    if (pathname === '/auth/refresh' && method === 'POST') {
+      await authEndpoints.handleRefresh(req, res, authenticatedUser);
+      return;
+    }
+
+    // Logout endpoint
+    if (pathname === '/auth/logout' && method === 'POST') {
+      await authEndpoints.handleLogout(req, res, authenticatedUser);
+      return;
+    }
+
+    // ============== User Profile Endpoints ==============
+
+    // Get user profile
+    if (pathname === '/api/user/profile' && method === 'GET') {
+      await authEndpoints.handleGetProfile(req, res, authenticatedUser);
+      return;
+    }
+
+    // Update user profile
+    if (pathname === '/api/user/profile' && method === 'PUT') {
+      await authEndpoints.handleUpdateProfile(req, res, authenticatedUser);
+      return;
+    }
+
+    // Change password
+    if (pathname === '/api/user/password' && method === 'PUT') {
+      await authEndpoints.handleChangePassword(req, res, authenticatedUser);
+      return;
+    }
+
+    // List API keys
+    if (pathname === '/api/user/api-keys' && method === 'GET') {
+      await authEndpoints.handleListAPIKeys(req, res, authenticatedUser);
+      return;
+    }
+
+    // Create API key
+    if (pathname === '/api/user/api-keys' && method === 'POST') {
+      await authEndpoints.handleCreateAPIKey(req, res, authenticatedUser);
+      return;
+    }
+
+    // Revoke API key
+    if (pathname.match(/^\/api\/user\/api-keys\/[^/]+$/) && method === 'DELETE') {
+      const keyId = pathname.split('/').pop();
+      await authEndpoints.handleRevokeAPIKey(req, res, authenticatedUser, keyId);
+      return;
+    }
+
+    // ============== Health Check Endpoint ==============
     // Health check endpoint
     if (pathname === '/health' && method === 'GET') {
       res.writeHead(200);
       res.end(JSON.stringify({ status: 'ok', message: 'HMS Agent - OK' }));
+      return;
+    }
+
+    // ============== Admin Endpoints ==============
+
+    // Get authentication stats
+    if (pathname === '/api/admin/auth-stats' && method === 'GET') {
+      if (!authenticatedUser || !userManager.hasRole(authenticatedUser.id, 'admin')) {
+        res.writeHead(403);
+        res.end(JSON.stringify({ error: 'Admin access required' }));
+        return;
+      }
+      res.writeHead(200);
+      res.end(JSON.stringify({
+        jwtStats: jwtAuth.getStats(),
+        users: {
+          total: userManager.listUsers().length,
+          list: userManager.listUsers()
+        },
+        auditLog: authEndpoints.getAuditLog().slice(-50) // Last 50 entries
+      }));
       return;
     }
 
@@ -55,7 +171,12 @@ const server = http.createServer(async (req, res) => {
       res.end(JSON.stringify({
         uptime: process.uptime(),
         memory: process.memoryUsage(),
-        environment: NODE_ENV
+        environment: NODE_ENV,
+        authentication: {
+          enabled: true,
+          activeTokens: jwtAuth.getStats().activeTokens,
+          activeSessions: jwtAuth.getStats().activeSessions
+        }
       }));
       return;
     }
@@ -221,6 +342,11 @@ server.listen(PORT, () => {
   console.log(`💻 Health: http://localhost:${PORT}/health`);
   console.log(`📈 Metrics: http://localhost:${PORT}/metrics`);
   console.log(`🔧 API Docs: http://localhost:${PORT}/api`);
+  console.log(`\n🔐 Authentication Enabled`);
+  console.log(`🔑 Default Admin: admin / admin123`);
+  console.log(`📝 Login: POST /auth/login`);
+  console.log(`📝 Register: POST /auth/register`);
+  console.log(`📝 Refresh Token: POST /auth/refresh`);
   console.log(`${'='.repeat(60)}\n`);
 
   // Initialize plugin environment in background
@@ -232,6 +358,13 @@ server.listen(PORT, () => {
     console.warn('Warning: Plugin environment initialization failed:', error.message);
     console.warn('The server will continue to run with limited functionality');
   });
+
+  // Start periodic cleanup of expired tokens and sessions
+  setInterval(() => {
+    jwtAuth.cleanup();
+  }, 60000); // Every minute
+
+  console.log(`✅ Token cleanup scheduled (every 60 seconds)`);
 });
 
 // Graceful shutdown
