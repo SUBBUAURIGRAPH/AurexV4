@@ -1,6 +1,13 @@
 /**
  * Backtesting Redux Slice
  * Complete state management for backtesting system
+ *
+ * IMPROVEMENTS:
+ * - Enhanced error handling with retry logic
+ * - Request timeout (30 seconds)
+ * - Response validation
+ * - Safe selectors with null fallbacks
+ * - Better error messages
  */
 
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
@@ -19,6 +26,17 @@ import {
   OHLCV,
   DEFAULT_BACKTEST_CONFIG
 } from '../types/backtesting';
+import {
+  fetchWithRetry,
+  createAppError,
+  parseAndValidateResponse
+} from '../utils/error-handler';
+import {
+  createSafeSelector,
+  createArraySelector,
+  DEFAULT_BACKTEST_RESULT,
+  createEntitySelector
+} from '../utils/redux-helpers';
 
 // ============================================================================
 // ASYNC THUNKS
@@ -26,25 +44,42 @@ import {
 
 /**
  * Start a new backtest
+ * Enhanced with retry logic, timeout, and better error handling
  */
 export const startBacktest = createAsyncThunk(
   'backtesting/startBacktest',
   async (request: BacktestRequest, { rejectWithValue }) => {
     try {
-      const response = await fetch('/api/backtesting/backtest', {
+      const response = await fetchWithRetry('/api/backtesting/backtest', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(request)
+        body: JSON.stringify(request),
+        timeout: 30000,
+        retryOptions: {
+          maxAttempts: 3,
+          initialDelayMs: 1000
+        }
       });
 
       if (!response.ok) {
         const error = await response.json();
-        return rejectWithValue(error);
+        return rejectWithValue(
+          createAppError(
+            { statusCode: response.status, message: error.message || 'Failed to start backtest' },
+            'Failed to start backtest'
+          )
+        );
       }
 
-      return await response.json();
+      const data = await parseAndValidateResponse(response, {
+        id: { type: 'string', required: true },
+        status: { type: 'string', required: true }
+      });
+
+      return data;
     } catch (error: any) {
-      return rejectWithValue(error.message);
+      const appError = createAppError(error, 'Failed to start backtest');
+      return rejectWithValue(appError);
     }
   }
 );
@@ -718,38 +753,87 @@ export const {
 // SELECTORS
 // ============================================================================
 
+// ============================================================================
+// STATE SELECTORS
+// ============================================================================
+
 export const selectBacktestingState = (state: RootState) => state.backtesting;
 export const selectBacktestingUIState = (state: RootState) => state.backtestingUI;
 
-export const selectActiveBacktest = (state: RootState) =>
-  state.backtesting.activeBacktestId
-    ? state.backtesting.backtests[state.backtesting.activeBacktestId]
-    : undefined;
+/**
+ * Safe selector for active backtest with null fallback
+ */
+export const selectActiveBacktest = createEntitySelector(
+  (state: RootState) => state.backtesting.backtests,
+  (state: RootState) => state.backtesting.activeBacktestId,
+  null
+);
 
-export const selectSelectedBacktestResult = (state: RootState) =>
-  state.backtesting.selectedBacktestId
-    ? state.backtesting.results[state.backtesting.selectedBacktestId]
-    : undefined;
+/**
+ * Safe selector for selected backtest result
+ * Returns DEFAULT_BACKTEST_RESULT if not found
+ */
+export const selectSelectedBacktestResult = createSafeSelector(
+  (state: RootState) =>
+    state.backtesting.selectedBacktestId
+      ? state.backtesting.results[state.backtesting.selectedBacktestId]
+      : undefined,
+  DEFAULT_BACKTEST_RESULT
+);
 
-export const selectBacktestResults = (state: RootState) =>
-  Object.values(state.backtesting.results);
+/**
+ * Selector for all backtest results as array
+ */
+export const selectBacktestResults = createArraySelector(
+  (state: RootState) => Object.values(state.backtesting.results)
+);
 
-export const selectAvailableSymbols = (state: RootState) =>
-  state.backtesting.availableSymbols;
+/**
+ * Safe selector for available symbols
+ */
+export const selectAvailableSymbols = createArraySelector(
+  (state: RootState) => state.backtesting.availableSymbols
+);
 
+/**
+ * Selector for loading state
+ */
 export const selectBacktestLoading = (state: RootState) =>
-  state.backtesting.loading;
+  state.backtesting.loading ?? false;
 
+/**
+ * Safe selector for error state with fallback
+ */
 export const selectBacktestError = (state: RootState) =>
-  state.backtesting.error;
+  state.backtesting.error || null;
 
+/**
+ * Safe selector for sync progress
+ */
 export const selectSyncProgress = (state: RootState) =>
-  state.backtesting.syncProgress;
+  state.backtesting.syncProgress ?? { current: 0, total: 0, percentage: 0 };
 
+// ============================================================================
+// UI STATE SELECTORS
+// ============================================================================
+
+/**
+ * Selector for setup form
+ */
 export const selectSetupForm = (state: RootState) =>
-  state.backtestingUI.setupForm;
+  state.backtestingUI.setupForm ?? {
+    symbol: 'AAPL',
+    startDate: new Date(),
+    endDate: new Date(),
+    initialCapital: 100000,
+    commission: 0.1,
+    slippage: 0.05
+  };
 
+/**
+ * Selector for active screen
+ */
 export const selectActiveScreen = (state: RootState) =>
-  state.backtestingUI.activeScreen;
+  state.backtestingUI.activeScreen ?? 'setup';
 
 export default backtestingSlice;
