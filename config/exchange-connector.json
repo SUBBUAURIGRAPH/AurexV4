@@ -1,0 +1,158 @@
+{
+  "exchanges": {
+    "binance": {
+      "enabled": true,
+      "priority": 1,
+      "region": "us",
+      "rateLimit": 1200,
+      "timeout": 10000,
+      "retryPolicy": "exponential",
+      "maxRetries": 3,
+      "fallbackExchanges": ["coinbase-pro", "kraken"]
+    },
+    "coinbase-pro": {
+      "enabled": true,
+      "priority": 2,
+      "region": "us",
+      "rateLimit": 300,
+      "timeout": 10000,
+      "retryPolicy": "exponential",
+      "maxRetries": 3,
+      "fallbackExchanges": ["kraken", "binance"]
+    },
+    "kraken": {
+      "enabled": true,
+      "priority": 3,
+      "region": "eu",
+      "rateLimit": 600,
+      "timeout": 12000,
+      "retryPolicy": "exponential",
+      "maxRetries": 3,
+      "fallbackExchanges": ["binance", "coinbase-pro"]
+    },
+    "bybit": {
+      "enabled": true,
+      "priority": 4,
+      "region": "us",
+      "rateLimit": 120,
+      "timeout": 10000,
+      "retryPolicy": "exponential",
+      "maxRetries": 2,
+      "fallbackExchanges": ["binance"]
+    },
+    "okx": {
+      "enabled": true,
+      "priority": 5,
+      "region": "cn",
+      "rateLimit": 40,
+      "timeout": 15000,
+      "retryPolicy": "exponential",
+      "maxRetries": 2,
+      "fallbackExchanges": ["binance"]
+    },
+    "kucoin": {
+      "enabled": true,
+      "priority": 6,
+      "region": "sg",
+      "rateLimit": 100,
+      "timeout": 10000,
+      "retryPolicy": "exponential",
+      "maxRetries": 2,
+      "fallbackExchanges": ["binance"]
+    },
+    "bitfinex": {
+      "enabled": true,
+      "priority": 7,
+      "region": "us",
+      "rateLimit": 90,
+      "timeout": 10000,
+      "retryPolicy": "exponential",
+      "maxRetries": 2,
+      "fallbackExchanges": ["binance"]
+    },
+    "gate.io": {
+      "enabled": true,
+      "priority": 8,
+      "region": "cn",
+      "rateLimit": 3000,
+      "timeout": 10000,
+      "retryPolicy": "exponential",
+      "maxRetries": 2,
+      "fallbackExchanges": ["binance"]
+    },
+    "huobi": {
+      "enabled": true,
+      "priority": 9,
+      "region": "cn",
+      "rateLimit": 100,
+      "timeout": 10000,
+      "retryPolicy": "exponential",
+      "maxRetries": 2,
+      "fallbackExchanges": ["binance"]
+    },
+    "gemini": {
+      "enabled": true,
+      "priority": 10,
+      "region": "us",
+      "rateLimit": 120,
+      "timeout": 10000,
+      "retryPolicy": "exponential",
+      "maxRetries": 2,
+      "fallbackExchanges": ["coinbase-pro"]
+    },
+    "alpaca": {
+      "enabled": true,
+      "priority": 11,
+      "region": "us",
+      "rateLimit": 500,
+      "timeout": 10000,
+      "retryPolicy": "exponential",
+      "maxRetries": 2,
+      "fallbackExchanges": ["binance"]
+    },
+    "ftx": {
+      "enabled": true,
+      "priority": 12,
+      "region": "us",
+      "rateLimit": 30,
+      "timeout": 10000,
+      "retryPolicy": "exponential",
+      "maxRetries": 2,
+      "fallbackExchanges": ["binance"]
+    }
+  },
+  "rateLimit": {
+    "globalQPS": 500,
+    "perExchangeQPS": 100,
+    "burstMultiplier": 2.0,
+    "backoffStrategy": "exponential",
+    "throttleUnder": 0.5
+  },
+  "connection": {
+    "poolSize": 5,
+    "maxPoolSize": 50,
+    "timeout": 10000,
+    "retryAttempts": 3,
+    "retryDelay": 1000
+  },
+  "cache": {
+    "enabled": true,
+    "backend": "redis",
+    "ttl": 300,
+    "keys": ["balances", "tradingPairs", "marketData"]
+  },
+  "monitoring": {
+    "healthCheckInterval": 60000,
+    "metricsExport": true,
+    "metricsPort": 9090,
+    "alertOnLatency": 500,
+    "alertOnErrorRate": 0.05
+  },
+  "security": {
+    "credentialEncryption": "aes-256-gcm",
+    "vault": "local",
+    "ipWhitelisting": false,
+    "rotationPolicy": "90days",
+    "auditLogging": true
+  }
+}
