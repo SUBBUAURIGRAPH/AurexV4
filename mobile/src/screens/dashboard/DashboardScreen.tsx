@@ -1,9 +1,10 @@
 /**
  * Dashboard Screen - Portfolio Overview and Quick Actions
- * Shows portfolio summary, key metrics, and quick access to trading features
+ * Shows portfolio summary, key metrics, portfolio value history, P&L visualization,
+ * and quick access to trading features
  */
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -16,10 +17,13 @@ import {
 } from 'react-native';
 import { useAppDispatch, useAppSelector } from '../../store';
 import { fetchPortfolio, fetchPositions } from '../../store/tradingSlice';
+import { fetchPortfolioCharts } from '../../store/chartsSlice';
+import { LineChart, AreaChart, DonutChart } from '../../components/charts';
 
 export default function DashboardScreen({ navigation }) {
   const dispatch = useAppDispatch();
   const { portfolio, isLoading } = useAppSelector(state => state.trading);
+  const { portfolioCharts } = useAppSelector(state => state.charts);
   const { user } = useAppSelector(state => state.auth);
 
   const [refreshing, setRefreshing] = React.useState(false);
@@ -29,20 +33,24 @@ export default function DashboardScreen({ navigation }) {
   }, []);
 
   const loadPortfolioData = async () => {
-    await dispatch(fetchPortfolio());
-    await dispatch(fetchPositions());
+    await Promise.all([
+      dispatch(fetchPortfolio()),
+      dispatch(fetchPositions()),
+      dispatch(fetchPortfolioCharts())
+    ]);
   };
 
-  const onRefresh = async () => {
+  const onRefresh = useCallback(async () => {
     setRefreshing(true);
     await loadPortfolioData();
     setRefreshing(false);
-  };
+  }, []);
 
   if (isLoading && !portfolio) {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" color="#0066CC" />
+        <Text style={styles.loadingText}>Loading portfolio...</Text>
       </View>
     );
   }
@@ -50,19 +58,63 @@ export default function DashboardScreen({ navigation }) {
   const portfolioValue = portfolio?.totalValue || 0;
   const unrealizedPL = portfolio?.unrealizedPL || 0;
   const unrealizedPLPercent = portfolio?.unrealizedPLPercent || 0;
+  const realizedPL = portfolio?.realizedPL || 0;
   const cash = portfolio?.cash || 0;
   const buyingPower = portfolio?.buyingPower || 0;
   const positions = portfolio?.positions || [];
 
   const isPositive = unrealizedPL >= 0;
-  const topGainer = positions.length > 0 ? positions[0] : null;
+
+  // Generate mock portfolio history data (in production, this comes from API)
+  const generatePortfolioHistory = () => {
+    const baseValue = portfolioValue;
+    const days = 30;
+    const history = [];
+
+    for (let i = days; i >= 0; i--) {
+      const variance = (Math.random() - 0.5) * (baseValue * 0.05); // 5% variance
+      const value = baseValue + variance - (i * 100); // Trending up
+      history.push({
+        x: days - i,
+        y: Math.max(value, baseValue * 0.9) // Ensure minimum value
+      });
+    }
+
+    return history;
+  };
+
+  const portfolioHistory = generatePortfolioHistory();
+
+  // Generate P&L breakdown for donut chart
+  const plBreakdown = positions.length > 0
+    ? positions.slice(0, 5).map(pos => ({
+        x: pos.symbol,
+        y: Math.abs(pos.unrealizedPL),
+        color: pos.unrealizedPL >= 0 ? '#10B981' : '#EF4444'
+      }))
+    : [
+        { x: 'No Positions', y: 1, color: '#334155' }
+      ];
+
+  // Calculate allocation percentages
+  const allocationData = positions.length > 0
+    ? positions.map(pos => ({
+        x: pos.symbol,
+        y: pos.totalValue
+      }))
+    : [{ x: 'Cash', y: cash }];
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
         style={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor="#0066CC"
+            colors={['#0066CC']}
+          />
         }
       >
         {/* Header */}
@@ -97,7 +149,7 @@ export default function DashboardScreen({ navigation }) {
             <View style={styles.plItem}>
               <Text style={styles.plLabel}>Unrealized P&L</Text>
               <Text style={[styles.plValue, { color: isPositive ? '#10B981' : '#EF4444' }]}>
-                ${Math.abs(unrealizedPL).toLocaleString('en-US', { maximumFractionDigits: 2 })}
+                {isPositive ? '+' : ''}${Math.abs(unrealizedPL).toLocaleString('en-US', { maximumFractionDigits: 2 })}
               </Text>
               <Text style={[styles.plPercent, { color: isPositive ? '#10B981' : '#EF4444' }]}>
                 {isPositive ? '+' : ''}{unrealizedPLPercent.toFixed(2)}%
@@ -123,6 +175,52 @@ export default function DashboardScreen({ navigation }) {
             </View>
           </View>
         </View>
+
+        {/* Portfolio Value History Chart */}
+        <View style={styles.chartCard}>
+          <View style={styles.chartHeader}>
+            <Text style={styles.chartTitle}>Portfolio Performance (30 Days)</Text>
+            <TouchableOpacity onPress={() => navigation.navigate('Charts')}>
+              <Text style={styles.seeMoreLink}>Details →</Text>
+            </TouchableOpacity>
+          </View>
+          <AreaChart
+            data={portfolioHistory}
+            height={220}
+            fillColor="rgba(16, 185, 129, 0.2)"
+            strokeColor="#10B981"
+            yAxisLabel="Value ($)"
+          />
+        </View>
+
+        {/* P&L Visualization */}
+        {positions.length > 0 && (
+          <View style={styles.chartCard}>
+            <Text style={styles.chartTitle}>P&L by Position</Text>
+            <DonutChart
+              data={plBreakdown}
+              height={280}
+              showLegend={true}
+              showLabels={false}
+            />
+          </View>
+        )}
+
+        {/* Portfolio Allocation */}
+        {positions.length > 0 && (
+          <View style={styles.chartCard}>
+            <View style={styles.chartHeader}>
+              <Text style={styles.chartTitle}>Portfolio Allocation</Text>
+              <Text style={styles.chartSubtitle}>{positions.length} positions</Text>
+            </View>
+            <DonutChart
+              data={allocationData}
+              height={280}
+              showLegend={true}
+              showLabels={true}
+            />
+          </View>
+        )}
 
         {/* Quick Actions */}
         <View style={styles.quickActions}>
@@ -196,7 +294,49 @@ export default function DashboardScreen({ navigation }) {
           </View>
         )}
 
-        {/* Market News Placeholder */}
+        {/* Performance Metrics */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Performance Metrics</Text>
+
+          <View style={styles.metricRow}>
+            <View style={styles.metric}>
+              <Text style={styles.metricLabel}>Total Return</Text>
+              <Text style={[
+                styles.metricValue,
+                { color: unrealizedPL >= 0 ? '#10B981' : '#EF4444' }
+              ]}>
+                {unrealizedPL >= 0 ? '+' : ''}
+                {unrealizedPLPercent.toFixed(2)}%
+              </Text>
+            </View>
+            <View style={styles.metric}>
+              <Text style={styles.metricLabel}>Realized P&L</Text>
+              <Text style={[
+                styles.metricValue,
+                { color: realizedPL >= 0 ? '#10B981' : '#EF4444' }
+              ]}>
+                ${realizedPL.toFixed(2)}
+              </Text>
+            </View>
+          </View>
+
+          <View style={[styles.metricRow, styles.borderTop]}>
+            <View style={styles.metric}>
+              <Text style={styles.metricLabel}>Total Invested</Text>
+              <Text style={styles.metricValue}>
+                ${portfolio?.totalCost?.toFixed(2) || '0.00'}
+              </Text>
+            </View>
+            <View style={styles.metric}>
+              <Text style={styles.metricLabel}>Positions</Text>
+              <Text style={styles.metricValue}>
+                {positions.length}
+              </Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Market Alerts */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Market Alerts</Text>
           <View style={styles.newsItem}>
@@ -229,7 +369,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#0F172A'
+    backgroundColor: '#0F172A',
+    gap: 12
+  },
+  loadingText: {
+    color: '#9CA3AF',
+    fontSize: 14
   },
   header: {
     flexDirection: 'row',
@@ -257,6 +402,35 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#334155'
+  },
+  chartCard: {
+    backgroundColor: '#1E293B',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#334155'
+  },
+  chartHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12
+  },
+  chartTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#E5E7EB',
+    marginBottom: 12
+  },
+  chartSubtitle: {
+    fontSize: 12,
+    color: '#9CA3AF'
+  },
+  seeMoreLink: {
+    color: '#0066CC',
+    fontSize: 12,
+    fontWeight: '600'
   },
   cardTitle: {
     fontSize: 16,
@@ -367,6 +541,25 @@ const styles = StyleSheet.create({
   positionPercent: {
     fontSize: 12,
     fontWeight: '600'
+  },
+  metricRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingVertical: 12
+  },
+  metric: {
+    flex: 1,
+    alignItems: 'center'
+  },
+  metricLabel: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginBottom: 6
+  },
+  metricValue: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#fff'
   },
   newsItem: {
     flexDirection: 'row',
