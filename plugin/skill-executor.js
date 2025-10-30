@@ -405,15 +405,16 @@ class SkillExecutor extends EventEmitter {
     const startTime = Date.now();
     const executionId = this.generateExecutionId();
 
+    // Load the skill first to get metadata timeout
+    const skill = await this.loadSkill(skillName);
+
     const executionOptions = {
-      timeout: options.timeout || this.defaultTimeout,
+      timeout: options.timeout || skill.timeout || this.defaultTimeout,
       retries: options.retries !== undefined ? options.retries : this.maxRetries,
       ...options
     };
 
     try {
-      // Load the skill
-      const skill = await this.loadSkill(skillName);
 
       // Validate parameters
       await this.validateParameters(skillName, parameters);

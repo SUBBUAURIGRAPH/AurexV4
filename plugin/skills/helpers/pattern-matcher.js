@@ -52,8 +52,8 @@ class PatternMatcher {
       // API Keys
       { name: 'Generic API Key', pattern: /api[_-]?key["\s:=]+[a-zA-Z0-9_\-]{20,}/i, severity: SEVERITY.HIGH },
       { name: 'Google API Key', pattern: /AIza[0-9A-Za-z_\-]{35}/, severity: SEVERITY.HIGH },
-      { name: 'GitHub Token', pattern: /gh[pousr]_[A-Za-z0-9_]{36,}/, severity: SEVERITY.CRITICAL },
-      { name: 'GitHub Personal Access Token', pattern: /ghp_[a-zA-Z0-9]{36}/, severity: SEVERITY.CRITICAL },
+      { name: 'GitHub Token', pattern: /gh[pousr]_[A-Za-z0-9_]{32,}/, severity: SEVERITY.CRITICAL },
+      { name: 'GitHub Personal Access Token', pattern: /ghp_[a-zA-Z0-9]{32,}/, severity: SEVERITY.CRITICAL },
       { name: 'Slack Token', pattern: /xox[baprs]-[0-9]{10,13}-[0-9]{10,13}-[a-zA-Z0-9]{24,}/, severity: SEVERITY.HIGH },
       { name: 'Slack Webhook', pattern: /https:\/\/hooks\.slack\.com\/services\/T[a-zA-Z0-9_]+\/B[a-zA-Z0-9_]+\/[a-zA-Z0-9_]+/, severity: SEVERITY.MEDIUM },
 
@@ -108,8 +108,8 @@ class PatternMatcher {
   _initSQLInjectionPatterns() {
     return [
       // Direct concatenation
-      { name: 'SQL String Concatenation', pattern: /SELECT\s+.*\+.*FROM/i, severity: SEVERITY.CRITICAL },
-      { name: 'SQL Template Literal', pattern: /`SELECT\s+.*\${.*}.*FROM/i, severity: SEVERITY.CRITICAL },
+      { name: 'SQL String Concatenation', pattern: /"(?:SELECT|INSERT|UPDATE|DELETE)[^"]*"\s*\+/i, severity: SEVERITY.CRITICAL },
+      { name: 'SQL Template Literal', pattern: /`(?:SELECT|INSERT|UPDATE|DELETE)[^`]*\$\{[^}]+\}[^`]*`/i, severity: SEVERITY.CRITICAL },
       { name: 'String Format SQL', pattern: /\.format\s*\([^)]*SELECT/i, severity: SEVERITY.HIGH },
 
       // Unparameterized queries
@@ -126,7 +126,7 @@ class PatternMatcher {
       { name: 'Dynamic Table Name', pattern: /FROM\s+\${.*}|FROM\s+\+/i, severity: SEVERITY.HIGH },
 
       // Java-specific
-      { name: 'Java String Concatenation SQL', pattern: /executeQuery\s*\([^)]*\+\s*["']/i, severity: SEVERITY.CRITICAL },
+      { name: 'Java String Concatenation SQL', pattern: /executeQuery\s*\(\s*"(?:SELECT|INSERT|UPDATE|DELETE)[^"]*"\s*\+/i, severity: SEVERITY.CRITICAL },
       { name: 'PreparedStatement Misuse', pattern: /prepareStatement\s*\([^)]*\+/i, severity: SEVERITY.HIGH },
 
       // Raw SQL execution
@@ -138,7 +138,7 @@ class PatternMatcher {
       { name: 'Unsafe SQL Fragment', pattern: /SQL\s*\(\s*["'][^"']*\+/i, severity: SEVERITY.HIGH },
 
       // WHERE clause issues
-      { name: 'Dynamic WHERE Clause', pattern: /WHERE.*\+.*["']/i, severity: SEVERITY.HIGH },
+      { name: 'Dynamic WHERE Clause', pattern: /WHERE.*=\s*["'][^"']*["']\s*\+|WHERE.*\+.*["']/i, severity: SEVERITY.HIGH },
       { name: 'OR 1=1 Pattern', pattern: /OR\s+1\s*=\s*1/i, severity: SEVERITY.CRITICAL },
 
       // UNION-based
