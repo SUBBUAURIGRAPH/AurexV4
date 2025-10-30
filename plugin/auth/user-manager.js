@@ -14,7 +14,11 @@ const crypto = require('crypto');
 class UserManager {
   /**
    * Initialize User Manager
-   * @param {Object} config - Configuration object
+   * @param {Object} config - Configuration object with optional initialAdminUser
+   * @param {Object} config.initialAdminUser - Optional initial admin user {username, email, password}
+   *
+   * SECURITY: Default users are NOT created on initialization.
+   * Pass initialAdminUser via config or environment variables to create admin users.
    */
   constructor(config = {}) {
     // In-memory user store (for development)
@@ -23,8 +27,32 @@ class UserManager {
     this.apiKeys = new Map();
     this.userIdCounter = 1;
 
-    // Create default admin user
-    this.createUser('admin', 'admin@hms.local', 'admin123', ['admin', 'user']);
+    // SECURITY FIX: Only create admin user if explicitly provided via config or env vars
+    // This prevents accidental exposure of default credentials
+    let adminUser = config.initialAdminUser;
+
+    if (!adminUser && process.env.INITIAL_ADMIN_USERNAME) {
+      // Support creating admin from environment variables for production setup
+      adminUser = {
+        username: process.env.INITIAL_ADMIN_USERNAME,
+        email: process.env.INITIAL_ADMIN_EMAIL || `${process.env.INITIAL_ADMIN_USERNAME}@hms.local`,
+        password: process.env.INITIAL_ADMIN_PASSWORD
+      };
+    }
+
+    if (adminUser && adminUser.username && adminUser.email && adminUser.password) {
+      try {
+        this.createUser(
+          adminUser.username,
+          adminUser.email,
+          adminUser.password,
+          adminUser.roles || ['admin', 'user']
+        );
+      } catch (error) {
+        // If admin user creation fails (e.g., user already exists), log but don't crash
+        console.warn('Could not create initial admin user:', error.message);
+      }
+    }
   }
 
   /**
@@ -244,10 +272,11 @@ class UserManager {
    * @param {string} userId - User ID
    * @param {string} name - API key name
    * @param {Array} permissions - API key permissions
+   * @param {Object} options - Additional options (e.g., expiresAt)
    * @returns {Object} API key details
    * @throws {Error} If user not found
    */
-  createAPIKey(userId, name, permissions = []) {
+  createAPIKey(userId, name, permissions = [], options = {}) {
     if (!this.users.has(userId)) {
       throw new Error('User not found');
     }

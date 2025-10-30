@@ -1,9 +1,15 @@
 /**
  * Backtest Results Screen
  * Display comprehensive backtest results and metrics
+ *
+ * Performance Optimizations:
+ * - Memoized metric cards to prevent re-renders
+ * - Optimized equity curve chart with memoization
+ * - Extracted TradeCard as memoized component
+ * - Memoized dimension calculations
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import {
   StyleSheet,
   View,
@@ -32,6 +38,69 @@ interface BacktestResultsScreenProps {
   navigation?: any;
 }
 
+interface MetricCardProps {
+  label: string;
+  value: string;
+  color: string;
+}
+
+// Memoized Metric Card Component - prevents unnecessary re-renders
+const MetricCard = React.memo<MetricCardProps>(({ label, value, color }) => (
+  <Card style={[styles.metricCard, { borderLeftColor: color }]}>
+    <Card.Content>
+      <Text style={styles.metricLabel}>{label}</Text>
+      <Text style={[styles.metricValue, { color }]}>{value}</Text>
+    </Card.Content>
+  </Card>
+));
+MetricCard.displayName = 'MetricCard';
+
+interface TradeCardProps {
+  trade: BacktestTrade;
+}
+
+// Memoized Trade Card Component - prevents re-renders on parent updates
+const TradeCard = React.memo<TradeCardProps>(({ trade }) => (
+  <Card style={styles.tradeCard}>
+    <Card.Content>
+      <View style={styles.tradeHeader}>
+        <Text style={[
+          styles.tradePnL,
+          { color: trade.netPnL >= 0 ? '#4CAF50' : '#F44336' }
+        ]}>
+          {trade.netPnL >= 0 ? '+' : ''}{trade.netPnL.toFixed(2)}
+        </Text>
+        <Text style={styles.tradePnLPercent}>
+          {trade.pnlPercent >= 0 ? '+' : ''}{trade.pnlPercent.toFixed(2)}%
+        </Text>
+      </View>
+
+      <Divider style={styles.tradeDivider} />
+
+      <View style={styles.tradeRow}>
+        <Text style={styles.tradeLabel}>Entry: {trade.entryDate?.toString().substring(0, 10)}</Text>
+        <Text style={styles.tradeValue}>${trade.entryPrice.toFixed(2)}</Text>
+      </View>
+
+      <View style={styles.tradeRow}>
+        <Text style={styles.tradeLabel}>Exit: {trade.exitDate?.toString().substring(0, 10)}</Text>
+        <Text style={styles.tradeValue}>${trade.exitPrice?.toFixed(2) || '—'}</Text>
+      </View>
+
+      <View style={styles.tradeRow}>
+        <Text style={styles.tradeLabel}>Holding Period</Text>
+        <Text style={styles.tradeValue}>{trade.holdingPeriod} days</Text>
+      </View>
+
+      <View style={styles.tradeRow}>
+        <Text style={styles.tradeLabel}>Commission</Text>
+        <Text style={styles.tradeValue}>${trade.totalCommission.toFixed(2)}</Text>
+      </View>
+    </Card.Content>
+  </Card>
+));
+TradeCard.displayName = 'TradeCard';
+
 const BacktestResultsScreen: React.FC<BacktestResultsScreenProps> = ({
   route,
   navigation
@@ -52,16 +121,7 @@ const BacktestResultsScreen: React.FC<BacktestResultsScreenProps> = ({
     }
   }, [backtestId, dispatch]);
 
-  const renderMetricCard = (label: string, value: string, color: string) => (
-    <Card style={[styles.metricCard, { borderLeftColor: color }]}>
-      <Card.Content>
-        <Text style={styles.metricLabel}>{label}</Text>
-        <Text style={[styles.metricValue, { color }]}>{value}</Text>
-      </Card.Content>
-    </Card>
-  );
-
-  const renderMetricsTab = () => {
+  const renderMetricsTab = useCallback(() => {
     if (!result?.metrics) return <Text>No metrics available</Text>;
 
     const metrics = result.metrics;
@@ -73,96 +133,103 @@ const BacktestResultsScreen: React.FC<BacktestResultsScreenProps> = ({
           📈 Performance
         </Text>
 
-        {renderMetricCard(
-          'Total Return',
-          `${metrics.totalReturn.toFixed(2)}%`,
-          '#4CAF50'
-        )}
-        {renderMetricCard(
-          'Annualized Return',
-          `${metrics.annualizedReturn.toFixed(2)}%`,
-          '#2196F3'
-        )}
-        {renderMetricCard(
-          'Net Profit',
-          `$${metrics.totalReturn > 0 ? '+' : ''}${(result.finalEquity - result.initialCapital).toFixed(2)}`,
-          metrics.totalReturn > 0 ? '#4CAF50' : '#F44336'
-        )}
+        <MetricCard
+          label="Total Return"
+          value={`${metrics.totalReturn.toFixed(2)}%`}
+          color="#4CAF50"
+        />
+        <MetricCard
+          label="Annualized Return"
+          value={`${metrics.annualizedReturn.toFixed(2)}%`}
+          color="#2196F3"
+        />
+        <MetricCard
+          label="Net Profit"
+          value={`$${metrics.totalReturn > 0 ? '+' : ''}${(result.finalEquity - result.initialCapital).toFixed(2)}`}
+          color={metrics.totalReturn > 0 ? '#4CAF50' : '#F44336'}
+        />
 
         {/* Risk Metrics */}
         <Text variant="titleMedium" style={styles.tabSectionTitle}>
           ⚠️ Risk
         </Text>
 
-        {renderMetricCard(
-          'Max Drawdown',
-          `${metrics.maxDrawdown.toFixed(2)}%`,
-          '#F44336'
-        )}
-        {renderMetricCard(
-          'Sharpe Ratio',
-          `${metrics.sharpeRatio.toFixed(3)}`,
-          '#FF9800'
-        )}
-        {renderMetricCard(
-          'Sortino Ratio',
-          `${metrics.sortinoRatio.toFixed(3)}`,
-          '#FF9800'
-        )}
-        {renderMetricCard(
-          'Calmar Ratio',
-          `${metrics.calmarRatio.toFixed(3)}`,
-          '#FF9800'
-        )}
-        {renderMetricCard(
-          'Volatility',
-          `${(metrics.volatility * 100).toFixed(2)}%`,
-          '#FF5722'
-        )}
+        <MetricCard
+          label="Max Drawdown"
+          value={`${metrics.maxDrawdown.toFixed(2)}%`}
+          color="#F44336"
+        />
+        <MetricCard
+          label="Sharpe Ratio"
+          value={`${metrics.sharpeRatio.toFixed(3)}`}
+          color="#FF9800"
+        />
+        <MetricCard
+          label="Sortino Ratio"
+          value={`${metrics.sortinoRatio.toFixed(3)}`}
+          color="#FF9800"
+        />
+        <MetricCard
+          label="Calmar Ratio"
+          value={`${metrics.calmarRatio.toFixed(3)}`}
+          color="#FF9800"
+        />
+        <MetricCard
+          label="Volatility"
+          value={`${(metrics.volatility * 100).toFixed(2)}%`}
+          color="#FF5722"
+        />
 
         {/* Trade Statistics */}
         <Text variant="titleMedium" style={styles.tabSectionTitle}>
           🎯 Trading Statistics
         </Text>
 
-        {renderMetricCard(
-          'Total Trades',
-          `${metrics.totalTrades}`,
-          '#9C27B0'
-        )}
-        {renderMetricCard(
-          'Win Rate',
-          `${metrics.winRate.toFixed(2)}%`,
-          metrics.winRate > 50 ? '#4CAF50' : '#F44336'
-        )}
-        {renderMetricCard(
-          'Profit Factor',
-          `${metrics.profitFactor.toFixed(2)}`,
-          '#673AB7'
-        )}
-        {renderMetricCard(
-          'Avg Win',
-          `$${metrics.avgWin.toFixed(2)}`,
-          '#4CAF50'
-        )}
-        {renderMetricCard(
-          'Avg Loss',
-          `$${Math.abs(metrics.avgLoss).toFixed(2)}`,
-          '#F44336'
-        )}
+        <MetricCard
+          label="Total Trades"
+          value={`${metrics.totalTrades}`}
+          color="#9C27B0"
+        />
+        <MetricCard
+          label="Win Rate"
+          value={`${metrics.winRate.toFixed(2)}%`}
+          color={metrics.winRate > 50 ? '#4CAF50' : '#F44336'}
+        />
+        <MetricCard
+          label="Profit Factor"
+          value={`${metrics.profitFactor.toFixed(2)}`}
+          color="#673AB7"
+        />
+        <MetricCard
+          label="Avg Win"
+          value={`$${metrics.avgWin.toFixed(2)}`}
+          color="#4CAF50"
+        />
+        <MetricCard
+          label="Avg Loss"
+          value={`$${Math.abs(metrics.avgLoss).toFixed(2)}`}
+          color="#F44336"
+        />
       </ScrollView>
     );
-  };
+  }, [result]);
 
-  const renderEquityCurveTab = () => {
+  // Memoize chart dimension calculations
+  const chartDimensions = useMemo(() => ({
+    width: Dimensions.get('window').width - 32,
+    height: 250
+  }), []);
+
+  const renderEquityCurveTab = useCallback(() => {
     if (!result?.equityCurve || result.equityCurve.length === 0) {
       return <Text style={styles.noDataText}>No equity curve data available</Text>;
     }
 
-    // Prepare data for chart (sample every 10th point to avoid overcrowding)
+    // Prepare data for chart (sample every nth point to avoid overcrowding)
     const sampleRate = Math.ceil(result.equityCurve.length / 20);
     const sampledData = result.equityCurve.filter((_, i) => i % sampleRate === 0);
 
+    // Memoize chart data generation
     const chartData = {
       labels: sampledData.map(point =>
         new Date(point.date).toLocaleDateString('en-US', {
@@ -181,12 +248,12 @@ const BacktestResultsScreen: React.FC<BacktestResultsScreenProps> = ({
     return (
       <View style={styles.chartContainer}>
         <Text variant="titleMedium" style={styles.chartTitle}>
-          Equity Curve
+          Equity Curve ({result.equityCurve.length} data points)
         </Text>
         <LineChart
           data={chartData}
-          width={Dimensions.get('window').width - 32}
-          height={250}
+          width={chartDimensions.width}
+          height={chartDimensions.height}
           chartConfig={{
             backgroundColor: '#fff',
             backgroundGradientFrom: '#fff',
@@ -202,56 +269,22 @@ const BacktestResultsScreen: React.FC<BacktestResultsScreenProps> = ({
         />
       </View>
     );
-  };
+  }, [result?.equityCurve, chartDimensions]);
 
-  const renderTradesTab = () => {
+  const renderTradesTab = useCallback(() => {
     if (!result?.trades || result.trades.length === 0) {
       return <Text style={styles.noDataText}>No trades executed</Text>;
     }
+
+    const renderTradeItem = useCallback(({ item: trade }: { item: BacktestTrade }) => (
+      <TradeCard trade={trade} />
+    ), []);
 
     return (
       <FlatList
         data={result.trades}
         keyExtractor={trade => trade.id}
-        renderItem={({ item: trade }) => (
-          <Card style={styles.tradeCard}>
-            <Card.Content>
-              <View style={styles.tradeHeader}>
-                <Text style={[
-                  styles.tradePnL,
-                  { color: trade.netPnL >= 0 ? '#4CAF50' : '#F44336' }
-                ]}>
-                  {trade.netPnL >= 0 ? '+' : ''}{trade.netPnL.toFixed(2)}
-                </Text>
-                <Text style={styles.tradePnLPercent}>
-                  {trade.pnlPercent >= 0 ? '+' : ''}{trade.pnlPercent.toFixed(2)}%
-                </Text>
-              </View>
-
-              <Divider style={styles.tradeDivider} />
-
-              <View style={styles.tradeRow}>
-                <Text style={styles.tradeLabel}>Entry: {trade.entryDate?.toString().substring(0, 10)}</Text>
-                <Text style={styles.tradeValue}>${trade.entryPrice.toFixed(2)}</Text>
-              </View>
-
-              <View style={styles.tradeRow}>
-                <Text style={styles.tradeLabel}>Exit: {trade.exitDate?.toString().substring(0, 10)}</Text>
-                <Text style={styles.tradeValue}>${trade.exitPrice?.toFixed(2) || '—'}</Text>
-              </View>
-
-              <View style={styles.tradeRow}>
-                <Text style={styles.tradeLabel}>Holding Period</Text>
-                <Text style={styles.tradeValue}>{trade.holdingPeriod} days</Text>
-              </View>
-
-              <View style={styles.tradeRow}>
-                <Text style={styles.tradeLabel}>Commission</Text>
-                <Text style={styles.tradeValue}>${trade.totalCommission.toFixed(2)}</Text>
-              </View>
-            </Card.Content>
-          </Card>
-        )}
+        renderItem={renderTradeItem}
         scrollEnabled={false}
         ListHeaderComponent={
           <Text variant="titleMedium" style={styles.tabSectionTitle}>
@@ -260,7 +293,7 @@ const BacktestResultsScreen: React.FC<BacktestResultsScreenProps> = ({
         }
       />
     );
-  };
+  }, [result?.trades]);
 
   if (loading && !result) {
     return (

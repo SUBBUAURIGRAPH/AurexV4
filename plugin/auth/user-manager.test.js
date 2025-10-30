@@ -264,8 +264,8 @@ describe('UserManager', () => {
 
     test('should grant admin all permissions', () => {
       const user = userManager.createUser(
-        'admin',
-        'admin@example.com',
+        'testadmin',
+        'testadmin@example.com',
         'password123',
         ['admin']
       );
@@ -277,8 +277,8 @@ describe('UserManager', () => {
 
     test('should grant guest limited permissions', () => {
       const user = userManager.createUser(
-        'guest',
-        'guest@example.com',
+        'testguest',
+        'testguest@example.com',
         'password123',
         ['guest']
       );

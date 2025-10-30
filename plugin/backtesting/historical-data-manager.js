@@ -4,40 +4,81 @@
  *
  * Features:
  * - Load OHLCV data from multiple sources
- * - Cache frequently accessed data
+ * - LRU cache for bounded memory usage
  * - Data validation and quality checks
  * - Support multiple timeframes
  * - Fill missing data
  * - Scheduled sync jobs
+ *
+ * PERFORMANCE: Uses LRU cache (O(1) operations) with 1000 item limit
  */
 
 const EventEmitter = require('events');
 const axios = require('axios');
 const crypto = require('crypto');
+const { createLRUCacheWithCleanup } = require('../cache/lru-cache');
 
 /**
  * HistoricalDataManager
  * Central manager for all historical market data operations
  */
 class HistoricalDataManager extends EventEmitter {
-  constructor(database, logger) {
+  constructor(database, logger, options = {}) {
     super();
     this.db = database;
     this.logger = logger || console;
-    this.cache = new Map();
-    this.cacheDuration = 3600000; // 1 hour
-    this.dataSourcePriority = [];
-    this.initializeSyncJobs();
+
+    // PERFORMANCE: Use LRU cache instead of unbounded Map
+    // Prevents memory leaks by automatically evicting least recently used items
+    this.cache = createLRUCacheWithCleanup({
+      maxSize: options.cacheMaxSize || 1000, // Max cached datasets
+      defaultTtl: options.cacheTtl || 3600000, // 1 hour TTL
+      cleanupInterval: options.cleanupInterval || 5 * 60 * 1000 // 5 min cleanup
+    });
+
+    this.cacheDuration = options.cacheDuration || 3600000; // 1 hour
+    this.dataSourcePriority = options.dataSourcePriority || [];
+    this.initializeSyncJobs(options);
   }
 
   /**
    * Initialize periodic sync jobs
    */
-  initializeSyncJobs() {
+  initializeSyncJobs(options = {}) {
+    const syncInterval = options.syncInterval || 4 * 60 * 60 * 1000; // 4 hours
     // Sync data every 4 hours during market hours
     this.syncInterval = setInterval(() => {
       this.syncHistoricalData();
-    }, 4 * 60 * 60 * 1000);
+    }, syncInterval);
+  }
+
+  /**
+   * Get cache statistics for monitoring
+   * @returns {Object} Cache performance metrics
+   */
+  getCacheStats() {
+    const stats = this.cache.getStats();
+    return {
+      ...stats,
+      cacheSize: this.cache.size(),
+      cacheKeys: this.cache.keys().length
+    };
+  }
+
+  /**
+   * Cleanup resources (call when shutting down)
+   */
+  destroy() {
+    // Clear sync interval
+    if (this.syncInterval) {
+      clearInterval(this.syncInterval);
+    }
+    // Destroy cache with cleanup
+    if (this.cache && this.cache.destroy) {
+      this.cache.destroy();
+    }
+    // Remove all listeners
+    this.removeAllListeners();
   }
 
   /**
