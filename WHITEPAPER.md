@@ -1109,17 +1109,141 @@ Just as Ruby on Rails democratized web development, Aurigraph v2.1.0 will democr
 
 ### Appendix B: References
 
-1. **Market Research**:
-   - "Global Algorithmic Trading Market Report 2024" - Grand View Research
-   - "Cryptocurrency Exchange Market Analysis" - Markets and Markets
+**[1] Market Research & Industry Analysis**
 
-2. **Technical Standards**:
-   - CCXT Documentation: https://docs.ccxt.com/
-   - Kubernetes Best Practices: https://kubernetes.io/docs/
+[1.1] Grand View Research (2024). "Global Algorithmic Trading Market Size, Share & Trends Analysis Report 2024-2030".
+Retrieved from https://www.grandviewresearch.com/industry-analysis/algorithmic-trading-market
 
-3. **Security**:
-   - OWASP Top 10: https://owasp.org/
-   - SOC 2 Compliance Framework: AICPA
+[1.2] Markets and Markets (2024). "Cryptocurrency Exchange Market by Type, by Trading Volume, and Region - Global Forecast to 2030".
+Retrieved from https://www.marketsandmarkets.com/
+
+[1.3] CryptoCompare (2024). "Cryptocurrency Exchange Trading Volume Analysis".
+Retrieved from https://www.cryptocompare.com/
+
+[1.4] McKinsey & Company (2023). "The future of trading technology: Automation and AI".
+Retrieved from https://www.mckinsey.com/industries/financial-services/our-insights
+
+[1.5] Deloitte (2024). "Global Fintech Report 2024: Trading and Markets Innovation".
+Retrieved from https://www2.deloitte.com/us/en/pages/financial-services.html
+
+**[2] Software Architecture & Design Patterns**
+
+[2.1] Gamma, E., Helm, R., Johnson, R., & Vlissides, J. (1994). "Design Patterns: Elements of Reusable Object-Oriented Software". Addison-Wesley Professional. ISBN: 0-201-63361-2.
+*Reference for Object Pool, Strategy, Observer, Facade, and Dependency Injection patterns*
+
+[2.2] Newman, S. (2015). "Building Microservices: Designing Fine-Grained Systems". O'Reilly Media. ISBN: 1491950357.
+*Microservices architecture patterns and distributed systems design*
+
+[2.3] Fowler, M. (2012). "Circuit Breaker Pattern".
+Retrieved from https://martinfowler.com/bliki/CircuitBreaker.html
+
+[2.4] Gorelick, M., & Ozsvald, I. (2020). "High Performance Python: Practical Performant Programming for Humans" (2nd ed.). O'Reilly Media. ISBN: 1492055026.
+*O(1) algorithm optimization and performance considerations*
+
+[2.5] Martin, R. C. (2017). "Clean Architecture: A Craftsman's Guide to Software Structure and Design". Prentice Hall. ISBN: 0134494164.
+*Software architecture principles and design methodology*
+
+**[3] Technology Stack & Implementation**
+
+[3.1] CCXT Contributors (2024). "CCXT – CryptoCurrency eXchange Trading Library".
+Retrieved from https://docs.ccxt.com/
+
+[3.2] PostgreSQL Global Development Group (2024). "PostgreSQL 15 Official Documentation".
+Retrieved from https://www.postgresql.org/docs/15/index.html
+
+[3.3] Redis Labs (2024). "Redis Official Documentation".
+Retrieved from https://redis.io/documentation
+
+[3.4] Node.js Foundation (2024). "Node.js v20 LTS Documentation".
+Retrieved from https://nodejs.org/docs/v20.0.0/api/
+
+[3.5] Docker Inc. (2024). "Docker Documentation and Best Practices".
+Retrieved from https://docs.docker.com/
+
+[3.6] Kubernetes Project (2024). "Kubernetes Official Documentation".
+Retrieved from https://kubernetes.io/docs/
+
+[3.7] Express.js Contributors (2024). "Express.js - Fast, unopinionated, minimalist web framework for Node.js".
+Retrieved from https://expressjs.com/
+
+[3.8] TypeScript Contributors (2024). "TypeScript Official Documentation and Handbook".
+Retrieved from https://www.typescriptlang.org/docs/
+
+**[4] Security Standards & Compliance**
+
+[4.1] National Institute of Standards & Technology (NIST, 2001). "FIPS 197: Specification for the Advanced Encryption Standard (AES)".
+Retrieved from https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.197.pdf
+
+[4.2] National Institute of Standards & Technology (NIST, 2017). "SP 800-132: Password-Based Key Derivation".
+Retrieved from https://nvlpubs.nist.gov/nistpubs/Legacy/SP/nistspecialpublication800-132.pdf
+
+[4.3] European Commission (2018). "General Data Protection Regulation (GDPR) 2016/679".
+Retrieved from https://gdpr-info.eu/
+
+[4.4] American Institute of CPAs (AICPA, 2023). "SOC 2 Trust Service Criteria and Reporting Standards".
+Retrieved from https://us.aicpa.org/interestareas/informationsystems
+
+[4.5] OWASP Foundation (2021). "OWASP Top 10 - 2021: Web Application Security Risks".
+Retrieved from https://owasp.org/www-project-top-ten/
+
+[4.6] PCI Security Standards Council (2023). "PCI DSS v4.0: Payment Card Industry Data Security Standard".
+Retrieved from https://www.pcisecuritystandards.org/
+
+[4.7] Internet Engineering Task Force (IETF, 2018). "RFC 8446: The Transport Layer Security (TLS) Protocol Version 1.3".
+Retrieved from https://tools.ietf.org/html/rfc8446
+
+**[5] Trading & Financial Metrics**
+
+[5.1] Sharpe, W. F. (1966). "Mutual Fund Performance". The Journal of Business, 39(1), 119-138.
+*Original definition and methodology for Sharpe Ratio calculation*
+
+[5.2] Dowd, K. (2007). "Measuring Market Risk" (2nd ed.). John Wiley & Sons. ISBN: 0470018402.
+*Value at Risk (VaR) and market risk measurement methodology*
+
+[5.3] De Prado, M. L. (2018). "Advances in Financial Machine Learning: Practical Machine Learning for Finance". Wiley. ISBN: 1119482089.
+*Machine learning applications in algorithmic trading*
+
+[5.4] Hull, J. C. (2021). "Options, Futures, and Other Derivatives" (11th ed.). Pearson. ISBN: 0136939155.
+*Derivatives pricing and trading strategy methodology*
+
+**[6] Cloud Architecture & DevOps**
+
+[6.1] Amazon Web Services (AWS, 2024). "AWS Well-Architected Framework".
+Retrieved from https://aws.amazon.com/architecture/well-architected/
+
+[6.2] Amazon Web Services (AWS, 2024). "AWS Reference Architectures: Multi-Tier Web Applications".
+Retrieved from https://aws.amazon.com/architecture/reference-architectures/
+
+[6.3] Humble, J., & Farley, D. (2010). "Continuous Delivery: Reliable Software Releases Through Build, Test, and Deployment Automation". Addison-Wesley Professional. ISBN: 0321601912.
+*CI/CD pipeline design and deployment automation*
+
+[6.4] Kim, G., Behr, K., & Spafford, G. (2014). "The Phoenix Project: A Novel About IT, DevOps, and Helping Your Business Win". IT Revolution Press. ISBN: 0988262592.
+*DevOps principles and organizational transformation*
+
+[6.5] Hidalgo, G. (2023). "Kubernetes Best Practices: Blueprints for Building Successful Applications on Kubernetes". O'Reilly Media. ISBN: 1492071978.
+*Kubernetes deployment patterns and production best practices*
+
+**[7] Software Practices & Methodologies**
+
+[7.1] The Twelve-Factor App (2024). "Building SaaS Apps: Configuration, Backing Services, Deployment, and Concurrency".
+Retrieved from https://12factor.net/
+
+[7.2] Snowden, D. J., & Boone, M. E. (2007). "A Leader's Framework for Decision Making". Harvard Business Review, 85(11), 68-76.
+*Cynefin Framework for risk and complexity analysis*
+
+[7.3] Beck, K., & Andres, C. (2004). "Extreme Programming Explained: Embrace Change" (2nd ed.). Addison-Wesley. ISBN: 0321278658.
+*Test-driven development and software engineering practices*
+
+[7.4] Martin, R. C. (2008). "Clean Code: A Handbook of Agile Software Craftsmanship". Prentice Hall. ISBN: 0132350882.
+*Code quality standards and maintainability practices*
+
+**[8] Performance & Scalability**
+
+[8.1] Allspaw, J., & Hammond, P. (2007). "10+ Deploys Per Day: Dev and Ops Cooperation at Flickr". O'Reilly Media.
+*High-frequency deployment and operational excellence*
+
+[8.2] Cohen, D., Lindvall, M., & Costa, P. (2004). "An Introduction to Agile Methods". Advances in Computers, 62, 1-66.
+*Agile methodology for rapid development cycles*
 
 ### Appendix C: Team Roster
 

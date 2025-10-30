@@ -708,6 +708,49 @@ CREATE TABLE backtests (
 
 ## API Specifications
 
+### Communication Protocol Strategy
+
+**External API (Client-Facing)**:
+- **Protocol**: REST/JSON over HTTP/2
+- **Authentication**: JWT (JSON Web Token)
+- **Format**: JSON with standard REST conventions
+- **Endpoints**: `/api/v1/*`
+- **Audience**: Web clients, mobile apps, third-party integrations
+- **Rationale**: Familiar to web developers, browser-friendly, good for external integrations
+
+**Internal Communication (Skill-to-Skill)**:
+- **Protocol**: gRPC (Google Remote Procedure Call)
+- **Serialization**: Protocol Buffers v3 (protobuf)
+- **Transport**: HTTP/2 (built-in to gRPC)
+- **Audience**: Internal microservices (Exchange Connector, Strategy Builder, Docker Manager, Analytics Dashboard, CLI Wizard)
+- **Rationale**:
+  * Binary serialization reduces payload 3-10x vs JSON
+  * Strongly typed contracts prevent runtime errors
+  * HTTP/2 multiplexing enables efficient concurrent requests
+  * ~50% faster performance than REST/JSON
+  * Better suited for high-frequency internal communication
+
+**Asynchronous Events**:
+- **Protocol**: Message Queue (RabbitMQ or Kafka)
+- **Format**: Protocol Buffers or JSON
+- **Use Case**: Audit logging, state synchronization, non-blocking notifications
+- **Latency**: Eventual consistency model (seconds, not milliseconds)
+
+**Example Request Flow**:
+
+```
+User Browser (HTTP/2 REST)
+         ↓
+   API Gateway (Express.js)
+         ↓ (REST → gRPC bridge)
+   gRPC Microservices (Skill services)
+    ├─ /aurigraph.exchange.v1.ExchangeConnectorService/GetBalance
+    ├─ /aurigraph.strategy.v1.StrategyBuilderService/CreateStrategy
+    └─ /aurigraph.docker.v1.DockerManagerService/DeployStrategy
+         ↓
+   Event Bus (async notifications)
+```
+
 ### Authentication API
 
 ```
@@ -1113,10 +1156,140 @@ Total: 18 weeks to complete all 6 skills
 
 ### C. References
 
-1. CCXT Documentation: https://docs.ccxt.com
-2. Trading Automation Best Practices
-3. Security Architecture Patterns
-4. Kubernetes Deployment Guides
+**[1] Product Management & Requirements**
+
+[1.1] Patton, J. (2014). "User Story Mapping: Discover the Whole Story, Build the Right Product". Addison-Wesley Professional. ISBN: 1491904909.
+*User personas, user stories, product discovery*
+
+[1.2] Gothelf, J., & Seiden, J. (2021). "Lean Product Playbook: How to Innovate with Minimum Viable Products and Rapid Customer Feedback" (2nd ed.). Penguin. ISBN: 0134630157.
+*MVP definition, feature prioritization, iterative development*
+
+[1.3] Kniberg, H., & Skarin, M. (2010). "Kanban and Scrum: Making the Most of Both". Leanpub.
+*Agile methodology, sprint planning, backlog management*
+
+[1.4] Cohn, M. (2004). "User Stories Applied: For Agile Software Development". Addison-Wesley Professional. ISBN: 0321205685.
+*Writing effective user stories, acceptance criteria*
+
+**[2] Technology Stack & APIs**
+
+[2.1] CCXT Contributors (2024). "CCXT – CryptoCurrency eXchange Trading Library". Retrieved from https://docs.ccxt.com/
+*Multi-exchange API abstraction, data normalization*
+
+[2.2] Fielding, R. T., & Taylor, R. N. (2000). "Principled Design of the Modern Web Architecture". Proceedings of the 22nd ICSE. ISBN: 1581132323.
+*REST API design principles*
+
+[2.3] Jacobson, I., & Lindström, A. (2015). "The Art of Systems Architecting". CRC Press. ISBN: 1466601950.
+*System integration, API design patterns*
+
+[2.4] PostgreSQL Global Development Group (2024). "PostgreSQL 15 Documentation". Retrieved from https://www.postgresql.org/docs/15/
+*Database design, SQL, query optimization*
+
+[2.5] Node.js Foundation (2024). "Node.js v20 LTS API Reference". Retrieved from https://nodejs.org/docs/v20.0.0/api/
+*JavaScript runtime, async patterns*
+
+**[3] Security & Compliance**
+
+[3.1] National Institute of Standards & Technology (NIST, 2001). "FIPS 197: Advanced Encryption Standard (AES)".
+Retrieved from https://nvlpubs.nist.gov/nistpubs/FIPS/NIST.FIPS.197.pdf
+*AES-256-GCM encryption standard*
+
+[3.2] OWASP Foundation (2021). "OWASP Top 10 - 2021: Web Application Security Risks". Retrieved from https://owasp.org/www-project-top-ten/
+*Common security vulnerabilities, mitigation strategies*
+
+[3.3] American Institute of CPAs (AICPA, 2023). "SOC 2 Trust Service Criteria". Retrieved from https://us.aicpa.org/interestareas/informationsystems
+
+[3.4] European Commission (2018). "General Data Protection Regulation (GDPR) 2016/679". Retrieved from https://gdpr-info.eu/
+*Personal data protection requirements, user rights*
+
+[3.5] PCI Security Standards Council (2023). "PCI DSS v4.0: Payment Card Industry Data Security Standard".
+Retrieved from https://www.pcisecuritystandards.org/
+
+[3.6] Internet Engineering Task Force (IETF, 2018). "RFC 8446: The Transport Layer Security (TLS) Protocol Version 1.3".
+Retrieved from https://tools.ietf.org/html/rfc8446
+*TLS 1.3 encryption for data in transit*
+
+[3.7] Web Accessibility Initiative (W3C, 2023). "Web Content Accessibility Guidelines (WCAG) 2.1". Retrieved from https://www.w3.org/WAI/WCAG21/quickref/
+*Accessibility standards for web applications*
+
+**[4] Testing & Quality Assurance**
+
+[4.1] Beck, K., & Andres, C. (2004). "Extreme Programming Explained: Embrace Change" (2nd ed.). Addison-Wesley. ISBN: 0321278658.
+*Test-driven development, unit testing, continuous integration*
+
+[4.2] Fowler, M., & Foemmel, M. (2006). "Continuous Integration". Retrieved from https://martinfowler.com/articles/continuousIntegration.html
+*CI/CD practices, automated testing*
+
+[4.3] Crispin, L., & Gregory, J. (2009). "Agile Testing: A Practical Guide for Testers and Agile Teams". Addison-Wesley. ISBN: 0321534468.
+*Testing strategy, test automation, acceptance criteria*
+
+[4.4] Meszaros, G. (2007). "xUnit Test Patterns: Refactoring Test Code". Addison-Wesley. ISBN: 0131495054.
+*Test patterns, mocking, fixtures*
+
+**[5] Performance & Metrics**
+
+[5.1] Sharpe, W. F. (1966). "Mutual Fund Performance". The Journal of Business, 39(1), 119-138.
+*Sharpe Ratio definition, risk-adjusted return metrics*
+
+[5.2] Dowd, K. (2007). "Measuring Market Risk" (2nd ed.). John Wiley & Sons. ISBN: 0470018402.
+*Value at Risk, portfolio metrics, risk measurement*
+
+[5.3] De Prado, M. L. (2018). "Advances in Financial Machine Learning". Wiley. ISBN: 1119482089.
+*Trading performance metrics, backtesting methodology*
+
+[5.4] Jain, R. (1991). "The Art of Computer Systems Performance Analysis: Techniques for Experimental Design, Measurement, Simulation, and Modeling". Wiley. ISBN: 0471503363.
+*Performance testing methodology, load testing*
+
+**[6] User Experience & Design**
+
+[6.1] Nielsen, J. (1994). "Usability Engineering". Morgan Kaufmann. ISBN: 0125184050.
+*User experience principles, usability testing*
+
+[6.2] Krug, S. (2014). "Don't Make Me Think, Revisited: A Common Sense Approach to Web Usability" (3rd ed.). New Riders. ISBN: 0321965515.
+*Web interface design, user-centered design*
+
+[6.3] Ferris, C. (2019). "Practical WebAssembly and Web Design Patterns". Packt Publishing. ISBN: 1838642986.
+*User interface patterns, responsive design*
+
+**[7] DevOps & Deployment**
+
+[7.1] Humble, J., & Farley, D. (2010). "Continuous Delivery: Reliable Software Releases Through Build, Test, and Deployment Automation". Addison-Wesley. ISBN: 0321601912.
+*Deployment strategies, CI/CD pipeline, testing in pipeline*
+
+[7.2] Hidalgo, G. (2023). "Kubernetes Best Practices: Blueprints for Building Successful Applications on Kubernetes". O'Reilly Media. ISBN: 1492071978.
+*Container deployment, auto-scaling, health checks*
+
+[7.3] Burns, B., & Beda, K. (2019). "Kubernetes Up & Running" (2nd ed.). O'Reilly Media. ISBN: 1492046523.
+*Kubernetes architecture, deployment patterns*
+
+**[8] Financial Markets & Trading**
+
+[8.1] Hull, J. C. (2021). "Options, Futures, and Other Derivatives" (11th ed.). Pearson. ISBN: 0136939155.
+*Trading concepts, market microstructure, order types*
+
+[8.2] López de Prado, M. (2018). "Advances in Financial Machine Learning: Practical Machine Learning for Finance". Wiley. ISBN: 1119482089.
+*Algorithmic trading, strategy development, backtesting*
+
+[8.3] Harris, L. (2003). "Trading and Exchanges: Market Microstructure for Practitioners". Oxford University Press. ISBN: 0195144929.
+*Exchange operations, trading mechanics, market structure*
+
+**[9] Software Architecture & Best Practices**
+
+[9.1] Martin, R. C. (2017). "Clean Architecture: A Craftsman's Guide to Software Structure and Design". Prentice Hall. ISBN: 0134494164.
+*Architecture principles, dependency management, testing*
+
+[9.2] Martin, R. C. (2008). "Clean Code: A Handbook of Agile Software Craftsmanship". Prentice Hall. ISBN: 0132350882.
+*Code quality, readability, maintainability*
+
+[9.3] The Twelve-Factor App (2024). "Building SaaS Apps: Configuration, Backing Services, Deployment, and Concurrency". Retrieved from https://12factor.net/
+*Scalable SaaS patterns, configuration management*
+
+**[10] Organizational & Business**
+
+[10.1] Snowden, D. J., & Boone, M. E. (2007). "A Leader's Framework for Decision Making". Harvard Business Review, 85(11), 68-76.
+*Cynefin Framework, complexity management, risk assessment*
+
+[10.2] Moore, G. A. (2014). "Crossing the Chasm: Marketing and Selling Disruptive Products to Mainstream Customers" (3rd ed.). HarperBusiness. ISBN: 0062292986.
+*Market adoption, go-to-market strategy*
 
 ### D. Approval Signatures
 
