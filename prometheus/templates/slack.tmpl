@@ -1,0 +1,166 @@
+{{ define "slack.default.title" }}
+[{{ .Status | toUpper }}{{ if eq .Status "firing" }}:{{ .Alerts.Firing | len }}{{ end }}] {{ .GroupLabels.alertname }}
+{{ end }}
+
+{{ define "slack.default.text" }}
+{{ range .Alerts }}
+*Alert:* {{ .Labels.alertname }}
+*Severity:* {{ .Labels.severity }}
+*Component:* {{ .Labels.component }}
+*Priority:* {{ .Labels.priority }}
+*Status:* {{ .Status }}
+
+*Summary:*
+{{ .Annotations.summary }}
+
+*Description:*
+{{ .Annotations.description }}
+
+{{ if .Annotations.action }}
+*Action Required:*
+```
+{{ .Annotations.action }}
+```
+{{ end }}
+
+{{ if .Annotations.dashboard }}
+*Dashboard:* {{ .Annotations.dashboard }}
+{{ end }}
+
+{{ if .Annotations.runbook }}
+*Runbook:* {{ .Annotations.runbook }}
+{{ end }}
+
+*Instance:* {{ .Labels.instance }}
+*Started:* {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+{{ if ne .Status "firing" }}
+*Ended:* {{ .EndsAt.Format "2006-01-02 15:04:05 MST" }}
+*Duration:* {{ (.EndsAt.Sub .StartsAt).Round 1000000000 }}
+{{ end }}
+
+---
+{{ end }}
+{{ end }}
+
+{{ define "slack.critical.title" }}
+:rotating_light: [CRITICAL] {{ .GroupLabels.alertname }}
+{{ end }}
+
+{{ define "slack.critical.text" }}
+:fire: *CRITICAL ALERT* :fire:
+
+*Alert:* {{ .GroupLabels.alertname }}
+*Component:* {{ .GroupLabels.component }}
+*Service:* {{ .GroupLabels.service }}
+*Severity:* CRITICAL
+*Priority:* {{ .GroupLabels.priority }}
+
+*Active Alerts:* {{ .Alerts.Firing | len }}
+*Resolved Alerts:* {{ .Alerts.Resolved | len }}
+
+{{ range .Alerts }}
+{{ if eq .Status "firing" }}
+---
+*Summary:* {{ .Annotations.summary }}
+
+*Description:* {{ .Annotations.description }}
+
+*Immediate Actions Required:*
+```
+{{ .Annotations.action }}
+```
+
+*Instance:* {{ .Labels.instance }}
+*Alert Started:* {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+
+{{ if .Annotations.dashboard }}
+*View Dashboard:* {{ .Annotations.dashboard }}
+{{ end }}
+
+{{ if .Annotations.runbook }}
+*Follow Runbook:* {{ .Annotations.runbook }}
+{{ end }}
+{{ end }}
+{{ end }}
+
+{{ range .Alerts }}
+{{ if eq .Status "resolved" }}
+---
+:white_check_mark: *RESOLVED:* {{ .Annotations.summary }}
+*Duration:* {{ (.EndsAt.Sub .StartsAt).Round 1000000000 }}
+*Resolved At:* {{ .EndsAt.Format "2006-01-02 15:04:05 MST" }}
+{{ end }}
+{{ end }}
+
+*Team:* @{{ .GroupLabels.team }}
+*Escalation:* If not acknowledged in 15 minutes, PagerDuty will escalate
+{{ end }}
+
+{{ define "slack.warning.title" }}
+:warning: [WARNING] {{ .GroupLabels.alertname }}
+{{ end }}
+
+{{ define "slack.warning.text" }}
+:warning: *WARNING ALERT*
+
+*Alert:* {{ .GroupLabels.alertname }}
+*Component:* {{ .GroupLabels.component }}
+*Severity:* WARNING
+*Priority:* {{ .GroupLabels.priority }}
+
+{{ range .Alerts }}
+{{ if eq .Status "firing" }}
+*Summary:* {{ .Annotations.summary }}
+*Description:* {{ .Annotations.description }}
+
+{{ if .Annotations.action }}
+*Recommended Actions:*
+{{ .Annotations.action }}
+{{ end }}
+
+*Instance:* {{ .Labels.instance }}
+*Started:* {{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}
+{{ end }}
+{{ end }}
+
+{{ if .Alerts.Resolved }}
+:white_check_mark: *{{ .Alerts.Resolved | len }} alert(s) resolved*
+{{ end }}
+{{ end }}
+
+{{ define "slack.info.title" }}
+:information_source: [INFO] {{ .GroupLabels.alertname }}
+{{ end }}
+
+{{ define "slack.info.text" }}
+:information_source: *INFORMATION ALERT*
+
+*Alert:* {{ .GroupLabels.alertname }}
+*Component:* {{ .GroupLabels.component }}
+
+{{ range .Alerts }}
+{{ if eq .Status "firing" }}
+{{ .Annotations.summary }}
+
+{{ .Annotations.description }}
+{{ end }}
+{{ end }}
+{{ end }}
+
+{{ define "slack.resolved.title" }}
+:white_check_mark: [RESOLVED] {{ .GroupLabels.alertname }}
+{{ end }}
+
+{{ define "slack.resolved.text" }}
+:white_check_mark: *ALERT RESOLVED*
+
+*Alert:* {{ .GroupLabels.alertname }}
+*Component:* {{ .GroupLabels.component }}
+*Severity:* {{ .GroupLabels.severity }}
+
+{{ range .Alerts }}
+*Summary:* {{ .Annotations.summary }}
+*Duration:* {{ (.EndsAt.Sub .StartsAt).Round 1000000000 }}
+*Resolved At:* {{ .EndsAt.Format "2006-01-02 15:04:05 MST" }}
+{{ end }}
+{{ end }}

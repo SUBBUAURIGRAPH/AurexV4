@@ -1,0 +1,48 @@
+# Blackbox Exporter Configuration
+# HTTP/HTTPS/TCP endpoint monitoring
+
+modules:
+  http_2xx:
+    prober: http
+    timeout: 5s
+    http:
+      valid_http_versions: ["HTTP/1.1", "HTTP/2.0"]
+      valid_status_codes: [200]
+      method: GET
+      no_follow_redirects: false
+      fail_if_ssl: false
+      fail_if_not_ssl: false
+      tls_config:
+        insecure_skip_verify: false
+      preferred_ip_protocol: "ip4"
+
+  http_2xx_post:
+    prober: http
+    timeout: 5s
+    http:
+      method: POST
+      valid_status_codes: [200, 201]
+
+  http_3xx:
+    prober: http
+    timeout: 5s
+    http:
+      valid_status_codes: [301, 302, 303, 307, 308]
+      no_follow_redirects: true
+
+  tcp_connect:
+    prober: tcp
+    timeout: 5s
+
+  icmp:
+    prober: icmp
+    timeout: 5s
+    icmp:
+      preferred_ip_protocol: "ip4"
+
+  dns:
+    prober: dns
+    timeout: 5s
+    dns:
+      query_name: "hms.aurex.in"
+      query_type: "A"

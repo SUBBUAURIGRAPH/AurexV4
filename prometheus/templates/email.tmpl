@@ -1,0 +1,275 @@
+{{ define "email.default.subject" }}
+[{{ .Status | toUpper }}] HMS {{ .GroupLabels.severity | toUpper }} Alert: {{ .GroupLabels.alertname }}
+{{ end }}
+
+{{ define "email.default.html" }}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .header {
+            background-color: #f4f4f4;
+            padding: 20px;
+            border-left: 5px solid #007bff;
+            margin-bottom: 20px;
+        }
+        .header.critical {
+            border-left-color: #dc3545;
+            background-color: #ffe6e6;
+        }
+        .header.warning {
+            border-left-color: #ffc107;
+            background-color: #fff3cd;
+        }
+        .header.info {
+            border-left-color: #17a2b8;
+            background-color: #d1ecf1;
+        }
+        .header.resolved {
+            border-left-color: #28a745;
+            background-color: #d4edda;
+        }
+        .alert-title {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 0 0 10px 0;
+        }
+        .alert-meta {
+            font-size: 14px;
+            color: #666;
+        }
+        .alert-details {
+            background-color: #fff;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .alert-section {
+            margin-bottom: 20px;
+        }
+        .alert-section h3 {
+            margin: 0 0 10px 0;
+            color: #007bff;
+            font-size: 18px;
+        }
+        .alert-section.critical h3 {
+            color: #dc3545;
+        }
+        .alert-section.warning h3 {
+            color: #ffc107;
+        }
+        .alert-section.info h3 {
+            color: #17a2b8;
+        }
+        .alert-content {
+            padding: 10px;
+            background-color: #f9f9f9;
+            border-left: 3px solid #007bff;
+            margin: 10px 0;
+        }
+        .action-box {
+            background-color: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 15px 0;
+        }
+        .action-box.critical {
+            background-color: #ffe6e6;
+            border-left-color: #dc3545;
+        }
+        .action-box pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 3px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        .metadata {
+            display: grid;
+            grid-template-columns: 150px 1fr;
+            gap: 10px;
+            margin: 15px 0;
+        }
+        .metadata-label {
+            font-weight: bold;
+            color: #666;
+        }
+        .metadata-value {
+            color: #333;
+        }
+        .button {
+            display: inline-block;
+            padding: 10px 20px;
+            margin: 5px 5px 5px 0;
+            background-color: #007bff;
+            color: #fff;
+            text-decoration: none;
+            border-radius: 5px;
+            font-weight: bold;
+        }
+        .button:hover {
+            background-color: #0056b3;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #ddd;
+            font-size: 12px;
+            color: #666;
+            text-align: center;
+        }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 3px;
+            font-size: 12px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .badge.critical {
+            background-color: #dc3545;
+            color: white;
+        }
+        .badge.warning {
+            background-color: #ffc107;
+            color: #333;
+        }
+        .badge.info {
+            background-color: #17a2b8;
+            color: white;
+        }
+        .badge.resolved {
+            background-color: #28a745;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="header {{ .GroupLabels.severity }}{{ if eq .Status "resolved" }} resolved{{ end }}">
+        <div class="alert-title">
+            {{ if eq .Status "firing" }}🔥{{ else }}✅{{ end }}
+            {{ .GroupLabels.alertname }}
+        </div>
+        <div class="alert-meta">
+            <span class="badge {{ .GroupLabels.severity }}">{{ .GroupLabels.severity }}</span>
+            <span class="badge {{ .Status }}">{{ .Status }}</span>
+            Component: {{ .GroupLabels.component }} |
+            Priority: {{ .GroupLabels.priority }} |
+            {{ if eq .Status "firing" }}
+                Active Alerts: {{ .Alerts.Firing | len }}
+            {{ else }}
+                Resolved Alerts: {{ .Alerts.Resolved | len }}
+            {{ end }}
+        </div>
+    </div>
+
+    {{ range .Alerts }}
+    <div class="alert-details">
+        <div class="alert-section {{ .Labels.severity }}">
+            <h3>📋 Summary</h3>
+            <div class="alert-content">
+                {{ .Annotations.summary }}
+            </div>
+        </div>
+
+        <div class="alert-section">
+            <h3>📝 Description</h3>
+            <div class="alert-content">
+                {{ .Annotations.description }}
+            </div>
+        </div>
+
+        {{ if .Annotations.action }}
+        <div class="action-box {{ .Labels.severity }}">
+            <h3>⚡ Action Required</h3>
+            <pre>{{ .Annotations.action }}</pre>
+        </div>
+        {{ end }}
+
+        <div class="metadata">
+            <div class="metadata-label">Instance:</div>
+            <div class="metadata-value">{{ .Labels.instance }}</div>
+
+            <div class="metadata-label">Service:</div>
+            <div class="metadata-value">{{ .Labels.service }}</div>
+
+            <div class="metadata-label">Alert Started:</div>
+            <div class="metadata-value">{{ .StartsAt.Format "2006-01-02 15:04:05 MST" }}</div>
+
+            {{ if ne .Status "firing" }}
+            <div class="metadata-label">Alert Ended:</div>
+            <div class="metadata-value">{{ .EndsAt.Format "2006-01-02 15:04:05 MST" }}</div>
+
+            <div class="metadata-label">Duration:</div>
+            <div class="metadata-value">{{ (.EndsAt.Sub .StartsAt).Round 1000000000 }}</div>
+            {{ end }}
+
+            {{ if .Labels.priority }}
+            <div class="metadata-label">Priority:</div>
+            <div class="metadata-value">{{ .Labels.priority }}</div>
+            {{ end }}
+
+            {{ if .Labels.team }}
+            <div class="metadata-label">Team:</div>
+            <div class="metadata-value">{{ .Labels.team }}</div>
+            {{ end }}
+        </div>
+
+        <div style="margin-top: 20px;">
+            {{ if .Annotations.dashboard }}
+            <a href="{{ .Annotations.dashboard }}" class="button">📊 View Dashboard</a>
+            {{ end }}
+
+            {{ if .Annotations.runbook }}
+            <a href="{{ .Annotations.runbook }}" class="button">📖 View Runbook</a>
+            {{ end }}
+
+            <a href="https://hms.aurex.in/grafana" class="button">🔍 Open Grafana</a>
+            <a href="https://hms.aurex.in/alertmanager" class="button">🔔 Manage Alerts</a>
+        </div>
+    </div>
+    {{ end }}
+
+    <div class="footer">
+        <p>
+            <strong>HMS (Hermes Trading Platform) Monitoring System</strong><br>
+            Production Server: hms.aurex.in<br>
+            This is an automated alert from Prometheus Alertmanager
+        </p>
+        <p>
+            {{ if eq .Status "firing" }}
+            ⚠️ This alert requires attention. Please follow the runbook or contact the on-call engineer.
+            {{ else }}
+            ✅ This alert has been resolved. No further action is required.
+            {{ end }}
+        </p>
+    </div>
+</body>
+</html>
+{{ end }}
+
+{{ define "email.critical.subject" }}
+[CRITICAL] HMS Production Alert: {{ .GroupLabels.alertname }} - IMMEDIATE ACTION REQUIRED
+{{ end }}
+
+{{ define "email.warning.subject" }}
+[WARNING] HMS Alert: {{ .GroupLabels.alertname }} - Attention Required
+{{ end }}
+
+{{ define "email.info.subject" }}
+[INFO] HMS Notification: {{ .GroupLabels.alertname }}
+{{ end }}
+
+{{ define "email.resolved.subject" }}
+[RESOLVED] HMS Alert: {{ .GroupLabels.alertname }}
+{{ end }}

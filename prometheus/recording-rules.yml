@@ -1,0 +1,540 @@
+# HMS (Hermes Trading Platform) - Recording Rules
+# Phase 4: Performance & Monitoring Infrastructure
+# Production Server: hms.aurex.in
+# Last Updated: October 30, 2025
+
+groups:
+  # ========================================
+  # HTTP REQUEST METRICS
+  # ========================================
+  - name: http_recording_rules
+    interval: 30s
+    rules:
+      # Request rate (5m average)
+      - record: http:requests:rate5m
+        expr: rate(http_requests_total[5m])
+        labels:
+          job_type: "aggregated"
+
+      # Request rate by endpoint
+      - record: http:requests:rate5m:by_endpoint
+        expr: rate(http_requests_total[5m])
+        labels:
+          job_type: "aggregated"
+
+      # Error rate (5m average)
+      - record: http:errors:rate5m
+        expr: rate(http_requests_total{status=~"5.."}[5m])
+        labels:
+          job_type: "aggregated"
+
+      # Client error rate
+      - record: http:client_errors:rate5m
+        expr: rate(http_requests_total{status=~"4.."}[5m])
+        labels:
+          job_type: "aggregated"
+
+      # Error percentage
+      - record: http:errors:percentage5m
+        expr: |
+          (sum(rate(http_requests_total{status=~"5.."}[5m]))
+          / sum(rate(http_requests_total[5m]))) * 100
+        labels:
+          job_type: "aggregated"
+
+      # Success rate percentage
+      - record: http:success:percentage5m
+        expr: |
+          (sum(rate(http_requests_total{status=~"2.."}[5m]))
+          / sum(rate(http_requests_total[5m]))) * 100
+        labels:
+          job_type: "aggregated"
+
+  # ========================================
+  # API LATENCY METRICS
+  # ========================================
+  - name: api_latency_recording_rules
+    interval: 30s
+    rules:
+      # p50 latency
+      - record: http:latency:p50
+        expr: |
+          histogram_quantile(0.50,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le))
+        labels:
+          job_type: "aggregated"
+
+      # p95 latency
+      - record: http:latency:p95
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le))
+        labels:
+          job_type: "aggregated"
+
+      # p99 latency
+      - record: http:latency:p99
+        expr: |
+          histogram_quantile(0.99,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (le))
+        labels:
+          job_type: "aggregated"
+
+      # p50 latency by endpoint
+      - record: http:latency:p50:by_endpoint
+        expr: |
+          histogram_quantile(0.50,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (path, le))
+        labels:
+          job_type: "aggregated"
+
+      # p95 latency by endpoint
+      - record: http:latency:p95:by_endpoint
+        expr: |
+          histogram_quantile(0.95,
+            sum(rate(http_request_duration_seconds_bucket[5m])) by (path, le))
+        labels:
+          job_type: "aggregated"
+
+      # Average response time
+      - record: http:latency:avg
+        expr: |
+          sum(rate(http_request_duration_seconds_sum[5m]))
+          / sum(rate(http_request_duration_seconds_count[5m]))
+        labels:
+          job_type: "aggregated"
+
+  # ========================================
+  # ORDER & TRADING METRICS
+  # ========================================
+  - name: order_recording_rules
+    interval: 30s
+    rules:
+      # Order creation rate (5m)
+      - record: orders:creation:rate5m
+        expr: rate(orders_created_total[5m])
+        labels:
+          job_type: "aggregated"
+
+      # Order creation rate (per minute)
+      - record: orders:creation:per_minute
+        expr: rate(orders_created_total[5m]) * 60
+        labels:
+          job_type: "aggregated"
+
+      # Order confirmation latency p95
+      - record: orders:confirmation:latency_p95
+        expr: |
+          histogram_quantile(0.95,
+            rate(order_confirmation_duration_seconds_bucket[5m]))
+        labels:
+          job_type: "aggregated"
+
+      # Order confirmation latency p50
+      - record: orders:confirmation:latency_p50
+        expr: |
+          histogram_quantile(0.50,
+            rate(order_confirmation_duration_seconds_bucket[5m]))
+        labels:
+          job_type: "aggregated"
+
+      # Order success rate
+      - record: orders:success:rate5m
+        expr: |
+          rate(orders_filled_total[5m])
+          / rate(orders_created_total[5m])
+        labels:
+          job_type: "aggregated"
+
+      # Order success percentage
+      - record: orders:success:percentage5m
+        expr: |
+          (rate(orders_filled_total[5m])
+          / rate(orders_created_total[5m])) * 100
+        labels:
+          job_type: "aggregated"
+
+      # Order rejection rate
+      - record: orders:rejection:rate5m
+        expr: |
+          rate(orders_rejected_total[5m])
+          / rate(orders_created_total[5m])
+        labels:
+          job_type: "aggregated"
+
+      # Order rejection percentage
+      - record: orders:rejection:percentage5m
+        expr: |
+          (rate(orders_rejected_total[5m])
+          / rate(orders_created_total[5m])) * 100
+        labels:
+          job_type: "aggregated"
+
+      # Trading volume (USD per second)
+      - record: orders:volume:usd_per_sec
+        expr: rate(order_value_usd_sum[5m])
+        labels:
+          job_type: "aggregated"
+
+  # ========================================
+  # WEBSOCKET METRICS
+  # ========================================
+  - name: websocket_recording_rules
+    interval: 30s
+    rules:
+      # Active connections
+      - record: websocket:connections:active
+        expr: websocket_active_connections
+        labels:
+          job_type: "aggregated"
+
+      # Connection rate
+      - record: websocket:connections:rate5m
+        expr: rate(websocket_connections_total[5m])
+        labels:
+          job_type: "aggregated"
+
+      # Disconnection rate
+      - record: websocket:disconnections:rate5m
+        expr: rate(websocket_disconnections_total[5m])
+        labels:
+          job_type: "aggregated"
+
+      # Message rate
+      - record: websocket:messages:rate5m
+        expr: rate(websocket_messages_total[5m])
+        labels:
+          job_type: "aggregated"
+
+      # Message latency p95
+      - record: websocket:latency:p95
+        expr: |
+          histogram_quantile(0.95,
+            rate(websocket_message_latency_seconds_bucket[5m]))
+        labels:
+          job_type: "aggregated"
+
+      # Message latency p50
+      - record: websocket:latency:p50
+        expr: |
+          histogram_quantile(0.50,
+            rate(websocket_message_latency_seconds_bucket[5m]))
+        labels:
+          job_type: "aggregated"
+
+  # ========================================
+  # DATABASE METRICS
+  # ========================================
+  - name: database_recording_rules
+    interval: 30s
+    rules:
+      # Connection pool utilization
+      - record: db:connections:utilization
+        expr: |
+          pg_stat_database_numbackends{datname="hms_production"}
+          / pg_settings_max_connections
+        labels:
+          job_type: "aggregated"
+
+      # Connection pool percentage
+      - record: db:connections:percentage
+        expr: |
+          (pg_stat_database_numbackends{datname="hms_production"}
+          / pg_settings_max_connections) * 100
+        labels:
+          job_type: "aggregated"
+
+      # Query latency p95
+      - record: db:query:latency_p95
+        expr: |
+          histogram_quantile(0.95,
+            rate(pg_query_duration_seconds_bucket[5m]))
+        labels:
+          job_type: "aggregated"
+
+      # Query latency p50
+      - record: db:query:latency_p50
+        expr: |
+          histogram_quantile(0.50,
+            rate(pg_query_duration_seconds_bucket[5m]))
+        labels:
+          job_type: "aggregated"
+
+      # Transaction rate
+      - record: db:transactions:rate5m
+        expr: rate(pg_stat_database_xact_commit{datname="hms_production"}[5m])
+        labels:
+          job_type: "aggregated"
+
+      # Rollback rate
+      - record: db:rollbacks:rate5m
+        expr: rate(pg_stat_database_xact_rollback{datname="hms_production"}[5m])
+        labels:
+          job_type: "aggregated"
+
+      # Cache hit ratio
+      - record: db:cache:hit_ratio
+        expr: |
+          (sum(pg_stat_database_blks_hit{datname="hms_production"})
+          / (sum(pg_stat_database_blks_hit{datname="hms_production"})
+          + sum(pg_stat_database_blks_read{datname="hms_production"})))
+        labels:
+          job_type: "aggregated"
+
+      # Cache hit percentage
+      - record: db:cache:hit_percentage
+        expr: |
+          (sum(pg_stat_database_blks_hit{datname="hms_production"})
+          / (sum(pg_stat_database_blks_hit{datname="hms_production"})
+          + sum(pg_stat_database_blks_read{datname="hms_production"}))) * 100
+        labels:
+          job_type: "aggregated"
+
+  # ========================================
+  # SYSTEM RESOURCE METRICS
+  # ========================================
+  - name: system_recording_rules
+    interval: 30s
+    rules:
+      # CPU usage percentage
+      - record: system:cpu:usage_percentage
+        expr: 100 - (avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) * 100)
+        labels:
+          job_type: "aggregated"
+
+      # Memory usage percentage
+      - record: system:memory:usage_percentage
+        expr: |
+          (1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
+        labels:
+          job_type: "aggregated"
+
+      # Disk usage percentage
+      - record: system:disk:usage_percentage
+        expr: |
+          (1 - (node_filesystem_avail_bytes{mountpoint="/"}
+          / node_filesystem_size_bytes{mountpoint="/"})) * 100
+        labels:
+          job_type: "aggregated"
+
+      # Network receive rate
+      - record: system:network:receive_bytes_rate
+        expr: rate(node_network_receive_bytes_total[5m])
+        labels:
+          job_type: "aggregated"
+
+      # Network transmit rate
+      - record: system:network:transmit_bytes_rate
+        expr: rate(node_network_transmit_bytes_total[5m])
+        labels:
+          job_type: "aggregated"
+
+  # ========================================
+  # SERVICE LEVEL OBJECTIVES (SLOs)
+  # ========================================
+  - name: slo_recording_rules
+    interval: 1m
+    rules:
+      # API Availability - 1 hour window
+      - record: slo:api:availability:1h
+        expr: |
+          (count(up{job="hms-j4c-agent"} == 1)
+          / count(up{job="hms-j4c-agent"})) * 100
+        labels:
+          window: "1h"
+          slo_type: "availability"
+
+      # API Availability - 24 hour window
+      - record: slo:api:availability:24h
+        expr: |
+          avg_over_time(
+            (count(up{job="hms-j4c-agent"} == 1)
+            / count(up{job="hms-j4c-agent"}))[24h:5m]
+          ) * 100
+        labels:
+          window: "24h"
+          slo_type: "availability"
+
+      # API Availability - 7 day window
+      - record: slo:api:availability:7d
+        expr: |
+          avg_over_time(
+            (count(up{job="hms-j4c-agent"} == 1)
+            / count(up{job="hms-j4c-agent"}))[7d:1h]
+          ) * 100
+        labels:
+          window: "7d"
+          slo_type: "availability"
+
+      # API Availability - 30 day window
+      - record: slo:api:availability:30d
+        expr: |
+          avg_over_time(
+            (count(up{job="hms-j4c-agent"} == 1)
+            / count(up{job="hms-j4c-agent"}))[30d:1h]
+          ) * 100
+        labels:
+          window: "30d"
+          slo_type: "availability"
+
+      # API Latency SLO - p95 < 200ms (1h window)
+      - record: slo:api:latency:success_rate:1h
+        expr: |
+          (sum(rate(http_request_duration_seconds_bucket{le="0.2"}[1h]))
+          / sum(rate(http_request_duration_seconds_count[1h]))) * 100
+        labels:
+          window: "1h"
+          slo_type: "latency"
+          threshold: "200ms"
+
+      # API Latency SLO - p95 < 200ms (24h window)
+      - record: slo:api:latency:success_rate:24h
+        expr: |
+          (sum(rate(http_request_duration_seconds_bucket{le="0.2"}[24h]))
+          / sum(rate(http_request_duration_seconds_count[24h]))) * 100
+        labels:
+          window: "24h"
+          slo_type: "latency"
+          threshold: "200ms"
+
+      # Error Budget - 1h window (99.9% target = 0.1% error budget)
+      - record: slo:api:error_budget:1h
+        expr: |
+          (0.1 - (100 - slo:api:availability:1h)) / 0.1 * 100
+        labels:
+          window: "1h"
+          slo_type: "error_budget"
+          target: "99.9"
+
+      # Error Budget - 24h window
+      - record: slo:api:error_budget:24h
+        expr: |
+          (0.1 - (100 - slo:api:availability:24h)) / 0.1 * 100
+        labels:
+          window: "24h"
+          slo_type: "error_budget"
+          target: "99.9"
+
+      # Error Budget - 30d window
+      - record: slo:api:error_budget:30d
+        expr: |
+          (0.1 - (100 - slo:api:availability:30d)) / 0.1 * 100
+        labels:
+          window: "30d"
+          slo_type: "error_budget"
+          target: "99.9"
+
+      # Order Success Rate SLO - 95% target (1h)
+      - record: slo:orders:success_rate:1h
+        expr: |
+          (sum(rate(orders_filled_total[1h]))
+          / sum(rate(orders_created_total[1h]))) * 100
+        labels:
+          window: "1h"
+          slo_type: "success_rate"
+          target: "95"
+
+      # Order Success Rate SLO - 95% target (24h)
+      - record: slo:orders:success_rate:24h
+        expr: |
+          (sum(rate(orders_filled_total[24h]))
+          / sum(rate(orders_created_total[24h]))) * 100
+        labels:
+          window: "24h"
+          slo_type: "success_rate"
+          target: "95"
+
+      # Order Confirmation Latency SLO - p95 < 500ms (1h)
+      - record: slo:orders:latency:success_rate:1h
+        expr: |
+          (sum(rate(order_confirmation_duration_seconds_bucket{le="0.5"}[1h]))
+          / sum(rate(order_confirmation_duration_seconds_count[1h]))) * 100
+        labels:
+          window: "1h"
+          slo_type: "latency"
+          threshold: "500ms"
+
+  # ========================================
+  # BUSINESS METRICS
+  # ========================================
+  - name: business_recording_rules
+    interval: 5m
+    rules:
+      # Total portfolio value
+      - record: business:portfolio:total_value
+        expr: sum(portfolio_value_usd)
+        labels:
+          metric_type: "business"
+
+      # Portfolio value change (1h)
+      - record: business:portfolio:value_change_1h
+        expr: |
+          (portfolio_value_usd - portfolio_value_usd offset 1h)
+          / portfolio_value_usd offset 1h * 100
+        labels:
+          metric_type: "business"
+          window: "1h"
+
+      # Total trading volume (per hour)
+      - record: business:trading:volume_per_hour
+        expr: sum(rate(order_value_usd_sum[1h])) * 3600
+        labels:
+          metric_type: "business"
+          window: "1h"
+
+      # Total P&L today
+      - record: business:pnl:today
+        expr: sum(portfolio_pnl_today_usd)
+        labels:
+          metric_type: "business"
+
+      # Active positions count
+      - record: business:positions:active_count
+        expr: count(portfolio_position_quantity > 0)
+        labels:
+          metric_type: "business"
+
+# ========================================
+# RECORDING RULES SUMMARY
+# ========================================
+#
+# This file contains pre-aggregated metrics that:
+# 1. Reduce query load on Prometheus
+# 2. Speed up dashboard rendering
+# 3. Enable faster alerting evaluation
+# 4. Track SLOs and error budgets
+# 5. Provide business insights
+#
+# Recording Rule Categories:
+# - HTTP Request Metrics (12 rules)
+# - API Latency Metrics (7 rules)
+# - Order & Trading Metrics (10 rules)
+# - WebSocket Metrics (6 rules)
+# - Database Metrics (8 rules)
+# - System Resource Metrics (5 rules)
+# - Service Level Objectives (12 rules)
+# - Business Metrics (5 rules)
+#
+# Total: 65 recording rules
+#
+# ========================================
+# SLO TARGETS
+# ========================================
+#
+# API Availability SLO: 99.9% (3 nines)
+# - Error budget: 0.1% (43.2 minutes downtime per month)
+# - Measurement windows: 1h, 24h, 7d, 30d
+#
+# API Latency SLO: p95 < 200ms
+# - Target: 95% of requests under 200ms
+# - Measurement windows: 1h, 24h
+#
+# Order Success Rate SLO: 95%
+# - Target: 95% of orders successfully filled
+# - Measurement windows: 1h, 24h
+#
+# Order Confirmation Latency SLO: p95 < 500ms
+# - Target: 95% of confirmations under 500ms
+# - Measurement window: 1h
+#
+# ========================================

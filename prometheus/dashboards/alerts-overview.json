@@ -1,0 +1,347 @@
+{
+  "dashboard": {
+    "title": "Alerts Overview Dashboard",
+    "tags": ["hms", "alerts", "monitoring"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "30s",
+    "time": {
+      "from": "now-24h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Active Alerts by Severity",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 0, "w": 18, "h": 4},
+        "targets": [
+          {
+            "expr": "count(ALERTS{alertstate=\"firing\", severity=\"critical\"})",
+            "legendFormat": "Critical",
+            "refId": "A"
+          },
+          {
+            "expr": "count(ALERTS{alertstate=\"firing\", severity=\"warning\"})",
+            "legendFormat": "Warning",
+            "refId": "B"
+          },
+          {
+            "expr": "count(ALERTS{alertstate=\"firing\", severity=\"info\"})",
+            "legendFormat": "Info",
+            "refId": "C"
+          }
+        ],
+        "options": {
+          "colorMode": "background",
+          "graphMode": "none",
+          "orientation": "horizontal",
+          "textMode": "value_and_name",
+          "reduceOptions": {
+            "values": false,
+            "fields": "",
+            "calcs": ["lastNotNull"]
+          }
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          },
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Critical"},
+              "properties": [
+                {"id": "color", "value": {"mode": "fixed", "fixedColor": "red"}}
+              ]
+            },
+            {
+              "matcher": {"id": "byName", "options": "Warning"},
+              "properties": [
+                {"id": "color", "value": {"mode": "fixed", "fixedColor": "yellow"}}
+              ]
+            },
+            {
+              "matcher": {"id": "byName", "options": "Info"},
+              "properties": [
+                {"id": "color", "value": {"mode": "fixed", "fixedColor": "blue"}}
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 2,
+        "title": "Total Firing Alerts",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 0, "w": 6, "h": 4},
+        "targets": [
+          {
+            "expr": "count(ALERTS{alertstate=\"firing\"})",
+            "legendFormat": "Total",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "orientation": "auto",
+          "textMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 1, "color": "yellow"},
+                {"value": 5, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Alert Timeline",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 4, "w": 24, "h": 8},
+        "targets": [
+          {
+            "expr": "count(ALERTS{alertstate=\"firing\"}) by (severity)",
+            "legendFormat": "{{severity}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Count"},
+          {"format": "short"}
+        ],
+        "seriesOverrides": [
+          {
+            "alias": "critical",
+            "color": "red"
+          },
+          {
+            "alias": "warning",
+            "color": "yellow"
+          },
+          {
+            "alias": "info",
+            "color": "blue"
+          }
+        ],
+        "legend": {
+          "show": true,
+          "alignAsTable": true,
+          "values": true,
+          "current": true,
+          "max": true,
+          "avg": true
+        }
+      },
+      {
+        "id": 4,
+        "title": "Active Alerts List",
+        "type": "table",
+        "gridPos": {"x": 0, "y": 12, "w": 24, "h": 10},
+        "targets": [
+          {
+            "expr": "ALERTS{alertstate=\"firing\"}",
+            "format": "table",
+            "instant": true,
+            "refId": "A"
+          }
+        ],
+        "transformations": [
+          {
+            "id": "organize",
+            "options": {
+              "excludeByName": {
+                "Time": true,
+                "Value": true,
+                "__name__": true
+              },
+              "indexByName": {},
+              "renameByName": {
+                "alertname": "Alert Name",
+                "severity": "Severity",
+                "component": "Component",
+                "priority": "Priority",
+                "summary": "Summary",
+                "description": "Description"
+              }
+            }
+          }
+        ],
+        "fieldConfig": {
+          "overrides": [
+            {
+              "matcher": {"id": "byName", "options": "Severity"},
+              "properties": [
+                {
+                  "id": "custom.displayMode",
+                  "value": "color-background"
+                },
+                {
+                  "id": "mappings",
+                  "value": [
+                    {"type": "value", "value": "critical", "text": "CRITICAL", "color": "red"},
+                    {"type": "value", "value": "warning", "text": "WARNING", "color": "yellow"},
+                    {"type": "value", "value": "info", "text": "INFO", "color": "blue"}
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      },
+      {
+        "id": 5,
+        "title": "Alerts by Component",
+        "type": "piechart",
+        "gridPos": {"x": 0, "y": 22, "w": 8, "h": 8},
+        "targets": [
+          {
+            "expr": "count(ALERTS{alertstate=\"firing\"}) by (component)",
+            "legendFormat": "{{component}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "pieType": "pie",
+          "legend": {
+            "show": true,
+            "placement": "right"
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Alert Frequency (24h)",
+        "type": "graph",
+        "gridPos": {"x": 8, "y": 22, "w": 16, "h": 8},
+        "targets": [
+          {
+            "expr": "count(changes(ALERTS{alertstate=\"firing\"}[24h])) by (alertname)",
+            "legendFormat": "{{alertname}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Occurrences"},
+          {"format": "short"}
+        ],
+        "legend": {
+          "show": true,
+          "alignAsTable": true,
+          "values": true,
+          "max": true,
+          "sortDesc": true
+        }
+      },
+      {
+        "id": 7,
+        "title": "Alert Duration Distribution",
+        "type": "heatmap",
+        "gridPos": {"x": 0, "y": 30, "w": 24, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(alertmanager_notification_latency_seconds_bucket[5m])) by (le))",
+            "format": "heatmap",
+            "refId": "A"
+          }
+        ],
+        "heatmap": {
+          "yAxis": {
+            "format": "s"
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Mean Time to Resolution (MTTR)",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 38, "w": 8, "h": 4},
+        "targets": [
+          {
+            "expr": "avg(time() - ALERTS_FOR_STATE{alertstate=\"firing\"})",
+            "legendFormat": "MTTR",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "orientation": "auto",
+          "textMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "decimals": 0
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "Alert Response Time",
+        "type": "stat",
+        "gridPos": {"x": 8, "y": 38, "w": 8, "h": 4},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(alertmanager_notification_latency_seconds_bucket[5m]))",
+            "legendFormat": "p95 response time",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "orientation": "auto",
+          "textMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "decimals": 2
+          }
+        }
+      },
+      {
+        "id": 10,
+        "title": "Notification Success Rate",
+        "type": "gauge",
+        "gridPos": {"x": 16, "y": 38, "w": 8, "h": 4},
+        "targets": [
+          {
+            "expr": "(sum(rate(alertmanager_notifications_total{integration=~\"slack|email|pagerduty\"}[5m])) - sum(rate(alertmanager_notifications_failed_total{integration=~\"slack|email|pagerduty\"}[5m]))) / sum(rate(alertmanager_notifications_total{integration=~\"slack|email|pagerduty\"}[5m])) * 100",
+            "legendFormat": "Success rate",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showThresholdLabels": true,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 95, "color": "yellow"},
+                {"value": 99, "color": "green"}
+              ]
+            }
+          }
+        }
+      }
+    ]
+  },
+  "overwrite": true
+}
