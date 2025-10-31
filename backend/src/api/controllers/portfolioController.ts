@@ -19,6 +19,7 @@ import {
   ApiError,
   ErrorCodes
 } from '../../types';
+import PortfolioService from '../services/PortfolioService';
 
 /**
  * Extended Request with user context
@@ -32,6 +33,12 @@ interface AuthenticatedRequest extends Request {
  * Portfolio Controller Class
  */
 export class PortfolioController {
+  private portfolioService: PortfolioService;
+
+  constructor() {
+    this.portfolioService = new PortfolioService();
+  }
+
   /**
    * GET /api/v1/portfolio/summary
    * Fetch portfolio summary data
@@ -52,25 +59,7 @@ export class PortfolioController {
         );
       }
 
-      // TODO: Query database for portfolio data
-      // SELECT * FROM portfolios WHERE user_id = $1
-      const portfolio: Portfolio = {
-        id: 'portfolio-uuid',
-        userId: userId,
-        totalValue: 125450.50,
-        availableBalance: 24680.30,
-        cash: 24680.30,
-        todayReturn: 1245.75,
-        ytdReturn: 15320.00,
-        totalGainLoss: 18200.00,
-        totalGainLossPercent: 16.9,
-        marketStatus: 'OPEN',
-        aiRiskScore: 8,
-        currency: 'USD',
-        lastUpdated: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
+      const portfolio = await this.portfolioService.getPortfolioSummary(userId);
 
       const response: ApiResponse<Portfolio> = {
         success: true,
@@ -103,31 +92,9 @@ export class PortfolioController {
         );
       }
 
-      // TODO: Query database and calculate allocation
-      const allocation: AssetAllocation[] = [
-        {
-          assetClass: 'US Equities',
-          percentage: 45.0,
-          value: 56452.73
-        },
-        {
-          assetClass: 'International',
-          percentage: 20.0,
-          value: 25090.10
-        },
-        {
-          assetClass: 'Bonds',
-          percentage: 20.0,
-          value: 25090.10
-        },
-        {
-          assetClass: 'Cash & Other',
-          percentage: 15.0,
-          value: 18817.57
-        }
-      ];
+      const allocation = await this.portfolioService.getPortfolioAllocation(userId);
 
-      const response: ApiResponse<AssetAllocation[]> = {
+      const response: ApiResponse<any> = {
         success: true,
         data: allocation
       };
@@ -149,7 +116,7 @@ export class PortfolioController {
   ): Promise<void> {
     try {
       const userId = req.userId || req.user?.id;
-      const { period = '30d' } = req.params;
+      const { period = '1M' } = req.params;
 
       if (!userId) {
         throw new ApiError(
@@ -160,8 +127,8 @@ export class PortfolioController {
       }
 
       // Validate period parameter
-      const validPeriods = ['1d', '1w', '1m', '3m', '1y', 'all'];
-      if (!validPeriods.includes(period)) {
+      const validPeriods = ['1W', '1M', '3M', '1Y', 'ALL'];
+      if (!validPeriods.includes(period.toUpperCase())) {
         throw new ApiError(
           ErrorCodes.VALIDATION_ERROR,
           400,
@@ -169,22 +136,10 @@ export class PortfolioController {
         );
       }
 
-      // TODO: Query database for performance data
-      // SELECT * FROM performance_snapshots WHERE portfolio_id = $1 AND date >= $2
-      const performanceData: PerformanceData[] = [];
-
-      // Generate sample data for 30 days
-      const today = new Date();
-      let baseValue = 100;
-      for (let i = 29; i >= 0; i--) {
-        const date = new Date(today);
-        date.setDate(date.getDate() - i);
-        baseValue += (Math.random() - 0.4) * 3;
-        performanceData.push({
-          date: date.toISOString().split('T')[0],
-          value: Math.max(baseValue, 80)
-        });
-      }
+      const performanceData = await this.portfolioService.getPortfolioPerformance(
+        userId,
+        period.toUpperCase()
+      );
 
       const response: ApiResponse<PerformanceData[]> = {
         success: true,
@@ -226,24 +181,7 @@ export class PortfolioController {
         );
       }
 
-      // TODO: Query database for position
-      // SELECT * FROM positions WHERE portfolio_id = (SELECT id FROM portfolios WHERE user_id = $1) AND symbol = $2
-      const position: Position = {
-        id: 'position-uuid',
-        portfolioId: 'portfolio-uuid',
-        symbol: symbol.toUpperCase(),
-        quantity: 50,
-        entryPrice: 165.00,
-        currentPrice: 175.50,
-        totalValue: 8775.00,
-        gainLoss: 525.00,
-        gainLossPercent: 6.36,
-        sector: 'Technology',
-        riskLevel: 'LOW',
-        lastPriceUpdate: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
+      const position = await this.portfolioService.getPositionDetails(userId, symbol);
 
       const response: ApiResponse<Position> = {
         success: true,

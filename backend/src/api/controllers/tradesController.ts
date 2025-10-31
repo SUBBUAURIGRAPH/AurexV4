@@ -17,6 +17,7 @@ import {
   ApiError,
   ErrorCodes
 } from '../../types';
+import TradesService from '../services/TradesService';
 
 /**
  * Extended Request with user context
@@ -30,6 +31,11 @@ interface AuthenticatedRequest extends Request {
  * Trades Controller Class
  */
 export class TradesController {
+  private tradesService: TradesService;
+
+  constructor() {
+    this.tradesService = new TradesService();
+  }
   /**
    * GET /api/v1/trades/recent
    * Fetch recent trades with pagination
@@ -41,7 +47,7 @@ export class TradesController {
   ): Promise<void> {
     try {
       const userId = req.userId || req.user?.id;
-      const limit = Math.min(parseInt(req.query.limit as string) || 7, 100);
+      const limit = Math.min(parseInt(req.query.limit as string) || 20, 100);
       const offset = parseInt(req.query.offset as string) || 0;
 
       if (!userId) {
@@ -60,47 +66,15 @@ export class TradesController {
         );
       }
 
-      // TODO: Query database for recent trades
-      // SELECT * FROM trades WHERE portfolio_id = (SELECT id FROM portfolios WHERE user_id = $1) ORDER BY trade_date DESC LIMIT $2 OFFSET $3
-      const trades: Trade[] = [
-        {
-          id: 'trade-1',
-          portfolioId: 'portfolio-uuid',
-          symbol: 'AAPL',
-          type: 'BUY',
-          status: 'FILLED',
-          quantity: 10,
-          price: 175.50,
-          total: 1755.00,
-          signalType: 'AI',
-          commission: 8.77,
-          tradeDate: new Date(Date.now() - 3600000),
-          executedAt: new Date(Date.now() - 3600000),
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          id: 'trade-2',
-          portfolioId: 'portfolio-uuid',
-          symbol: 'GOOGL',
-          type: 'SELL',
-          status: 'FILLED',
-          quantity: 5,
-          price: 140.25,
-          total: 701.25,
-          signalType: 'SIGNAL',
-          commission: 3.50,
-          tradeDate: new Date(Date.now() - 7200000),
-          executedAt: new Date(Date.now() - 7200000),
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
-      ];
+      const [trades, total] = await Promise.all([
+        this.tradesService.getRecentTrades(userId, limit, offset),
+        this.tradesService.getRecentTradesCount(userId)
+      ]);
 
       const response: PaginatedResponse<Trade> = {
         success: true,
         data: trades,
-        total: 42,
+        total,
         limit,
         offset
       };
@@ -131,47 +105,12 @@ export class TradesController {
         );
       }
 
-      // TODO: Query database for current holdings
-      // SELECT * FROM positions WHERE portfolio_id = (SELECT id FROM portfolios WHERE user_id = $1)
-      const holdings: Position[] = [
-        {
-          id: 'position-1',
-          portfolioId: 'portfolio-uuid',
-          symbol: 'AAPL',
-          quantity: 50,
-          entryPrice: 165.00,
-          currentPrice: 175.50,
-          totalValue: 8775.00,
-          gainLoss: 525.00,
-          gainLossPercent: 6.36,
-          sector: 'Technology',
-          riskLevel: 'LOW',
-          lastPriceUpdate: new Date(),
-          createdAt: new Date(),
-          updatedAt: new Date()
-        },
-        {
-          id: 'position-2',
-          portfolioId: 'portfolio-uuid',
-          symbol: 'MSFT',
-          quantity: 30,
-          entryPrice: 370.00,
-          currentPrice: 380.00,
-          totalValue: 11400.00,
-          gainLoss: 300.00,
-          gainLossPercent: 2.70,
-          sector: 'Technology',
-          riskLevel: 'LOW',
-          lastPriceUpdate: new Date(),
-          createdAt: new Date(),
-          updatedAt: new Date()
-        }
-      ];
+      const holdings = await this.tradesService.getCurrentHoldings(userId);
 
       // Calculate totals
-      const totalValue = holdings.reduce((sum, h) => sum + h.totalValue, 0);
-      const totalGainLoss = holdings.reduce((sum, h) => sum + h.gainLoss, 0);
-      const totalReturnPercent = (totalGainLoss / (totalValue - totalGainLoss)) * 100;
+      const totalValue = holdings.reduce((sum, h) => sum + (h.total_value || 0), 0);
+      const totalGainLoss = holdings.reduce((sum, h) => sum + (h.gain_loss || 0), 0);
+      const totalReturnPercent = totalValue > 0 ? (totalGainLoss / (totalValue - totalGainLoss)) * 100 : 0;
 
       const response: ApiResponse<any> = {
         success: true,
@@ -219,25 +158,7 @@ export class TradesController {
         );
       }
 
-      // TODO: Query database for trade
-      // SELECT * FROM trades WHERE id = $1 AND portfolio_id = (SELECT id FROM portfolios WHERE user_id = $2)
-      const trade: Trade = {
-        id: tradeId,
-        portfolioId: 'portfolio-uuid',
-        symbol: 'AAPL',
-        type: 'BUY',
-        status: 'FILLED',
-        quantity: 10,
-        price: 175.50,
-        total: 1755.00,
-        signalType: 'AI',
-        commission: 8.77,
-        notes: 'Strong buy signal detected by AI algorithm',
-        tradeDate: new Date(),
-        executedAt: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date()
-      };
+      const trade = await this.tradesService.getTradeDetails(userId, tradeId);
 
       const response: ApiResponse<Trade> = {
         success: true,
