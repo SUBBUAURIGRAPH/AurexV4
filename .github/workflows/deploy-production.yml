@@ -20,6 +20,11 @@ on:
           - staging
           - production
 
+# 🚫 DISABLED - GitHub Actions notifications stopped
+concurrency:
+  group: disabled-workflow
+  cancel-in-progress: true
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}/aurigraph
@@ -28,6 +33,7 @@ jobs:
   # Build & Test
   build:
     runs-on: ubuntu-latest
+    if: false  # 🚫 Workflow disabled
     permissions:
       contents: read
       packages: write

@@ -11,10 +11,16 @@ on:
       - 'Dockerfile'
       - '.github/workflows/security-and-updates.yml'
 
+# 🚫 DISABLED - GitHub Actions notifications stopped
+concurrency:
+  group: disabled-workflow
+  cancel-in-progress: true
+
 jobs:
   dependency-check:
     name: Check Dependencies for Vulnerabilities
     runs-on: ubuntu-latest
+    if: false  # 🚫 Workflow disabled
 
     steps:
       - uses: actions/checkout@v3
