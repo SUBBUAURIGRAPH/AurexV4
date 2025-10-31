@@ -1,0 +1,428 @@
+<!-- HERMES NAVIGATION BAR - REUSABLE COMPONENT -->
+<!-- Include this HTML at the very top of your page's <body> tag -->
+
+<style>
+    /* Top Navigation Bar */
+    .navbar {
+        background: rgba(15, 15, 30, 0.95);
+        backdrop-filter: blur(10px);
+        border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        height: 60px;
+    }
+
+    .navbar-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 0 20px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        height: 100%;
+    }
+
+    .navbar-logo {
+        font-size: 24px;
+        font-weight: 700;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        text-decoration: none;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .navbar-logo:hover {
+        opacity: 0.8;
+    }
+
+    .nav-menu {
+        display: flex;
+        gap: 30px;
+        list-style: none;
+        align-items: center;
+    }
+
+    .nav-item {
+        position: relative;
+        height: 60px;
+        display: flex;
+        align-items: center;
+    }
+
+    .nav-link {
+        color: #fff;
+        text-decoration: none;
+        font-size: 14px;
+        font-weight: 500;
+        padding: 8px 12px;
+        border-radius: 6px;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        gap: 5px;
+    }
+
+    .nav-link:hover {
+        color: #667eea;
+        background: rgba(102, 126, 234, 0.1);
+    }
+
+    .dropdown-toggle::after {
+        content: '▼';
+        font-size: 10px;
+        transition: transform 0.3s ease;
+    }
+
+    .nav-item.active .dropdown-toggle::after {
+        transform: rotate(180deg);
+    }
+
+    .dropdown-menu {
+        position: absolute;
+        top: 60px;
+        left: 0;
+        background: rgba(15, 15, 30, 0.98);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(102, 126, 234, 0.3);
+        border-radius: 8px;
+        min-width: 220px;
+        opacity: 0;
+        visibility: hidden;
+        transform: translateY(-10px);
+        transition: all 0.3s ease;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        padding: 8px 0;
+    }
+
+    .nav-item.active .dropdown-menu {
+        opacity: 1;
+        visibility: visible;
+        transform: translateY(0);
+    }
+
+    .dropdown-item {
+        padding: 12px 20px;
+        color: #fff;
+        text-decoration: none;
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: all 0.2s ease;
+    }
+
+    .dropdown-item:hover {
+        background: rgba(102, 126, 234, 0.15);
+        color: #667eea;
+        padding-left: 25px;
+    }
+
+    .dropdown-icon {
+        width: 16px;
+        height: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 12px;
+    }
+
+    .nav-right {
+        display: flex;
+        gap: 15px;
+        align-items: center;
+    }
+
+    .nav-button {
+        padding: 8px 16px;
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .btn-signin {
+        background: transparent;
+        color: #667eea;
+        border: 1px solid rgba(102, 126, 234, 0.5);
+    }
+
+    .btn-signin:hover {
+        background: rgba(102, 126, 234, 0.1);
+        border-color: rgba(102, 126, 234, 0.8);
+    }
+
+    .btn-signup {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: #fff;
+    }
+
+    .btn-signup:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+    }
+
+    .mobile-toggle {
+        display: none;
+        background: none;
+        border: none;
+        color: #fff;
+        font-size: 24px;
+        cursor: pointer;
+        flex-direction: column;
+        gap: 5px;
+    }
+
+    .mobile-toggle span {
+        width: 25px;
+        height: 2px;
+        background: #667eea;
+        border-radius: 2px;
+        transition: all 0.3s ease;
+    }
+
+    @media (max-width: 768px) {
+        .nav-menu {
+            position: absolute;
+            top: 60px;
+            left: 0;
+            right: 0;
+            background: rgba(15, 15, 30, 0.98);
+            backdrop-filter: blur(10px);
+            flex-direction: column;
+            gap: 0;
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+            z-index: 999;
+        }
+
+        .nav-menu.active {
+            max-height: 500px;
+        }
+
+        .nav-item {
+            width: 100%;
+            height: auto;
+            padding: 12px 20px;
+            border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+        }
+
+        .dropdown-menu {
+            position: static;
+            background: rgba(102, 126, 234, 0.05);
+            border: none;
+            opacity: 0;
+            visibility: hidden;
+            max-height: 0;
+            overflow: hidden;
+            transform: none;
+            transition: all 0.3s ease;
+            box-shadow: none;
+        }
+
+        .nav-item.active .dropdown-menu {
+            opacity: 1;
+            visibility: visible;
+            max-height: 300px;
+        }
+
+        .mobile-toggle {
+            display: flex;
+        }
+
+        .nav-right {
+            flex-direction: column;
+            width: 100%;
+            gap: 8px;
+            padding: 15px 20px;
+            border-top: 1px solid rgba(102, 126, 234, 0.1);
+        }
+
+        .nav-button {
+            width: 100%;
+            text-align: center;
+        }
+    }
+</style>
+
+<nav class="navbar">
+    <div class="navbar-container">
+        <a href="/" class="navbar-logo">🚀 Hermes</a>
+
+        <button class="mobile-toggle" id="mobileToggle">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
+
+        <ul class="nav-menu" id="navMenu">
+            <!-- Trading -->
+            <li class="nav-item" id="tradingDropdown">
+                <a href="#" class="nav-link dropdown-toggle">Trading</a>
+                <div class="dropdown-menu">
+                    <a href="/dashboard-v0.html" class="dropdown-item">
+                        <span class="dropdown-icon">📊</span> Dashboard
+                    </a>
+                    <a href="/portfolio.html" class="dropdown-item">
+                        <span class="dropdown-icon">💼</span> Portfolio
+                    </a>
+                    <a href="/strategies.html" class="dropdown-item">
+                        <span class="dropdown-icon">🎯</span> Strategies
+                    </a>
+                    <div style="border-top: 1px solid rgba(102, 126, 234, 0.1); margin: 8px 0;"></div>
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">🤖</span> AI Trading
+                    </a>
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">📈</span> Charts & Tools
+                    </a>
+                </div>
+            </li>
+
+            <!-- Analytics -->
+            <li class="nav-item" id="analyticsDropdown">
+                <a href="#" class="nav-link dropdown-toggle">Analytics</a>
+                <div class="dropdown-menu">
+                    <a href="/analytics.html" class="dropdown-item">
+                        <span class="dropdown-icon">📊</span> Performance
+                    </a>
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">📉</span> Market Analysis
+                    </a>
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">🔍</span> Screeners
+                    </a>
+                    <div style="border-top: 1px solid rgba(102, 126, 234, 0.1); margin: 8px 0;"></div>
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">📊</span> Reports
+                    </a>
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">🎲</span> Backtesting
+                    </a>
+                </div>
+            </li>
+
+            <!-- Learning -->
+            <li class="nav-item" id="learningDropdown">
+                <a href="#" class="nav-link dropdown-toggle">Learn</a>
+                <div class="dropdown-menu">
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">📚</span> Tutorials
+                    </a>
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">🎓</span> Academy
+                    </a>
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">❓</span> FAQ
+                    </a>
+                    <div style="border-top: 1px solid rgba(102, 126, 234, 0.1); margin: 8px 0;"></div>
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">💬</span> Community
+                    </a>
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">📖</span> Blog
+                    </a>
+                </div>
+            </li>
+
+            <!-- Tools -->
+            <li class="nav-item" id="toolsDropdown">
+                <a href="#" class="nav-link dropdown-toggle">Tools</a>
+                <div class="dropdown-menu">
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">🧮</span> Calculator
+                    </a>
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">⚙️</span> API Documentation
+                    </a>
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">🔌</span> Integrations
+                    </a>
+                    <div style="border-top: 1px solid rgba(102, 126, 234, 0.1); margin: 8px 0;"></div>
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">⚡</span> Alerts & Notifications
+                    </a>
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">🌐</span> Browser Extension
+                    </a>
+                </div>
+            </li>
+
+            <!-- About -->
+            <li class="nav-item" id="aboutDropdown">
+                <a href="#" class="nav-link dropdown-toggle">About</a>
+                <div class="dropdown-menu">
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">ℹ️</span> About Us
+                    </a>
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">💼</span> Careers
+                    </a>
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">📋</span> Pricing
+                    </a>
+                    <div style="border-top: 1px solid rgba(102, 126, 234, 0.1); margin: 8px 0;"></div>
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">📞</span> Contact
+                    </a>
+                    <a href="#" class="dropdown-item">
+                        <span class="dropdown-icon">⚖️</span> Terms & Privacy
+                    </a>
+                </div>
+            </li>
+        </ul>
+
+        <div class="nav-right">
+            <button class="nav-button btn-signin">Sign In</button>
+            <button class="nav-button btn-signup">Get Started</button>
+        </div>
+    </div>
+</nav>
+
+<script>
+    const mobileToggle = document.getElementById('mobileToggle');
+    const navMenu = document.getElementById('navMenu');
+    const dropdowns = document.querySelectorAll('.nav-item');
+
+    mobileToggle.addEventListener('click', () => {
+        navMenu.classList.toggle('active');
+    });
+
+    dropdowns.forEach(dropdown => {
+        dropdown.addEventListener('click', (e) => {
+            e.preventDefault();
+            dropdowns.forEach(d => {
+                if (d !== dropdown) d.classList.remove('active');
+            });
+            dropdown.classList.toggle('active');
+        });
+    });
+
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.nav-item') && !e.target.closest('.dropdown-menu')) {
+            dropdowns.forEach(dropdown => {
+                dropdown.classList.remove('active');
+            });
+        }
+    });
+
+    document.querySelectorAll('.dropdown-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            if (!item.href || item.href === '#') {
+                e.preventDefault();
+            }
+        });
+    });
+</script>
+
+<!-- USAGE: Add margin-top: 60px; to your page's main content to account for the fixed navbar -->
