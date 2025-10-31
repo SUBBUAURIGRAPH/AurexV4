@@ -1,0 +1,202 @@
+# Alertmanager Configuration for HMS Production
+# Handles alert routing, grouping, and notifications
+
+global:
+  resolve_timeout: 5m
+  slack_api_url: ${SLACK_WEBHOOK_URL}
+  pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+
+# Email configuration for alerts
+  smtp_smarthost: ${SMTP_HOST:smtp.gmail.com}
+  smtp_auth_username: ${SMTP_USER}
+  smtp_auth_password: ${SMTP_PASSWORD}
+  smtp_from: alerts@hms.aurex.in
+
+# The root route with all parameters, which are inherited by the child
+# routes if they are not overwritten.
+route:
+  receiver: 'default-receiver'
+  group_by: ['alertname', 'cluster', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 12h
+
+  routes:
+    # Critical alerts - immediate notification
+    - match:
+        severity: critical
+      receiver: 'critical-team'
+      group_wait: 5s
+      group_interval: 5s
+      repeat_interval: 1h
+      routes:
+        - match:
+            service: hms-mobile-web
+          receiver: 'web-team-critical'
+        - match:
+            service: hms-backend-api
+          receiver: 'api-team-critical'
+        - match:
+            service: postgres
+          receiver: 'dba-team-critical'
+
+    # Warning alerts - grouped notifications
+    - match:
+        severity: warning
+      receiver: 'ops-team'
+      group_wait: 30s
+      group_interval: 5m
+      repeat_interval: 4h
+      routes:
+        - match:
+            service: trading-engine
+          receiver: 'trading-team'
+        - match:
+            service: system
+          receiver: 'infrastructure-team'
+
+    # Info level - low priority
+    - match:
+        severity: info
+      receiver: 'logs-receiver'
+      repeat_interval: 24h
+
+# Receiver definitions
+receivers:
+  # Default receiver - all teams
+  - name: 'default-receiver'
+    slack_configs:
+      - channel: '#hms-alerts'
+        title: 'HMS Alert: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+        title_link: 'http://prometheus:9090'
+    pagerduty_configs:
+      - service_key: ${PAGERDUTY_SERVICE_KEY}
+        description: '{{ .GroupLabels.alertname }} - {{ .Alerts.Firing | len }} firing'
+    email_configs:
+      - to: 'ops@hms.aurex.in'
+        smarthost: 'smtp.gmail.com:587'
+        auth_username: ${SMTP_USER}
+        auth_password: ${SMTP_PASSWORD}
+        from: 'alerts@hms.aurex.in'
+        headers:
+          Subject: 'HMS Alert: {{ .GroupLabels.alertname }}'
+
+  # Critical alerts - immediate escalation
+  - name: 'critical-team'
+    slack_configs:
+      - channel: '#hms-critical-alerts'
+        title: '🚨 CRITICAL: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.description }}\nRunbook: {{ .Annotations.runbook }}{{ end }}'
+        send_resolved: true
+        color: 'danger'
+    pagerduty_configs:
+      - service_key: ${PAGERDUTY_CRITICAL_KEY}
+        description: '🚨 {{ .GroupLabels.alertname }}'
+        severity: '{{ if eq .Status "firing" }}critical{{ else }}resolve{{ end }}'
+    email_configs:
+      - to: 'critical@hms.aurex.in'
+        headers:
+          Subject: '🚨 CRITICAL ALERT: {{ .GroupLabels.alertname }}'
+    webhook_configs:
+      - url: '{{ .ExternalURL }}/api/v1/alerts'
+        send_resolved: true
+
+  # Web tier alerts
+  - name: 'web-team-critical'
+    slack_configs:
+      - channel: '#hms-web-team'
+        title: '⚠️ Web Critical: {{ .GroupLabels.alertname }}'
+        mention_groups: ['@web-oncall']
+    pagerduty_configs:
+      - service_key: ${PAGERDUTY_WEB_KEY}
+    email_configs:
+      - to: 'web-team@hms.aurex.in'
+
+  # API tier alerts
+  - name: 'api-team-critical'
+    slack_configs:
+      - channel: '#hms-api-team'
+        title: '⚠️ API Critical: {{ .GroupLabels.alertname }}'
+        mention_groups: ['@api-oncall']
+    pagerduty_configs:
+      - service_key: ${PAGERDUTY_API_KEY}
+    email_configs:
+      - to: 'api-team@hms.aurex.in'
+
+  # Database team alerts
+  - name: 'dba-team-critical'
+    slack_configs:
+      - channel: '#hms-dba-team'
+        title: '⚠️ Database Critical: {{ .GroupLabels.alertname }}'
+        mention_groups: ['@dba-oncall']
+    pagerduty_configs:
+      - service_key: ${PAGERDUTY_DBA_KEY}
+    email_configs:
+      - to: 'dba-team@hms.aurex.in'
+
+  # Operations team - warnings
+  - name: 'ops-team'
+    slack_configs:
+      - channel: '#hms-ops'
+        title: '⚠️ Warning: {{ .GroupLabels.alertname }}'
+    email_configs:
+      - to: 'ops@hms.aurex.in'
+
+  # Trading team alerts
+  - name: 'trading-team'
+    slack_configs:
+      - channel: '#hms-trading'
+        title: '📊 Trading Alert: {{ .GroupLabels.alertname }}'
+        mention_groups: ['@trading-lead']
+    pagerduty_configs:
+      - service_key: ${PAGERDUTY_TRADING_KEY}
+
+  # Infrastructure team
+  - name: 'infrastructure-team'
+    slack_configs:
+      - channel: '#hms-infrastructure'
+        title: '🔧 Infra Alert: {{ .GroupLabels.alertname }}'
+    email_configs:
+      - to: 'infrastructure@hms.aurex.in'
+
+  # Logs receiver - low priority
+  - name: 'logs-receiver'
+    slack_configs:
+      - channel: '#hms-logs'
+        title: '📋 Info: {{ .GroupLabels.alertname }}'
+
+# Inhibition rules to suppress certain alerts
+inhibit_rules:
+  # Suppress warning if critical alert exists for same service
+  - source_match:
+      severity: critical
+    target_match:
+      severity: warning
+    equal: ['alertname', 'service']
+
+  # Suppress info alerts if warning alert exists
+  - source_match:
+      severity: warning
+    target_match:
+      severity: info
+    equal: ['alertname', 'service']
+
+  # Suppress if instance is already down
+  - source_match:
+      alertname: ContainerDown
+    target_match_re:
+      alertname: '^(HighCPUUsage|HighMemoryUsage|HighNetworkUtilization)$'
+    equal: ['instance', 'service']
+
+  # Don't alert about slow queries if DB is down
+  - source_match:
+      alertname: PostgreSQLDown
+    target_match:
+      alertname: PostgreSQLSlowQueries
+    equal: ['instance']
+
+# Templates for alert formatting
+templates: []

@@ -1,0 +1,302 @@
+name: Security & Dependency Updates
+
+on:
+  schedule:
+    - cron: '0 2 * * *'  # Daily at 2 AM UTC
+  workflow_dispatch:
+  push:
+    paths:
+      - 'package.json'
+      - 'package-lock.json'
+      - 'Dockerfile'
+      - '.github/workflows/security-and-updates.yml'
+
+jobs:
+  dependency-check:
+    name: Check Dependencies for Vulnerabilities
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20.x
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run npm audit
+        id: npm-audit
+        run: npm audit --production --audit-level=moderate
+        continue-on-error: true
+
+      - name: Run OWASP Dependency-Check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'HMS Mobile'
+          path: '.'
+          format: 'JSON'
+          args: >
+            --enableExperimental
+            --enableRetired
+
+      - name: Upload results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: './dependency-check-report.sarif'
+
+      - name: Comment on vulnerabilities
+        if: steps.npm-audit.outcome == 'failure'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '⚠️ Dependency vulnerabilities detected! Please review npm audit output and update vulnerable packages.'
+            })
+
+  container-scanning:
+    name: Scan Container Images
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Run Trivy container image scan
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: 'ghcr.io/${{ github.repository }}/hms-mobile-web:latest'
+          format: 'sarif'
+          output: 'trivy-container-results.sarif'
+          severity: 'CRITICAL,HIGH'
+        continue-on-error: true
+
+      - name: Upload container scan results
+        uses: github/codeql-action/upload-sarif@v2
+        if: always()
+        with:
+          sarif_file: 'trivy-container-results.sarif'
+
+      - name: Run Anchore Grype scanner
+        uses: anchore/scan-action@v3
+        with:
+          path: 'mobile'
+          fail-build: false
+        continue-on-error: true
+
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20.x
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run ESLint
+        run: npm run lint --if-present
+        continue-on-error: true
+
+      - name: Run SonarQube Scanner
+        uses: SonarSource/sonarcloud-github-action@master
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        continue-on-error: true
+
+      - name: Check code complexity
+        run: |
+          echo "Analyzing code complexity..."
+          npm install -D complexity-report
+          npx cr --json ./src > complexity-report.json || true
+
+  license-check:
+    name: Check Licenses
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20.x
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check licenses with license-checker
+        run: |
+          npm install -g license-checker
+          license-checker --json --failOn GPL
+        continue-on-error: true
+
+      - name: Generate license report
+        run: |
+          npm install -g license-report
+          license-report --only prod > LICENSE_REPORT.md
+
+      - name: Upload license report
+        uses: actions/upload-artifact@v3
+        with:
+          name: license-report
+          path: LICENSE_REPORT.md
+
+  update-dependencies:
+    name: Auto-update Dependencies
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20.x
+          cache: 'npm'
+
+      - name: Update npm packages
+        run: |
+          npm update
+          npm audit fix --production || true
+
+      - name: Check for changes
+        id: check-changes
+        run: |
+          if git diff --quiet; then
+            echo "changes=false" >> $GITHUB_OUTPUT
+          else
+            echo "changes=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.check-changes.outputs.changes == 'true'
+        uses: peter-evans/create-pull-request@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: 'chore: Update dependencies'
+          title: 'chore: Weekly dependency updates'
+          body: |
+            ## Automated Dependency Updates
+
+            This PR contains automated dependency updates:
+
+            - `npm update` for patch and minor updates
+            - `npm audit fix` for security patches
+
+            ### Changes Made
+            - Updated production dependencies
+            - Fixed security vulnerabilities
+            - Maintained compatibility
+
+            ### Testing Required
+            - [ ] Run all tests
+            - [ ] Verify no breaking changes
+            - [ ] Manual smoke testing in staging
+
+            ### Checklist
+            - [ ] Review dependency changes
+            - [ ] Verify tests pass
+            - [ ] Approve and merge
+          branch: chore/dependencies-${{ github.run_number }}
+          delete-branch: true
+          assignees: ${{ github.actor }}
+          reviewers: |
+            @web-team
+            @devops-team
+
+  security-alert:
+    name: Process Security Alerts
+    runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Check for GitHub security alerts
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const alerts = await github.rest.repos.listSecurityAndAnalysisCustomProperties({
+              owner: context.repo.owner,
+              repo: context.repo.repo
+            });
+
+            if (alerts.data && alerts.data.length > 0) {
+              console.log('⚠️ Security alerts detected:');
+              alerts.data.forEach(alert => {
+                console.log(`- ${alert.description}`);
+              });
+            }
+
+      - name: Create security issue if needed
+        uses: actions/github-script@v6
+        if: failure()
+        with:
+          script: |
+            github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: '🔒 Security Update Required',
+              body: 'Automated security check detected potential vulnerabilities. Please review and update.',
+              labels: ['security', 'automated']
+            })
+
+  notify-results:
+    name: Notify Security Scan Results
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [dependency-check, container-scanning, code-quality, license-check]
+
+    steps:
+      - name: Determine overall status
+        id: status
+        run: |
+          if [ "${{ needs.dependency-check.result }}" == "success" ] && \
+             [ "${{ needs.container-scanning.result }}" == "success" ] && \
+             [ "${{ needs.code-quality.result }}" == "success" ] && \
+             [ "${{ needs.license-check.result }}" == "success" ]; then
+            echo "status=✅ All security checks passed" >> $GITHUB_OUTPUT
+          else
+            echo "status=⚠️ Some security checks have warnings" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Send Slack notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: '${{ steps.status.outputs.status }} - Security Scan Complete'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          fields: repo,message,commit,author
+          custom_payload: |
+            {
+              text: "🔒 Security Scan Complete",
+              attachments: [{
+                color: "${{ job.status == 'success' ? 'good' : 'warning' }}",
+                fields: [
+                  { title: "Dependency Check", value: "${{ needs.dependency-check.result }}", short: true },
+                  { title: "Container Scan", value: "${{ needs.container-scanning.result }}", short: true },
+                  { title: "Code Quality", value: "${{ needs.code-quality.result }}", short: true },
+                  { title: "License Check", value: "${{ needs.license-check.result }}", short: true }
+                ]
+              }]
+            }
