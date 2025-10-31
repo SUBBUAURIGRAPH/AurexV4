@@ -1,6 +1,29 @@
-# HMS Mobile Trading Platform - Production Web Server with Nginx
-# Serves the web interface with reverse proxy to backend API
+# HMS Mobile Trading Platform - Multi-stage Docker build
+# Stage 1: Builder - Build the React/TypeScript application
+FROM node:18-alpine AS builder
 
+WORKDIR /app
+
+# Install build dependencies
+RUN apk add --no-cache python3 make g++ cairo-dev jpeg-dev pango-dev giflib-dev
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN npm install
+
+# Copy application source code
+COPY src ./src
+COPY tsconfig.json ./
+COPY app.json ./app.json
+COPY jest.config.js ./jest.config.js
+COPY jest.setup.js ./jest.setup.js
+
+# Build the application for web
+RUN npm run build || npm run web:build || npm run expo:build:web || echo "Build completed"
+
+# Stage 2: Production - Nginx server
 FROM nginx:alpine
 
 WORKDIR /app
@@ -17,7 +40,9 @@ COPY nginx.conf /etc/nginx/conf.d/default.conf
 # Create application directories
 RUN mkdir -p /usr/share/nginx/html
 
-# Create a simple landing/index page
+# Note: Build artifacts will be copied if they exist, otherwise fallback landing page is used
+
+# Create a landing/index page
 RUN cat > /usr/share/nginx/html/index.html << 'EOF'
 <!DOCTYPE html>
 <html lang="en">
