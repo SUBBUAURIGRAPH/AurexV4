@@ -1,0 +1,415 @@
+/* Holdings Table Component Styles */
+
+.holdingsContainer {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+}
+
+.viewAll {
+  color: #667eea;
+  text-decoration: none;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+}
+
+.viewAll:hover {
+  color: #764ba2;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+  border-radius: 8px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+.table thead {
+  background: rgba(255, 255, 255, 0.03);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.table th {
+  padding: 1rem;
+  text-align: left;
+  color: #a1a1a1;
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.holdingRow {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background-color 0.3s ease;
+}
+
+.holdingRow:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.table td {
+  padding: 1rem;
+  color: #ffffff;
+  font-size: 0.9rem;
+}
+
+.symbol {
+  font-weight: 600;
+  color: #ffffff;
+}
+
+.sector {
+  font-size: 0.75rem;
+  color: #a1a1a1;
+  margin: 0.25rem 0 0 0;
+}
+
+.quantity {
+  text-align: right;
+  color: #a1a1a1;
+}
+
+.entryPrice {
+  text-align: right;
+  font-weight: 500;
+}
+
+.currentPrice {
+  text-align: right;
+  font-weight: 500;
+}
+
+.totalValue {
+  text-align: right;
+  font-weight: 600;
+}
+
+.gainLoss {
+  text-align: right;
+  font-weight: 600;
+}
+
+.gainLoss.positive {
+  color: #22c55e;
+}
+
+.gainLoss.negative {
+  color: #ef4444;
+}
+
+.percentage {
+  text-align: right;
+  font-weight: 600;
+}
+
+.percentage.positive {
+  color: #22c55e;
+}
+
+.percentage.negative {
+  color: #ef4444;
+}
+
+.risk {
+  text-align: center;
+}
+
+.riskBadge {
+  display: inline-block;
+  padding: 0.35rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.riskBadge.success {
+  background: rgba(34, 197, 94, 0.2);
+  color: #22c55e;
+  border: 1px solid rgba(34, 197, 94, 0.3);
+}
+
+.riskBadge.warning {
+  background: rgba(245, 158, 11, 0.2);
+  color: #f59e0b;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.riskBadge.danger {
+  background: rgba(239, 68, 68, 0.2);
+  color: #ef4444;
+  border: 1px solid rgba(239, 68, 68, 0.3);
+}
+
+.summary {
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.summaryGroup {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 2rem;
+}
+
+.summaryItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.label {
+  font-size: 0.85rem;
+  color: #a1a1a1;
+}
+
+.value {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.value.positive {
+  color: #22c55e;
+}
+
+.value.negative {
+  color: #ef4444;
+}
+
+.actions {
+  display: flex;
+  gap: 1rem;
+  padding-top: 1rem;
+}
+
+.actionButton {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  color: #ffffff;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  flex: 1;
+}
+
+.actionButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+}
+
+.actionButton:active {
+  transform: translateY(0);
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .holdingsContainer {
+    padding: 1.5rem;
+  }
+
+  .table th,
+  .table td {
+    padding: 0.75rem;
+    font-size: 0.85rem;
+  }
+
+  .title {
+    font-size: 1.1rem;
+  }
+
+  .riskBadge {
+    font-size: 0.7rem;
+    padding: 0.3rem 0.6rem;
+  }
+
+  .summaryGroup {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .holdingsContainer {
+    padding: 1.25rem;
+  }
+
+  .table {
+    font-size: 0.8rem;
+  }
+
+  .table th {
+    font-size: 0.7rem;
+    padding: 0.75rem 0.5rem;
+  }
+
+  .table td {
+    padding: 0.75rem 0.5rem;
+    font-size: 0.8rem;
+  }
+
+  .symbol {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .sector {
+    font-size: 0.7rem;
+  }
+
+  .riskBadge {
+    font-size: 0.65rem;
+    padding: 0.25rem 0.5rem;
+  }
+
+  .value {
+    font-size: 1rem;
+  }
+
+  .summaryGroup {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .summaryItem {
+    gap: 0.25rem;
+  }
+
+  .label {
+    font-size: 0.8rem;
+  }
+
+  .actions {
+    flex-direction: column;
+  }
+
+  .actionButton {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .holdingsContainer {
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .table {
+    font-size: 0.7rem;
+  }
+
+  .table th {
+    font-size: 0.6rem;
+    padding: 0.5rem 0.25rem;
+  }
+
+  .table td {
+    padding: 0.5rem 0.25rem;
+    font-size: 0.7rem;
+  }
+
+  .title {
+    font-size: 1rem;
+  }
+
+  .symbol {
+    max-width: 70px;
+    font-size: 0.75rem;
+  }
+
+  .sector {
+    display: none;
+  }
+
+  .entryPrice,
+  .quantity {
+    display: none;
+  }
+
+  .riskBadge {
+    font-size: 0.6rem;
+    padding: 0.2rem 0.4rem;
+  }
+
+  .summaryGroup {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .summaryItem {
+    gap: 0.25rem;
+  }
+
+  .label {
+    font-size: 0.75rem;
+  }
+
+  .value {
+    font-size: 0.85rem;
+  }
+
+  .header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  .viewAll {
+    width: 100%;
+    text-align: right;
+  }
+
+  .actions {
+    gap: 0.5rem;
+  }
+
+  .actionButton {
+    padding: 0.6rem 1rem;
+    font-size: 0.8rem;
+  }
+}
+
+/* Animations */
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.holdingsContainer {
+  animation: slideUp 0.4s ease-out 0.4s both;
+}

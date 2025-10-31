@@ -1,0 +1,158 @@
+/* Quick Actions Component Styles */
+
+.quickActionsContainer {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 2rem;
+  margin-bottom: 2rem;
+}
+
+.header {
+  margin-bottom: 1.5rem;
+}
+
+.title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0;
+}
+
+.buttonsGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1.5rem;
+}
+
+.actionButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: 1.5rem;
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%);
+  border: 1px solid rgba(102, 126, 234, 0.3);
+  border-radius: 12px;
+  color: #ffffff;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: center;
+  min-height: 120px;
+}
+
+.actionButton:hover {
+  background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+  border-color: rgba(102, 126, 234, 0.5);
+  transform: translateY(-4px);
+  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.2);
+}
+
+.actionButton:active {
+  transform: translateY(-2px);
+}
+
+.icon {
+  font-size: 2rem;
+}
+
+.label {
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .quickActionsContainer {
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .buttonsGrid {
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 1rem;
+  }
+
+  .actionButton {
+    padding: 1.25rem;
+    min-height: 110px;
+  }
+
+  .icon {
+    font-size: 1.75rem;
+  }
+
+  .label {
+    font-size: 0.85rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .quickActionsContainer {
+    padding: 1.25rem;
+  }
+
+  .buttonsGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1rem;
+  }
+
+  .actionButton {
+    padding: 1rem;
+    min-height: 100px;
+  }
+
+  .icon {
+    font-size: 1.5rem;
+  }
+
+  .label {
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .quickActionsContainer {
+    padding: 1rem;
+  }
+
+  .buttonsGrid {
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .actionButton {
+    flex-direction: row;
+    justify-content: flex-start;
+    padding: 1rem;
+    min-height: auto;
+    gap: 1rem;
+  }
+
+  .icon {
+    font-size: 1.25rem;
+  }
+
+  .label {
+    font-size: 0.75rem;
+    text-align: left;
+  }
+}
+
+/* Animations */
+@keyframes slideInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.quickActionsContainer {
+  animation: slideInUp 0.4s ease-out 0.1s both;
+}

@@ -1,0 +1,323 @@
+/* Asset Allocation Component Styles */
+
+.allocationContainer {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.header {
+  margin-bottom: 1rem;
+}
+
+.title {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: #ffffff;
+  margin: 0 0 0.5rem 0;
+}
+
+.subtitle {
+  font-size: 0.85rem;
+  color: #a1a1a1;
+  margin: 0;
+}
+
+.allocationItems {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.allocationItem {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.itemHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+
+.assetInfo {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex: 1;
+}
+
+.icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+}
+
+.assetDetails {
+  flex: 1;
+}
+
+.assetClass {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #ffffff;
+  margin: 0;
+}
+
+.assetValue {
+  font-size: 0.85rem;
+  color: #a1a1a1;
+  margin: 0.25rem 0 0 0;
+}
+
+.percentage {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: #667eea;
+  min-width: 45px;
+  text-align: right;
+}
+
+.progressBarContainer {
+  width: 100%;
+  height: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.progressBar {
+  height: 100%;
+  border-radius: 4px;
+  transition: all 0.3s ease;
+  box-shadow: 0 0 12px rgba(102, 126, 234, 0.4);
+}
+
+.progressBar:hover {
+  box-shadow: 0 0 20px rgba(102, 126, 234, 0.6);
+}
+
+.summary {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.summaryItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.label {
+  font-size: 0.85rem;
+  color: #a1a1a1;
+}
+
+.value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.warning {
+  background: rgba(245, 158, 11, 0.1);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+  border-radius: 8px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.warningIcon {
+  font-size: 1.25rem;
+  flex-shrink: 0;
+}
+
+.warningText {
+  font-size: 0.85rem;
+  color: #f59e0b;
+}
+
+.rebalanceButton {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border: none;
+  color: #ffffff;
+  padding: 0.75rem 1.5rem;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  align-self: flex-start;
+}
+
+.rebalanceButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+}
+
+.rebalanceButton:active {
+  transform: translateY(0);
+}
+
+/* Responsive Design */
+@media (max-width: 1024px) {
+  .allocationContainer {
+    padding: 1.5rem;
+  }
+
+  .allocationItems {
+    gap: 1.25rem;
+  }
+
+  .title {
+    font-size: 1.1rem;
+  }
+
+  .assetClass {
+    font-size: 0.9rem;
+  }
+
+  .percentage {
+    font-size: 1rem;
+  }
+
+  .summary {
+    gap: 1rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .allocationContainer {
+    padding: 1.25rem;
+    gap: 1.5rem;
+  }
+
+  .allocationItems {
+    gap: 1rem;
+  }
+
+  .itemHeader {
+    align-items: center;
+  }
+
+  .assetInfo {
+    gap: 0.75rem;
+  }
+
+  .icon {
+    font-size: 1.25rem;
+  }
+
+  .title {
+    font-size: 1rem;
+  }
+
+  .assetClass {
+    font-size: 0.85rem;
+  }
+
+  .assetValue {
+    font-size: 0.75rem;
+  }
+
+  .percentage {
+    font-size: 0.95rem;
+  }
+
+  .summary {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 0.75rem;
+  }
+
+  .label {
+    font-size: 0.8rem;
+  }
+
+  .value {
+    font-size: 0.9rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .allocationContainer {
+    padding: 1rem;
+    gap: 1rem;
+  }
+
+  .allocationItems {
+    gap: 0.75rem;
+  }
+
+  .assetInfo {
+    gap: 0.5rem;
+  }
+
+  .icon {
+    font-size: 1.1rem;
+  }
+
+  .title {
+    font-size: 0.95rem;
+  }
+
+  .subtitle {
+    font-size: 0.75rem;
+  }
+
+  .assetClass {
+    font-size: 0.8rem;
+  }
+
+  .assetValue {
+    font-size: 0.7rem;
+  }
+
+  .percentage {
+    font-size: 0.85rem;
+  }
+
+  .summary {
+    grid-template-columns: 1fr;
+    gap: 0.5rem;
+  }
+
+  .label {
+    font-size: 0.75rem;
+  }
+
+  .value {
+    font-size: 0.85rem;
+  }
+
+  .rebalanceButton {
+    width: 100%;
+  }
+}
+
+/* Animations */
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.allocationContainer {
+  animation: slideInRight 0.4s ease-out 0.2s both;
+}
