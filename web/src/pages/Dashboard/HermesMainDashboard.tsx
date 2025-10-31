@@ -19,6 +19,7 @@ import {
   selectLastUpdated,
   clearError
 } from '../../store/dashboardSlice';
+import TopNavigation from '../../components/common/TopNavigation';
 import Sidebar from '../../components/dashboard/Sidebar';
 import DashboardHeader from '../../components/dashboard/DashboardHeader';
 import QuickActions from '../../components/dashboard/QuickActions';
@@ -139,6 +140,9 @@ const HermesMainDashboard: React.FC = () => {
 
   return (
     <ErrorBoundary>
+      {/* Top Navigation Bar */}
+      <TopNavigation />
+
       <div className={styles.dashboardContainer}>
         {/* Sidebar */}
         <Sidebar
