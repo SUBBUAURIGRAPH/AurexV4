@@ -7,7 +7,18 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAppSelector, useAppDispatch } from '../../store/hooks';
-import { fetchPortfolio, fetchTrades, fetchHoldings } from '../../store/dashboardSlice';
+import {
+  fetchPortfolio,
+  fetchTrades,
+  fetchHoldings,
+  selectPortfolio,
+  selectTrades,
+  selectHoldings,
+  selectDashboardLoading,
+  selectDashboardError,
+  selectLastUpdated,
+  clearError
+} from '../../store/dashboardSlice';
 import Sidebar from '../../components/dashboard/Sidebar';
 import DashboardHeader from '../../components/dashboard/DashboardHeader';
 import QuickActions from '../../components/dashboard/QuickActions';
@@ -20,53 +31,37 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import ErrorBoundary from '../../components/common/ErrorBoundary';
 import styles from './HermesMainDashboard.module.css';
 
-interface DashboardState {
-  portfolio: any;
-  trades: any[];
-  holdings: any[];
-  loading: boolean;
-  error: string | null;
-  lastUpdated: Date | null;
-}
-
 const HermesMainDashboard: React.FC = () => {
   const dispatch = useAppDispatch();
-  const { user } = useAppSelector(state => state.auth);
+
+  // Redux state selectors
+  const portfolio = useAppSelector(selectPortfolio);
+  const trades = useAppSelector(selectTrades);
+  const holdings = useAppSelector(selectHoldings);
+  const loading = useAppSelector(selectDashboardLoading);
+  const error = useAppSelector(selectDashboardError);
+  const lastUpdated = useAppSelector(selectLastUpdated);
+
+  // Local component state
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [refreshInterval, setRefreshInterval] = useState(30000); // 30 seconds
-  const [state, setState] = useState<DashboardState>({
-    portfolio: null,
-    trades: [],
-    holdings: [],
-    loading: true,
-    error: null,
-    lastUpdated: null
-  });
+  const [marketStatus, setMarketStatus] = useState<'OPEN' | 'CLOSED'>('OPEN');
+  const [aiRiskScore, setAiRiskScore] = useState(8);
+  const [userName] = useState('John Doe'); // Would come from auth context
 
   /**
    * Load dashboard data
    */
   const loadDashboardData = useCallback(async () => {
     try {
-      setState(prev => ({ ...prev, loading: true, error: null }));
-
+      // Dispatch all async thunks in parallel
       await Promise.all([
         dispatch(fetchPortfolio()),
         dispatch(fetchTrades()),
         dispatch(fetchHoldings())
       ]);
-
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        lastUpdated: new Date()
-      }));
-    } catch (error) {
-      setState(prev => ({
-        ...prev,
-        loading: false,
-        error: error instanceof Error ? error.message : 'Failed to load dashboard'
-      }));
+    } catch (err) {
+      console.error('Failed to load dashboard data:', err);
     }
   }, [dispatch]);
 
@@ -102,24 +97,45 @@ const HermesMainDashboard: React.FC = () => {
     loadDashboardData();
   }, [loadDashboardData]);
 
-  if (state.error) {
+  /**
+   * Handle error dismissal
+   */
+  const handleDismissError = useCallback(() => {
+    dispatch(clearError());
+  }, [dispatch]);
+
+  if (error && !portfolio) {
     return (
       <ErrorBoundary>
         <div className={styles.errorContainer}>
           <div className={styles.errorContent}>
-            <h2>Error Loading Dashboard</h2>
-            <p>{state.error}</p>
-            <button
-              onClick={handleRefresh}
-              className={styles.retryButton}
-            >
-              🔄 Retry
-            </button>
+            <h2>⚠️ Error Loading Dashboard</h2>
+            <p>{error}</p>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
+              <button
+                onClick={handleRefresh}
+                className={styles.retryButton}
+              >
+                🔄 Retry
+              </button>
+              <button
+                onClick={handleDismissError}
+                className={styles.retryButton}
+                style={{ background: 'rgba(255, 255, 255, 0.1)' }}
+              >
+                ✕ Dismiss
+              </button>
+            </div>
           </div>
         </div>
       </ErrorBoundary>
     );
   }
+
+  // Format last updated time
+  const lastUpdatedTime = lastUpdated
+    ? new Date(lastUpdated).toLocaleTimeString()
+    : null;
 
   return (
     <ErrorBoundary>
@@ -143,62 +159,92 @@ const HermesMainDashboard: React.FC = () => {
               ☰
             </button>
             <div className={styles.refreshInfo}>
-              {state.lastUpdated && (
+              {lastUpdatedTime && (
                 <span className={styles.lastUpdated}>
-                  Updated: {state.lastUpdated.toLocaleTimeString()}
+                  Updated: {lastUpdatedTime}
                 </span>
               )}
             </div>
             <button
               onClick={handleRefresh}
               className={styles.refreshButton}
-              disabled={state.loading}
+              disabled={loading}
+              title="Refresh dashboard"
             >
               🔄
             </button>
           </div>
 
           {/* Loading State */}
-          {state.loading && !state.portfolio && (
+          {loading && !portfolio && (
             <LoadingSpinner message="Loading dashboard..." />
           )}
 
           {/* Dashboard Content */}
-          {!state.loading || state.portfolio && (
+          {!loading || portfolio && (
             <div className={styles.content}>
               {/* Welcome Header */}
               <DashboardHeader
-                userName={user?.name || 'User'}
-                marketStatus="OPEN"
-                aiRiskScore={8}
+                userName={userName}
+                marketStatus={marketStatus}
+                aiRiskScore={aiRiskScore}
               />
 
               {/* Quick Actions */}
               <QuickActions />
 
               {/* Metrics Grid */}
-              <MetricsGrid portfolio={state.portfolio} />
+              <MetricsGrid portfolio={portfolio || undefined} />
 
               {/* Charts Section */}
               <div className={styles.chartsGrid}>
-                <PerformanceChart portfolio={state.portfolio} />
-                <AssetAllocation portfolio={state.portfolio} />
+                <PerformanceChart portfolio={portfolio || undefined} />
+                <AssetAllocation portfolio={portfolio || undefined} />
               </div>
 
               {/* Recent Trades Table */}
-              {state.trades.length > 0 && (
-                <RecentTradesTable trades={state.trades} />
+              {trades && trades.length > 0 && (
+                <RecentTradesTable trades={trades} />
               )}
 
               {/* Holdings Table */}
-              {state.holdings.length > 0 && (
-                <HoldingsTable holdings={state.holdings} />
+              {holdings && holdings.length > 0 && (
+                <HoldingsTable holdings={holdings} />
               )}
 
               {/* Empty State */}
-              {!state.portfolio && !state.loading && (
+              {!portfolio && !loading && (
                 <div className={styles.emptyState}>
-                  <p>No data available. Please check back later.</p>
+                  <p>ℹ️ No data available. Please check your connection or try refreshing.</p>
+                </div>
+              )}
+
+              {/* Error Alert (non-blocking) */}
+              {error && portfolio && (
+                <div style={{
+                  background: 'rgba(239, 68, 68, 0.1)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '8px',
+                  padding: '1rem',
+                  marginTop: '2rem',
+                  color: '#ef4444',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center'
+                }}>
+                  <span>⚠️ {error}</span>
+                  <button
+                    onClick={handleDismissError}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#ef4444',
+                      cursor: 'pointer',
+                      fontSize: '1.25rem'
+                    }}
+                  >
+                    ✕
+                  </button>
                 </div>
               )}
             </div>
