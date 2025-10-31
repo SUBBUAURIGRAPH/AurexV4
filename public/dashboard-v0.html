@@ -5,177 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hermes Dashboard | Trading Control Center</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
-        * {
-            font-family: 'Inter', sans-serif;
-        }
-
-        .gradient-text {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        .gradient-bg {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-        }
-
-        .glass-effect {
-            background: rgba(255, 255, 255, 0.05);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        .card-hover {
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        .card-hover:hover {
-            background: rgba(255, 255, 255, 0.08);
-            border-color: rgba(102, 126, 234, 0.3);
-        }
-
-        .metric-card {
-            position: relative;
-            overflow: hidden;
-        }
-
-        .metric-card::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            right: 0;
-            width: 100px;
-            height: 100px;
-            background: linear-gradient(135deg, rgba(102, 126, 234, 0.1), transparent);
-            border-radius: 50%;
-            opacity: 0;
-            transition: opacity 0.3s;
-        }
-
-        .metric-card:hover::before {
-            opacity: 1;
-        }
-
-        .chart-container {
-            position: relative;
-            height: 300px;
-            background: linear-gradient(180deg, rgba(102, 126, 234, 0.05), rgba(102, 126, 234, 0.02));
-            border-radius: 12px;
-            display: flex;
-            align-items: flex-end;
-            gap: 4px;
-            padding: 20px;
-            overflow: hidden;
-        }
-
-        .chart-bar {
-            flex: 1;
-            background: linear-gradient(180deg, #667eea, #764ba2);
-            border-radius: 4px 4px 0 0;
-            transition: all 0.3s;
-            opacity: 0.7;
-        }
-
-        .chart-bar:hover {
-            opacity: 1;
-            filter: brightness(1.1);
-        }
-
-        .pulse {
-            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 4px 12px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-        }
-
-        .status-active {
-            background: rgba(34, 197, 94, 0.1);
-            color: #22c55e;
-            border: 1px solid rgba(34, 197, 94, 0.2);
-        }
-
-        .status-pending {
-            background: rgba(245, 158, 11, 0.1);
-            color: #f59e0b;
-            border: 1px solid rgba(245, 158, 11, 0.2);
-        }
-
-        .status-inactive {
-            background: rgba(239, 68, 68, 0.1);
-            color: #ef4444;
-            border: 1px solid rgba(239, 68, 68, 0.2);
-        }
-
-        .sidebar {
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 280px;
-            height: 100vh;
-            background: linear-gradient(135deg, rgba(0, 0, 0, 0.8), rgba(102, 126, 234, 0.1));
-            backdrop-filter: blur(10px);
-            border-right: 1px solid rgba(255, 255, 255, 0.1);
-            overflow-y: auto;
-        }
-
-        .sidebar-item {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            padding: 12px 20px;
-            margin: 4px 8px;
-            border-radius: 8px;
-            cursor: pointer;
-            color: rgba(255, 255, 255, 0.7);
-            transition: all 0.3s;
-        }
-
-        .sidebar-item:hover,
-        .sidebar-item.active {
-            background: rgba(102, 126, 234, 0.2);
-            color: white;
-            border-left: 2px solid #667eea;
-        }
-
-        .main-content {
-            margin-left: 280px;
-            padding: 20px;
-        }
-
-        @media (max-width: 1024px) {
-            .sidebar {
-                width: 200px;
-            }
-            .main-content {
-                margin-left: 200px;
-                padding: 16px;
-            }
-        }
-
-        @media (max-width: 768px) {
-            .sidebar {
-                display: none;
-            }
-            .main-content {
-                margin-left: 0;
-            }
-        }
+        * { font-family: 'Inter', sans-serif; }
+        .gradient-text { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .glass-effect { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .card-hover { transition: all 0.3s; }
+        .card-hover:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(102, 126, 234, 0.3); }
+        .chart-bar { flex: 1; background: linear-gradient(180deg, #667eea, #764ba2); border-radius: 4px 4px 0 0; transition: all 0.3s; opacity: 0.7; }
+        .chart-bar:hover { opacity: 1; filter: brightness(1.1); }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
+        .status-active { background: rgba(34, 197, 94, 0.1); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.2); }
+        .status-pending { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.2); }
+        .sidebar { position: fixed; left: 0; top: 0; width: 280px; height: 100vh; background: linear-gradient(135deg, rgba(0, 0, 0, 0.8), rgba(102, 126, 234, 0.1)); backdrop-filter: blur(10px); border-right: 1px solid rgba(255, 255, 255, 0.1); overflow-y: auto; }
+        .sidebar-item { display: flex; align-items: center; gap: 12px; padding: 12px 20px; margin: 4px 8px; border-radius: 8px; cursor: pointer; color: rgba(255, 255, 255, 0.7); transition: all 0.3s; }
+        .sidebar-item:hover, .sidebar-item.active { background: rgba(102, 126, 234, 0.2); color: white; border-left: 2px solid #667eea; }
+        .main-content { margin-left: 280px; padding: 20px; }
+        @media (max-width: 768px) { .sidebar { display: none; } .main-content { margin-left: 0; } }
     </style>
 </head>
 <body class="bg-black text-white">
@@ -208,15 +55,13 @@
             </div>
             <div class="sidebar-item">
                 <span class="text-lg">🤖</span>
-                <span>Strategies</span>
+                <span>AI Signals</span>
             </div>
             <div class="sidebar-item">
                 <span class="text-lg">🔔</span>
                 <span>Alerts</span>
             </div>
-
             <div class="border-t border-white/10 my-4"></div>
-
             <div class="sidebar-item">
                 <span class="text-lg">⚙️</span>
                 <span>Settings</span>
@@ -233,22 +78,22 @@
         <!-- Header -->
         <div class="glass-effect rounded-2xl p-6 mb-8 flex justify-between items-start">
             <div>
-                <h1 class="text-3xl font-bold mb-2">Welcome back, Trader! 👋</h1>
-                <p class="text-gray-400">Thursday, October 31, 2025 • Markets Open</p>
+                <h1 class="text-3xl font-bold mb-2">Welcome back, Alex! 👋</h1>
+                <p class="text-gray-400">Thursday, October 31, 2025 | Markets: OPEN | AI Risk Score: LOW (8%)</p>
             </div>
             <div class="text-right">
-                <p class="font-semibold mb-1">John Trader</p>
-                <p class="text-sm text-gray-400">Premium Member</p>
+                <p class="font-semibold mb-1">Alex Thompson</p>
+                <p class="text-sm text-gray-400">Premium Member • Active 4 yrs</p>
             </div>
         </div>
 
         <!-- Quick Actions -->
         <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <button class="gradient-bg p-4 rounded-lg font-semibold hover:shadow-lg transition">
+            <button class="gradient-bg p-4 rounded-lg font-semibold hover:shadow-lg transition text-white">
                 🛒 New Trade
             </button>
             <button class="glass-effect p-4 rounded-lg font-semibold hover:bg-white/10 transition">
-                📊 Analytics
+                📊 View AI Signals
             </button>
             <button class="glass-effect p-4 rounded-lg font-semibold hover:bg-white/10 transition">
                 ⚙️ Configure AI
@@ -261,67 +106,75 @@
         <!-- Metrics Grid -->
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
             <!-- Portfolio Value -->
-            <div class="glass-effect rounded-2xl p-6 card-hover metric-card">
+            <div class="glass-effect rounded-2xl p-6 card-hover">
                 <div class="flex justify-between items-start mb-4">
                     <div>
                         <p class="text-gray-400 text-sm font-medium">Portfolio Value</p>
-                        <h2 class="text-3xl font-bold mt-2">$524,380</h2>
+                        <h2 class="text-3xl font-bold mt-2">$847,250</h2>
                     </div>
                     <span class="text-3xl">💰</span>
                 </div>
-                <p class="text-green-400 text-sm font-medium">+$8,240 today (+1.59%)</p>
+                <p class="text-green-400 text-sm font-medium">+$12,850 today (+1.54%)</p>
+                <p class="text-gray-500 text-xs mt-1">All-time high: $892,100</p>
             </div>
 
             <!-- Available Balance -->
-            <div class="glass-effect rounded-2xl p-6 card-hover metric-card">
+            <div class="glass-effect rounded-2xl p-6 card-hover">
                 <div class="flex justify-between items-start mb-4">
                     <div>
                         <p class="text-gray-400 text-sm font-medium">Available Balance</p>
-                        <h2 class="text-3xl font-bold mt-2">$127,450</h2>
+                        <h2 class="text-3xl font-bold mt-2">$203,750</h2>
                     </div>
                     <span class="text-3xl">💳</span>
                 </div>
-                <p class="text-gray-400 text-sm font-medium">Ready to invest</p>
+                <p class="text-gray-400 text-sm font-medium">Buying power available</p>
+                <p class="text-gray-500 text-xs mt-1">Next deposit: $0 (automatic)</p>
             </div>
 
-            <!-- Daily Gain/Loss -->
-            <div class="glass-effect rounded-2xl p-6 card-hover metric-card">
+            <!-- Today's Performance -->
+            <div class="glass-effect rounded-2xl p-6 card-hover">
                 <div class="flex justify-between items-start mb-4">
                     <div>
-                        <p class="text-gray-400 text-sm font-medium">Daily Gain/Loss</p>
-                        <h2 class="text-3xl font-bold mt-2">+$8,240</h2>
+                        <p class="text-gray-400 text-sm font-medium">Today's Return</p>
+                        <h2 class="text-3xl font-bold mt-2">+$12,850</h2>
                     </div>
                     <span class="text-3xl">📈</span>
                 </div>
-                <p class="text-green-400 text-sm font-medium">+1.59% today</p>
+                <p class="text-green-400 text-sm font-medium">+1.54% daily gain</p>
+                <p class="text-gray-500 text-xs mt-1">Best trade: +2.3% (AAPL)</p>
             </div>
 
             <!-- YTD Return -->
-            <div class="glass-effect rounded-2xl p-6 card-hover metric-card">
+            <div class="glass-effect rounded-2xl p-6 card-hover">
                 <div class="flex justify-between items-start mb-4">
                     <div>
                         <p class="text-gray-400 text-sm font-medium">YTD Return</p>
-                        <h2 class="text-3xl font-bold mt-2">+24.8%</h2>
+                        <h2 class="text-3xl font-bold mt-2">+38.2%</h2>
                     </div>
                     <span class="text-3xl">🏆</span>
                 </div>
                 <p class="text-green-400 text-sm font-medium">vs 12.4% benchmark</p>
+                <p class="text-gray-500 text-xs mt-1">Win rate: 62.3%</p>
             </div>
         </div>
 
         <!-- Charts Section -->
         <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-            <!-- Portfolio Performance Chart -->
+            <!-- Performance Chart -->
             <div class="glass-effect rounded-2xl p-6">
-                <div class="flex justify-between items-center mb-4">
-                    <h3 class="text-lg font-semibold">Portfolio Performance (30 Days)</h3>
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h3 class="text-lg font-semibold">30-Day Performance</h3>
+                        <p class="text-gray-400 text-sm mt-1">Cumulative daily returns</p>
+                    </div>
                     <select class="bg-white/5 border border-white/10 rounded px-2 py-1 text-sm">
                         <option>30 Days</option>
                         <option>90 Days</option>
                         <option>1 Year</option>
+                        <option>All Time</option>
                     </select>
                 </div>
-                <div class="chart-container">
+                <div style="display: flex; align-items: flex-end; gap: 4px; height: 200px; padding: 20px;">
                     <div class="chart-bar" style="height: 45%;"></div>
                     <div class="chart-bar" style="height: 60%;"></div>
                     <div class="chart-bar" style="height: 52%;"></div>
@@ -331,95 +184,114 @@
                     <div class="chart-bar" style="height: 90%;"></div>
                     <div class="chart-bar" style="height: 88%;"></div>
                 </div>
+                <p class="text-gray-500 text-xs mt-4">+9.2% total month-to-date. AI signals contributed +4.1%</p>
             </div>
 
             <!-- Asset Allocation -->
             <div class="glass-effect rounded-2xl p-6">
                 <h3 class="text-lg font-semibold mb-6">Asset Allocation</h3>
-                <div class="space-y-4">
+                <div class="space-y-5">
                     <div>
                         <div class="flex justify-between mb-2">
-                            <span>Stocks</span>
-                            <span class="font-semibold">45%</span>
+                            <span>US Equities (45%)</span>
+                            <span class="font-semibold text-blue-400">$380,550</span>
                         </div>
                         <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                            <div class="h-full w-[45%] bg-gradient-to-r from-blue-500 to-blue-600 rounded-full"></div>
+                            <div class="h-full w-[45%] bg-blue-500 rounded-full"></div>
                         </div>
                     </div>
                     <div>
                         <div class="flex justify-between mb-2">
-                            <span>Bonds</span>
-                            <span class="font-semibold">30%</span>
+                            <span>International (20%)</span>
+                            <span class="font-semibold text-purple-400">$169,450</span>
                         </div>
                         <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                            <div class="h-full w-[30%] bg-gradient-to-r from-purple-500 to-purple-600 rounded-full"></div>
+                            <div class="h-full w-[20%] bg-purple-500 rounded-full"></div>
                         </div>
                     </div>
                     <div>
                         <div class="flex justify-between mb-2">
-                            <span>Cash</span>
-                            <span class="font-semibold">25%</span>
+                            <span>Bonds & Fixed Income (20%)</span>
+                            <span class="font-semibold text-green-400">$169,450</span>
                         </div>
                         <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                            <div class="h-full w-[25%] bg-gradient-to-r from-green-500 to-green-600 rounded-full"></div>
+                            <div class="h-full w-[20%] bg-green-500 rounded-full"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between mb-2">
+                            <span>Cash & Alternatives (15%)</span>
+                            <span class="font-semibold text-yellow-400">$127,088</span>
+                        </div>
+                        <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                            <div class="h-full w-[15%] bg-yellow-500 rounded-full"></div>
                         </div>
                     </div>
                 </div>
+                <p class="text-gray-500 text-xs mt-6">✓ Portfolio is well-diversified. Rebalance recommended in 8 days.</p>
             </div>
         </div>
 
         <!-- Recent Trades -->
         <div class="glass-effect rounded-2xl p-6 mb-8">
-            <h3 class="text-lg font-semibold mb-4">Recent Trades</h3>
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-lg font-semibold">Recent Trades (Last 7 Days)</h3>
+                <button class="text-purple-400 hover:text-purple-300 transition text-sm">View All →</button>
+            </div>
             <div class="overflow-x-auto">
                 <table class="w-full">
                     <thead>
                         <tr class="border-b border-white/10">
                             <th class="text-left py-3 px-4 text-gray-400 font-medium text-sm">Symbol</th>
                             <th class="text-left py-3 px-4 text-gray-400 font-medium text-sm">Type</th>
-                            <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Quantity</th>
+                            <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Qty</th>
                             <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Price</th>
                             <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Total</th>
-                            <th class="text-left py-3 px-4 text-gray-400 font-medium text-sm">Time</th>
+                            <th class="text-left py-3 px-4 text-gray-400 font-medium text-sm">Profit/Loss</th>
+                            <th class="text-left py-3 px-4 text-gray-400 font-medium text-sm">Signal</th>
                             <th class="text-left py-3 px-4 text-gray-400 font-medium text-sm">Status</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr class="border-b border-white/5 hover:bg-white/5 transition">
-                            <td class="py-4 px-4"><span class="font-semibold text-blue-400">TSLA</span></td>
+                            <td class="py-4 px-4"><span class="font-semibold text-cyan-400">NVDA</span></td>
                             <td class="py-4 px-4"><span class="font-medium">BUY</span></td>
-                            <td class="py-4 px-4 text-right">50</td>
-                            <td class="py-4 px-4 text-right">$245.30</td>
-                            <td class="py-4 px-4 text-right">$12,265</td>
-                            <td class="py-4 px-4">2 hours ago</td>
+                            <td class="py-4 px-4 text-right">15</td>
+                            <td class="py-4 px-4 text-right">$142.80</td>
+                            <td class="py-4 px-4 text-right">$2,142</td>
+                            <td class="py-4 px-4"><span class="text-green-400">+$285 (+13.3%)</span></td>
+                            <td class="py-4 px-4"><span class="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded">🤖 AI</span></td>
                             <td class="py-4 px-4"><span class="status-badge status-active">Filled</span></td>
                         </tr>
                         <tr class="border-b border-white/5 hover:bg-white/5 transition">
-                            <td class="py-4 px-4"><span class="font-semibold text-purple-400">AAPL</span></td>
-                            <td class="py-4 px-4"><span class="font-medium">SELL</span></td>
-                            <td class="py-4 px-4 text-right">30</td>
+                            <td class="py-4 px-4"><span class="font-semibold text-blue-400">AAPL</span></td>
+                            <td class="py-4 px-4"><span class="font-medium">BUY</span></td>
+                            <td class="py-4 px-4 text-right">40</td>
                             <td class="py-4 px-4 text-right">$189.50</td>
-                            <td class="py-4 px-4 text-right">$5,685</td>
-                            <td class="py-4 px-4">5 hours ago</td>
+                            <td class="py-4 px-4 text-right">$7,580</td>
+                            <td class="py-4 px-4"><span class="text-green-400">+$742 (+9.8%)</span></td>
+                            <td class="py-4 px-4"><span class="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">📊 Manual</span></td>
                             <td class="py-4 px-4"><span class="status-badge status-active">Filled</span></td>
                         </tr>
                         <tr class="border-b border-white/5 hover:bg-white/5 transition">
                             <td class="py-4 px-4"><span class="font-semibold text-green-400">MSFT</span></td>
-                            <td class="py-4 px-4"><span class="font-medium">BUY</span></td>
+                            <td class="py-4 px-4"><span class="font-medium">SELL</span></td>
                             <td class="py-4 px-4 text-right">25</td>
                             <td class="py-4 px-4 text-right">$378.90</td>
-                            <td class="py-4 px-4 text-right">$9,472.50</td>
-                            <td class="py-4 px-4">1 day ago</td>
+                            <td class="py-4 px-4 text-right">$9,472</td>
+                            <td class="py-4 px-4"><span class="text-green-400">+$1,245 (+15.2%)</span></td>
+                            <td class="py-4 px-4"><span class="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded">🤖 AI</span></td>
                             <td class="py-4 px-4"><span class="status-badge status-active">Filled</span></td>
                         </tr>
-                        <tr class="hover:bg-white/5 transition">
+                        <tr class="border-b border-white/5 hover:bg-white/5 transition">
                             <td class="py-4 px-4"><span class="font-semibold text-red-400">GOOGL</span></td>
                             <td class="py-4 px-4"><span class="font-medium">BUY</span></td>
-                            <td class="py-4 px-4 text-right">15</td>
+                            <td class="py-4 px-4 text-right">20</td>
                             <td class="py-4 px-4 text-right">$140.50</td>
-                            <td class="py-4 px-4 text-right">$2,107.50</td>
-                            <td class="py-4 px-4">2 days ago</td>
-                            <td class="py-4 px-4"><span class="status-badge status-pending">Pending</span></td>
+                            <td class="py-4 px-4 text-right">$2,810</td>
+                            <td class="py-4 px-4"><span class="text-red-400">-$180 (-6.4%)</span></td>
+                            <td class="py-4 px-4"><span class="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">📊 Manual</span></td>
+                            <td class="py-4 px-4"><span class="status-badge status-pending">Hold</span></td>
                         </tr>
                     </tbody>
                 </table>
@@ -428,56 +300,74 @@
 
         <!-- Current Holdings -->
         <div class="glass-effect rounded-2xl p-6">
-            <h3 class="text-lg font-semibold mb-4">Current Holdings</h3>
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-lg font-semibold">Current Holdings (12 Positions)</h3>
+                <button class="text-purple-400 hover:text-purple-300 transition text-sm">Rebalance Portfolio →</button>
+            </div>
             <div class="overflow-x-auto">
                 <table class="w-full">
                     <thead>
                         <tr class="border-b border-white/10">
                             <th class="text-left py-3 px-4 text-gray-400 font-medium text-sm">Symbol</th>
-                            <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Quantity</th>
-                            <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Current Price</th>
+                            <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Qty</th>
+                            <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Current</th>
                             <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Cost Basis</th>
                             <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Value</th>
                             <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Gain/Loss</th>
-                            <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Return %</th>
+                            <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">% Return</th>
+                            <th class="text-left py-3 px-4 text-gray-400 font-medium text-sm">Risk</th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr class="border-b border-white/5 hover:bg-white/5 transition">
-                            <td class="py-4 px-4"><span class="font-semibold">TSLA</span></td>
-                            <td class="py-4 px-4 text-right">50</td>
-                            <td class="py-4 px-4 text-right">$248.75</td>
-                            <td class="py-4 px-4 text-right">$245.30</td>
-                            <td class="py-4 px-4 text-right">$12,437.50</td>
-                            <td class="py-4 px-4 text-right text-green-400">+$172.50</td>
-                            <td class="py-4 px-4 text-right text-green-400">+1.41%</td>
+                            <td class="py-4 px-4"><span class="font-semibold">NVDA</span></td>
+                            <td class="py-4 px-4 text-right">15</td>
+                            <td class="py-4 px-4 text-right">$148.65</td>
+                            <td class="py-4 px-4 text-right">$142.80</td>
+                            <td class="py-4 px-4 text-right">$2,229.75</td>
+                            <td class="py-4 px-4 text-right text-green-400">+$285.75</td>
+                            <td class="py-4 px-4 text-right text-green-400">+14.7%</td>
+                            <td class="py-4 px-4"><span class="text-yellow-400 text-xs">HIGH</span></td>
                         </tr>
                         <tr class="border-b border-white/5 hover:bg-white/5 transition">
                             <td class="py-4 px-4"><span class="font-semibold">AAPL</span></td>
-                            <td class="py-4 px-4 text-right">75</td>
-                            <td class="py-4 px-4 text-right">$192.20</td>
-                            <td class="py-4 px-4 text-right">$185.50</td>
-                            <td class="py-4 px-4 text-right">$14,415</td>
-                            <td class="py-4 px-4 text-right text-green-400">+$507.50</td>
-                            <td class="py-4 px-4 text-right text-green-400">+3.64%</td>
+                            <td class="py-4 px-4 text-right">40</td>
+                            <td class="py-4 px-4 text-right">$195.30</td>
+                            <td class="py-4 px-4 text-right">$189.50</td>
+                            <td class="py-4 px-4 text-right">$7,812</td>
+                            <td class="py-4 px-4 text-right text-green-400">+$232</td>
+                            <td class="py-4 px-4 text-right text-green-400">+3.1%</td>
+                            <td class="py-4 px-4"><span class="text-green-400 text-xs">LOW</span></td>
                         </tr>
                         <tr class="border-b border-white/5 hover:bg-white/5 transition">
                             <td class="py-4 px-4"><span class="font-semibold">MSFT</span></td>
-                            <td class="py-4 px-4 text-right">40</td>
-                            <td class="py-4 px-4 text-right">$375.80</td>
+                            <td class="py-4 px-4 text-right">35</td>
+                            <td class="py-4 px-4 text-right">$385.20</td>
                             <td class="py-4 px-4 text-right">$378.90</td>
-                            <td class="py-4 px-4 text-right">$15,032</td>
-                            <td class="py-4 px-4 text-right text-red-400">-$124</td>
-                            <td class="py-4 px-4 text-right text-red-400">-0.82%</td>
+                            <td class="py-4 px-4 text-right">$13,482</td>
+                            <td class="py-4 px-4 text-right text-green-400">+$217.5</td>
+                            <td class="py-4 px-4 text-right text-green-400">+1.9%</td>
+                            <td class="py-4 px-4"><span class="text-green-400 text-xs">LOW</span></td>
+                        </tr>
+                        <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                            <td class="py-4 px-4"><span class="font-semibold">VTI</span></td>
+                            <td class="py-4 px-4 text-right">85</td>
+                            <td class="py-4 px-4 text-right">$245.80</td>
+                            <td class="py-4 px-4 text-right">$220.00</td>
+                            <td class="py-4 px-4 text-right">$20,893</td>
+                            <td class="py-4 px-4 text-right text-green-400">+$2,193</td>
+                            <td class="py-4 px-4 text-right text-green-400">+11.8%</td>
+                            <td class="py-4 px-4"><span class="text-yellow-400 text-xs">MED</span></td>
                         </tr>
                         <tr class="hover:bg-white/5 transition">
-                            <td class="py-4 px-4"><span class="font-semibold">VTI</span></td>
-                            <td class="py-4 px-4 text-right">100</td>
-                            <td class="py-4 px-4 text-right">$235.50</td>
-                            <td class="py-4 px-4 text-right">$220.00</td>
-                            <td class="py-4 px-4 text-right">$23,550</td>
-                            <td class="py-4 px-4 text-right text-green-400">+$1,550</td>
-                            <td class="py-4 px-4 text-right text-green-400">+7.05%</td>
+                            <td class="py-4 px-4"><span class="font-semibold">BND</span></td>
+                            <td class="py-4 px-4 text-right">150</td>
+                            <td class="py-4 px-4 text-right">$89.50</td>
+                            <td class="py-4 px-4 text-right">$87.30</td>
+                            <td class="py-4 px-4 text-right">$13,425</td>
+                            <td class="py-4 px-4 text-right text-green-400">+$330</td>
+                            <td class="py-4 px-4 text-right text-green-400">+2.5%</td>
+                            <td class="py-4 px-4"><span class="text-green-400 text-xs">LOW</span></td>
                         </tr>
                     </tbody>
                 </table>

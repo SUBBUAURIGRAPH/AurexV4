@@ -3,542 +3,376 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hermes Dashboard | Your Trading Control Center</title>
+    <title>Hermes Dashboard | Trading Control Center</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: #f5f7fa;
-            color: #333;
-        }
-
-        .dashboard-container {
-            display: grid;
-            grid-template-columns: 250px 1fr;
-            min-height: 100vh;
-        }
-
-        /* Sidebar */
-        .sidebar {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 2rem 1rem;
-            position: fixed;
-            left: 0;
-            top: 0;
-            width: 250px;
-            height: 100vh;
-            overflow-y: auto;
-        }
-
-        .sidebar-logo {
-            font-size: 1.5rem;
-            font-weight: bold;
-            margin-bottom: 2rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .sidebar-menu {
-            list-style: none;
-        }
-
-        .sidebar-menu li {
-            margin-bottom: 0.5rem;
-        }
-
-        .sidebar-menu a {
-            color: rgba(255,255,255,0.8);
-            text-decoration: none;
-            padding: 0.75rem 1rem;
-            display: block;
-            border-radius: 4px;
-            transition: all 0.3s;
-        }
-
-        .sidebar-menu a:hover,
-        .sidebar-menu a.active {
-            background: rgba(255,255,255,0.2);
-            color: white;
-        }
-
-        /* Main Content */
-        .main-content {
-            margin-left: 250px;
-            padding: 2rem;
-        }
-
-        .header {
-            background: white;
-            padding: 1.5rem 2rem;
-            border-radius: 8px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            margin-bottom: 2rem;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
-        }
-
-        .header h1 {
-            font-size: 2rem;
-        }
-
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 1rem;
-        }
-
-        .user-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: #667eea;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
-        }
-
-        /* Dashboard Grid */
-        .dashboard-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 2rem;
-            margin-bottom: 2rem;
-        }
-
-        .card {
-            background: white;
-            padding: 1.5rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-
-        .card-title {
-            font-size: 0.9rem;
-            color: #666;
-            margin-bottom: 0.5rem;
-            text-transform: uppercase;
-            font-weight: 600;
-        }
-
-        .card-value {
-            font-size: 2rem;
-            font-weight: bold;
-            color: #667eea;
-            margin-bottom: 0.5rem;
-        }
-
-        .card-change {
-            font-size: 0.9rem;
-            color: #22c55e;
-        }
-
-        .card-change.negative {
-            color: #ef4444;
-        }
-
-        .card-icon {
-            text-align: right;
-            font-size: 2rem;
-        }
-
-        .card-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-        }
-
-        .chart-card {
-            grid-column: span 2;
-        }
-
-        @media (max-width: 1024px) {
-            .chart-card {
-                grid-column: span 1;
-            }
-        }
-
-        .chart {
-            width: 100%;
-            height: 300px;
-            background: linear-gradient(180deg, #f0f4ff 0%, #ffffff 100%);
-            border-radius: 4px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #999;
-        }
-
-        /* Table */
-        .table-section {
-            background: white;
-            padding: 2rem;
-            border-radius: 8px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-
-        .table-title {
-            font-size: 1.5rem;
-            margin-bottom: 1.5rem;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-        }
-
-        th {
-            background: #f5f7fa;
-            padding: 1rem;
-            text-align: left;
-            font-weight: 600;
-            color: #666;
-            border-bottom: 2px solid #e5e7eb;
-        }
-
-        td {
-            padding: 1rem;
-            border-bottom: 1px solid #e5e7eb;
-        }
-
-        tr:hover {
-            background: #f9fafc;
-        }
-
-        .symbol {
-            font-weight: 600;
-            color: #667eea;
-        }
-
-        .gain {
-            color: #22c55e;
-        }
-
-        .loss {
-            color: #ef4444;
-        }
-
-        .status-badge {
-            display: inline-block;
-            padding: 0.25rem 0.75rem;
-            border-radius: 20px;
-            font-size: 0.85rem;
-            font-weight: 600;
-        }
-
-        .status-active {
-            background: #dcfce7;
-            color: #166534;
-        }
-
-        .status-pending {
-            background: #fef3c7;
-            color: #92400e;
-        }
-
-        .btn-sm {
-            padding: 0.5rem 1rem;
-            border: 1px solid #e5e7eb;
-            background: white;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 0.9rem;
-            transition: all 0.3s;
-        }
-
-        .btn-sm:hover {
-            background: #f5f7fa;
-            border-color: #667eea;
-        }
-
-        .quick-actions {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-            gap: 1rem;
-            margin-bottom: 2rem;
-        }
-
-        .action-btn {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 1rem;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 1rem;
-            font-weight: 600;
-            transition: transform 0.3s;
-        }
-
-        .action-btn:hover {
-            transform: translateY(-2px);
-        }
-
-        @media (max-width: 768px) {
-            .dashboard-container {
-                grid-template-columns: 1fr;
-            }
-
-            .sidebar {
-                position: relative;
-                width: 100%;
-                height: auto;
-                padding: 1rem;
-            }
-
-            .main-content {
-                margin-left: 0;
-                padding: 1rem;
-            }
-
-            .dashboard-grid {
-                grid-template-columns: 1fr;
-            }
-
-            .chart-card {
-                grid-column: span 1;
-            }
-        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+        * { font-family: 'Inter', sans-serif; }
+        .gradient-text { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+        .gradient-bg { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .glass-effect { background: rgba(255, 255, 255, 0.05); backdrop-filter: blur(10px); border: 1px solid rgba(255, 255, 255, 0.1); }
+        .card-hover { transition: all 0.3s; }
+        .card-hover:hover { background: rgba(255, 255, 255, 0.08); border-color: rgba(102, 126, 234, 0.3); }
+        .chart-bar { flex: 1; background: linear-gradient(180deg, #667eea, #764ba2); border-radius: 4px 4px 0 0; transition: all 0.3s; opacity: 0.7; }
+        .chart-bar:hover { opacity: 1; filter: brightness(1.1); }
+        .status-badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; text-transform: uppercase; }
+        .status-active { background: rgba(34, 197, 94, 0.1); color: #22c55e; border: 1px solid rgba(34, 197, 94, 0.2); }
+        .status-pending { background: rgba(245, 158, 11, 0.1); color: #f59e0b; border: 1px solid rgba(245, 158, 11, 0.2); }
+        .sidebar { position: fixed; left: 0; top: 0; width: 280px; height: 100vh; background: linear-gradient(135deg, rgba(0, 0, 0, 0.8), rgba(102, 126, 234, 0.1)); backdrop-filter: blur(10px); border-right: 1px solid rgba(255, 255, 255, 0.1); overflow-y: auto; }
+        .sidebar-item { display: flex; align-items: center; gap: 12px; padding: 12px 20px; margin: 4px 8px; border-radius: 8px; cursor: pointer; color: rgba(255, 255, 255, 0.7); transition: all 0.3s; }
+        .sidebar-item:hover, .sidebar-item.active { background: rgba(102, 126, 234, 0.2); color: white; border-left: 2px solid #667eea; }
+        .main-content { margin-left: 280px; padding: 20px; }
+        @media (max-width: 768px) { .sidebar { display: none; } .main-content { margin-left: 0; } }
     </style>
 </head>
-<body>
-    <div class="dashboard-container">
-        <!-- Sidebar -->
-        <aside class="sidebar">
-            <div class="sidebar-logo">📈 Hermes</div>
-            <ul class="sidebar-menu">
-                <li><a href="#dashboard" class="active">📊 Dashboard</a></li>
-                <li><a href="#portfolio">💼 Portfolio</a></li>
-                <li><a href="#trading">⚡ Trading</a></li>
-                <li><a href="#analytics">📈 Analytics</a></li>
-                <li><a href="#strategies">🤖 Strategies</a></li>
-                <li><a href="#alerts">🔔 Alerts</a></li>
-                <li><a href="#settings">⚙️ Settings</a></li>
-                <li><a href="#help">❓ Help Center</a></li>
-            </ul>
-        </aside>
+<body class="bg-black text-white">
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="p-6 border-b border-white/10">
+            <div class="flex items-center gap-3 mb-2">
+                <span class="text-2xl">📈</span>
+                <span class="font-bold gradient-text text-lg">HERMES</span>
+            </div>
+            <p class="text-sm text-gray-500">Trading Platform</p>
+        </div>
 
-        <!-- Main Content -->
-        <main class="main-content">
-            <!-- Header -->
-            <div class="header">
-                <div>
-                    <h1>Welcome back, Trader!</h1>
-                    <p style="color: #666;">Monday, October 31, 2025 • Markets Open</p>
-                </div>
-                <div class="user-info">
+        <nav class="p-4">
+            <div class="sidebar-item active">
+                <span class="text-lg">📊</span>
+                <span>Dashboard</span>
+            </div>
+            <div class="sidebar-item">
+                <span class="text-lg">💼</span>
+                <span>Portfolio</span>
+            </div>
+            <div class="sidebar-item">
+                <span class="text-lg">⚡</span>
+                <span>Trading</span>
+            </div>
+            <div class="sidebar-item">
+                <span class="text-lg">📈</span>
+                <span>Analytics</span>
+            </div>
+            <div class="sidebar-item">
+                <span class="text-lg">🤖</span>
+                <span>AI Signals</span>
+            </div>
+            <div class="sidebar-item">
+                <span class="text-lg">🔔</span>
+                <span>Alerts</span>
+            </div>
+            <div class="border-t border-white/10 my-4"></div>
+            <div class="sidebar-item">
+                <span class="text-lg">⚙️</span>
+                <span>Settings</span>
+            </div>
+            <div class="sidebar-item">
+                <span class="text-lg">❓</span>
+                <span>Help</span>
+            </div>
+        </nav>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Header -->
+        <div class="glass-effect rounded-2xl p-6 mb-8 flex justify-between items-start">
+            <div>
+                <h1 class="text-3xl font-bold mb-2">Welcome back, Alex! 👋</h1>
+                <p class="text-gray-400">Thursday, October 31, 2025 | Markets: OPEN | AI Risk Score: LOW (8%)</p>
+            </div>
+            <div class="text-right">
+                <p class="font-semibold mb-1">Alex Thompson</p>
+                <p class="text-sm text-gray-400">Premium Member • Active 4 yrs</p>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <button class="gradient-bg p-4 rounded-lg font-semibold hover:shadow-lg transition text-white">
+                🛒 New Trade
+            </button>
+            <button class="glass-effect p-4 rounded-lg font-semibold hover:bg-white/10 transition">
+                📊 View AI Signals
+            </button>
+            <button class="glass-effect p-4 rounded-lg font-semibold hover:bg-white/10 transition">
+                ⚙️ Configure AI
+            </button>
+            <button class="glass-effect p-4 rounded-lg font-semibold hover:bg-white/10 transition">
+                📱 Mobile App
+            </button>
+        </div>
+
+        <!-- Metrics Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <!-- Portfolio Value -->
+            <div class="glass-effect rounded-2xl p-6 card-hover">
+                <div class="flex justify-between items-start mb-4">
                     <div>
-                        <p style="font-weight: 600;">John Trader</p>
-                        <p style="color: #666; font-size: 0.9rem;">Premium Member</p>
+                        <p class="text-gray-400 text-sm font-medium">Portfolio Value</p>
+                        <h2 class="text-3xl font-bold mt-2">$847,250</h2>
                     </div>
-                    <div class="user-avatar">JT</div>
+                    <span class="text-3xl">💰</span>
                 </div>
+                <p class="text-green-400 text-sm font-medium">+$12,850 today (+1.54%)</p>
+                <p class="text-gray-500 text-xs mt-1">All-time high: $892,100</p>
             </div>
 
-            <!-- Quick Actions -->
-            <div class="quick-actions">
-                <button class="action-btn">🛒 New Trade</button>
-                <button class="action-btn">📊 View Analytics</button>
-                <button class="action-btn">⚙️ Configure AI</button>
-                <button class="action-btn">📱 Mobile App</button>
+            <!-- Available Balance -->
+            <div class="glass-effect rounded-2xl p-6 card-hover">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-gray-400 text-sm font-medium">Available Balance</p>
+                        <h2 class="text-3xl font-bold mt-2">$203,750</h2>
+                    </div>
+                    <span class="text-3xl">💳</span>
+                </div>
+                <p class="text-gray-400 text-sm font-medium">Buying power available</p>
+                <p class="text-gray-500 text-xs mt-1">Next deposit: $0 (automatic)</p>
             </div>
 
-            <!-- Portfolio Overview -->
-            <div class="dashboard-grid">
-                <div class="card">
-                    <div class="card-row">
-                        <div>
-                            <div class="card-title">Portfolio Value</div>
-                            <div class="card-value">$524,380</div>
-                            <div class="card-change">+$8,240 today (+1.59%)</div>
-                        </div>
-                        <div class="card-icon">💰</div>
+            <!-- Today's Performance -->
+            <div class="glass-effect rounded-2xl p-6 card-hover">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-gray-400 text-sm font-medium">Today's Return</p>
+                        <h2 class="text-3xl font-bold mt-2">+$12,850</h2>
                     </div>
+                    <span class="text-3xl">📈</span>
                 </div>
-
-                <div class="card">
-                    <div class="card-row">
-                        <div>
-                            <div class="card-title">Available Balance</div>
-                            <div class="card-value">$127,450</div>
-                            <div class="card-change">Ready to invest</div>
-                        </div>
-                        <div class="card-icon">💳</div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card-row">
-                        <div>
-                            <div class="card-title">Daily Gain/Loss</div>
-                            <div class="card-value">+$8,240</div>
-                            <div class="card-change gain">+1.59% today</div>
-                        </div>
-                        <div class="card-icon">📈</div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div class="card-row">
-                        <div>
-                            <div class="card-title">YTD Return</div>
-                            <div class="card-value">+24.8%</div>
-                            <div class="card-change gain">vs 12.4% benchmark</div>
-                        </div>
-                        <div class="card-icon">🏆</div>
-                    </div>
-                </div>
-
-                <!-- Chart -->
-                <div class="card chart-card">
-                    <div class="card-title">Portfolio Performance (30 Days)</div>
-                    <div class="chart">
-                        <div style="text-align: center;">
-                            <div style="font-size: 3rem; margin-bottom: 1rem;">📊</div>
-                            <p>Interactive chart loading...</p>
-                            <p style="color: #999; font-size: 0.9rem;">Showing 30-day portfolio growth trend</p>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card chart-card">
-                    <div class="card-title">Asset Allocation</div>
-                    <div class="chart">
-                        <div style="text-align: center;">
-                            <div style="font-size: 3rem; margin-bottom: 1rem;">🥧</div>
-                            <p>Pie chart loading...</p>
-                            <p style="color: #999; font-size: 0.9rem;">Stocks: 45% | Bonds: 30% | Cash: 25%</p>
-                        </div>
-                    </div>
-                </div>
+                <p class="text-green-400 text-sm font-medium">+1.54% daily gain</p>
+                <p class="text-gray-500 text-xs mt-1">Best trade: +2.3% (AAPL)</p>
             </div>
 
-            <!-- Recent Trades -->
-            <div class="table-section">
-                <h2 class="table-title">Recent Trades</h2>
-                <table>
+            <!-- YTD Return -->
+            <div class="glass-effect rounded-2xl p-6 card-hover">
+                <div class="flex justify-between items-start mb-4">
+                    <div>
+                        <p class="text-gray-400 text-sm font-medium">YTD Return</p>
+                        <h2 class="text-3xl font-bold mt-2">+38.2%</h2>
+                    </div>
+                    <span class="text-3xl">🏆</span>
+                </div>
+                <p class="text-green-400 text-sm font-medium">vs 12.4% benchmark</p>
+                <p class="text-gray-500 text-xs mt-1">Win rate: 62.3%</p>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            <!-- Performance Chart -->
+            <div class="glass-effect rounded-2xl p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <div>
+                        <h3 class="text-lg font-semibold">30-Day Performance</h3>
+                        <p class="text-gray-400 text-sm mt-1">Cumulative daily returns</p>
+                    </div>
+                    <select class="bg-white/5 border border-white/10 rounded px-2 py-1 text-sm">
+                        <option>30 Days</option>
+                        <option>90 Days</option>
+                        <option>1 Year</option>
+                        <option>All Time</option>
+                    </select>
+                </div>
+                <div style="display: flex; align-items: flex-end; gap: 4px; height: 200px; padding: 20px;">
+                    <div class="chart-bar" style="height: 45%;"></div>
+                    <div class="chart-bar" style="height: 60%;"></div>
+                    <div class="chart-bar" style="height: 52%;"></div>
+                    <div class="chart-bar" style="height: 75%;"></div>
+                    <div class="chart-bar" style="height: 68%;"></div>
+                    <div class="chart-bar" style="height: 82%;"></div>
+                    <div class="chart-bar" style="height: 90%;"></div>
+                    <div class="chart-bar" style="height: 88%;"></div>
+                </div>
+                <p class="text-gray-500 text-xs mt-4">+9.2% total month-to-date. AI signals contributed +4.1%</p>
+            </div>
+
+            <!-- Asset Allocation -->
+            <div class="glass-effect rounded-2xl p-6">
+                <h3 class="text-lg font-semibold mb-6">Asset Allocation</h3>
+                <div class="space-y-5">
+                    <div>
+                        <div class="flex justify-between mb-2">
+                            <span>US Equities (45%)</span>
+                            <span class="font-semibold text-blue-400">$380,550</span>
+                        </div>
+                        <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                            <div class="h-full w-[45%] bg-blue-500 rounded-full"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between mb-2">
+                            <span>International (20%)</span>
+                            <span class="font-semibold text-purple-400">$169,450</span>
+                        </div>
+                        <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                            <div class="h-full w-[20%] bg-purple-500 rounded-full"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between mb-2">
+                            <span>Bonds & Fixed Income (20%)</span>
+                            <span class="font-semibold text-green-400">$169,450</span>
+                        </div>
+                        <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                            <div class="h-full w-[20%] bg-green-500 rounded-full"></div>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="flex justify-between mb-2">
+                            <span>Cash & Alternatives (15%)</span>
+                            <span class="font-semibold text-yellow-400">$127,088</span>
+                        </div>
+                        <div class="w-full h-2 bg-white/10 rounded-full overflow-hidden">
+                            <div class="h-full w-[15%] bg-yellow-500 rounded-full"></div>
+                        </div>
+                    </div>
+                </div>
+                <p class="text-gray-500 text-xs mt-6">✓ Portfolio is well-diversified. Rebalance recommended in 8 days.</p>
+            </div>
+        </div>
+
+        <!-- Recent Trades -->
+        <div class="glass-effect rounded-2xl p-6 mb-8">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-lg font-semibold">Recent Trades (Last 7 Days)</h3>
+                <button class="text-purple-400 hover:text-purple-300 transition text-sm">View All →</button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
                     <thead>
-                        <tr>
-                            <th>Symbol</th>
-                            <th>Type</th>
-                            <th>Quantity</th>
-                            <th>Price</th>
-                            <th>Total</th>
-                            <th>Time</th>
-                            <th>Status</th>
-                            <th>Action</th>
+                        <tr class="border-b border-white/10">
+                            <th class="text-left py-3 px-4 text-gray-400 font-medium text-sm">Symbol</th>
+                            <th class="text-left py-3 px-4 text-gray-400 font-medium text-sm">Type</th>
+                            <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Qty</th>
+                            <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Price</th>
+                            <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Total</th>
+                            <th class="text-left py-3 px-4 text-gray-400 font-medium text-sm">Profit/Loss</th>
+                            <th class="text-left py-3 px-4 text-gray-400 font-medium text-sm">Signal</th>
+                            <th class="text-left py-3 px-4 text-gray-400 font-medium text-sm">Status</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td class="symbol">TSLA</td>
-                            <td>BUY</td>
-                            <td>50</td>
-                            <td>$245.30</td>
-                            <td>$12,265</td>
-                            <td>2 hours ago</td>
-                            <td><span class="status-badge status-active">Filled</span></td>
-                            <td><button class="btn-sm">View</button></td>
+                        <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                            <td class="py-4 px-4"><span class="font-semibold text-cyan-400">NVDA</span></td>
+                            <td class="py-4 px-4"><span class="font-medium">BUY</span></td>
+                            <td class="py-4 px-4 text-right">15</td>
+                            <td class="py-4 px-4 text-right">$142.80</td>
+                            <td class="py-4 px-4 text-right">$2,142</td>
+                            <td class="py-4 px-4"><span class="text-green-400">+$285 (+13.3%)</span></td>
+                            <td class="py-4 px-4"><span class="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded">🤖 AI</span></td>
+                            <td class="py-4 px-4"><span class="status-badge status-active">Filled</span></td>
                         </tr>
-                        <tr>
-                            <td class="symbol">AAPL</td>
-                            <td>SELL</td>
-                            <td>30</td>
-                            <td>$189.50</td>
-                            <td>$5,685</td>
-                            <td>5 hours ago</td>
-                            <td><span class="status-badge status-active">Filled</span></td>
-                            <td><button class="btn-sm">View</button></td>
+                        <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                            <td class="py-4 px-4"><span class="font-semibold text-blue-400">AAPL</span></td>
+                            <td class="py-4 px-4"><span class="font-medium">BUY</span></td>
+                            <td class="py-4 px-4 text-right">40</td>
+                            <td class="py-4 px-4 text-right">$189.50</td>
+                            <td class="py-4 px-4 text-right">$7,580</td>
+                            <td class="py-4 px-4"><span class="text-green-400">+$742 (+9.8%)</span></td>
+                            <td class="py-4 px-4"><span class="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">📊 Manual</span></td>
+                            <td class="py-4 px-4"><span class="status-badge status-active">Filled</span></td>
                         </tr>
-                        <tr>
-                            <td class="symbol">MSFT</td>
-                            <td>BUY</td>
-                            <td>25</td>
-                            <td>$378.90</td>
-                            <td>$9,472.50</td>
-                            <td>1 day ago</td>
-                            <td><span class="status-badge status-active">Filled</span></td>
-                            <td><button class="btn-sm">View</button></td>
+                        <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                            <td class="py-4 px-4"><span class="font-semibold text-green-400">MSFT</span></td>
+                            <td class="py-4 px-4"><span class="font-medium">SELL</span></td>
+                            <td class="py-4 px-4 text-right">25</td>
+                            <td class="py-4 px-4 text-right">$378.90</td>
+                            <td class="py-4 px-4 text-right">$9,472</td>
+                            <td class="py-4 px-4"><span class="text-green-400">+$1,245 (+15.2%)</span></td>
+                            <td class="py-4 px-4"><span class="text-xs bg-purple-500/20 text-purple-400 px-2 py-1 rounded">🤖 AI</span></td>
+                            <td class="py-4 px-4"><span class="status-badge status-active">Filled</span></td>
                         </tr>
-                        <tr>
-                            <td class="symbol">GOOGL</td>
-                            <td>BUY</td>
-                            <td>15</td>
-                            <td>$140.50</td>
-                            <td>$2,107.50</td>
-                            <td>2 days ago</td>
-                            <td><span class="status-badge status-pending">Pending</span></td>
-                            <td><button class="btn-sm">Cancel</button></td>
+                        <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                            <td class="py-4 px-4"><span class="font-semibold text-red-400">GOOGL</span></td>
+                            <td class="py-4 px-4"><span class="font-medium">BUY</span></td>
+                            <td class="py-4 px-4 text-right">20</td>
+                            <td class="py-4 px-4 text-right">$140.50</td>
+                            <td class="py-4 px-4 text-right">$2,810</td>
+                            <td class="py-4 px-4"><span class="text-red-400">-$180 (-6.4%)</span></td>
+                            <td class="py-4 px-4"><span class="text-xs bg-blue-500/20 text-blue-400 px-2 py-1 rounded">📊 Manual</span></td>
+                            <td class="py-4 px-4"><span class="status-badge status-pending">Hold</span></td>
                         </tr>
                     </tbody>
                 </table>
             </div>
+        </div>
 
-            <!-- Holdings -->
-            <div class="table-section" style="margin-top: 2rem;">
-                <h2 class="table-title">Current Holdings</h2>
-                <table>
+        <!-- Current Holdings -->
+        <div class="glass-effect rounded-2xl p-6">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-lg font-semibold">Current Holdings (12 Positions)</h3>
+                <button class="text-purple-400 hover:text-purple-300 transition text-sm">Rebalance Portfolio →</button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full">
                     <thead>
-                        <tr>
-                            <th>Symbol</th>
-                            <th>Quantity</th>
-                            <th>Current Price</th>
-                            <th>Cost Basis</th>
-                            <th>Current Value</th>
-                            <th>Gain/Loss</th>
-                            <th>% Return</th>
+                        <tr class="border-b border-white/10">
+                            <th class="text-left py-3 px-4 text-gray-400 font-medium text-sm">Symbol</th>
+                            <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Qty</th>
+                            <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Current</th>
+                            <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Cost Basis</th>
+                            <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Value</th>
+                            <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">Gain/Loss</th>
+                            <th class="text-right py-3 px-4 text-gray-400 font-medium text-sm">% Return</th>
+                            <th class="text-left py-3 px-4 text-gray-400 font-medium text-sm">Risk</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td class="symbol">TSLA</td>
-                            <td>50</td>
-                            <td>$248.75</td>
-                            <td>$245.30</td>
-                            <td>$12,437.50</td>
-                            <td class="gain">+$172.50</td>
-                            <td class="gain">+1.41%</td>
+                        <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                            <td class="py-4 px-4"><span class="font-semibold">NVDA</span></td>
+                            <td class="py-4 px-4 text-right">15</td>
+                            <td class="py-4 px-4 text-right">$148.65</td>
+                            <td class="py-4 px-4 text-right">$142.80</td>
+                            <td class="py-4 px-4 text-right">$2,229.75</td>
+                            <td class="py-4 px-4 text-right text-green-400">+$285.75</td>
+                            <td class="py-4 px-4 text-right text-green-400">+14.7%</td>
+                            <td class="py-4 px-4"><span class="text-yellow-400 text-xs">HIGH</span></td>
                         </tr>
-                        <tr>
-                            <td class="symbol">AAPL</td>
-                            <td>75</td>
-                            <td>$192.20</td>
-                            <td>$185.50</td>
-                            <td>$14,415</td>
-                            <td class="gain">+$507.50</td>
-                            <td class="gain">+3.64%</td>
+                        <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                            <td class="py-4 px-4"><span class="font-semibold">AAPL</span></td>
+                            <td class="py-4 px-4 text-right">40</td>
+                            <td class="py-4 px-4 text-right">$195.30</td>
+                            <td class="py-4 px-4 text-right">$189.50</td>
+                            <td class="py-4 px-4 text-right">$7,812</td>
+                            <td class="py-4 px-4 text-right text-green-400">+$232</td>
+                            <td class="py-4 px-4 text-right text-green-400">+3.1%</td>
+                            <td class="py-4 px-4"><span class="text-green-400 text-xs">LOW</span></td>
                         </tr>
-                        <tr>
-                            <td class="symbol">MSFT</td>
-                            <td>40</td>
-                            <td>$375.80</td>
-                            <td>$378.90</td>
-                            <td>$15,032</td>
-                            <td class="loss">-$124</td>
-                            <td class="loss">-0.82%</td>
+                        <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                            <td class="py-4 px-4"><span class="font-semibold">MSFT</span></td>
+                            <td class="py-4 px-4 text-right">35</td>
+                            <td class="py-4 px-4 text-right">$385.20</td>
+                            <td class="py-4 px-4 text-right">$378.90</td>
+                            <td class="py-4 px-4 text-right">$13,482</td>
+                            <td class="py-4 px-4 text-right text-green-400">+$217.5</td>
+                            <td class="py-4 px-4 text-right text-green-400">+1.9%</td>
+                            <td class="py-4 px-4"><span class="text-green-400 text-xs">LOW</span></td>
                         </tr>
-                        <tr>
-                            <td class="symbol">VTI</td>
-                            <td>100</td>
-                            <td>$235.50</td>
-                            <td>$220.00</td>
-                            <td>$23,550</td>
-                            <td class="gain">+$1,550</td>
-                            <td class="gain">+7.05%</td>
+                        <tr class="border-b border-white/5 hover:bg-white/5 transition">
+                            <td class="py-4 px-4"><span class="font-semibold">VTI</span></td>
+                            <td class="py-4 px-4 text-right">85</td>
+                            <td class="py-4 px-4 text-right">$245.80</td>
+                            <td class="py-4 px-4 text-right">$220.00</td>
+                            <td class="py-4 px-4 text-right">$20,893</td>
+                            <td class="py-4 px-4 text-right text-green-400">+$2,193</td>
+                            <td class="py-4 px-4 text-right text-green-400">+11.8%</td>
+                            <td class="py-4 px-4"><span class="text-yellow-400 text-xs">MED</span></td>
+                        </tr>
+                        <tr class="hover:bg-white/5 transition">
+                            <td class="py-4 px-4"><span class="font-semibold">BND</span></td>
+                            <td class="py-4 px-4 text-right">150</td>
+                            <td class="py-4 px-4 text-right">$89.50</td>
+                            <td class="py-4 px-4 text-right">$87.30</td>
+                            <td class="py-4 px-4 text-right">$13,425</td>
+                            <td class="py-4 px-4 text-right text-green-400">+$330</td>
+                            <td class="py-4 px-4 text-right text-green-400">+2.5%</td>
+                            <td class="py-4 px-4"><span class="text-green-400 text-xs">LOW</span></td>
                         </tr>
                     </tbody>
                 </table>
             </div>
-        </main>
+        </div>
     </div>
 </body>
 </html>
