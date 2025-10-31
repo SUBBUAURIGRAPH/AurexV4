@@ -1,0 +1,617 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strategies Dashboard | Hermes</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            background: linear-gradient(135deg, #0f0f1e 0%, #1a1a2e 100%);
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', sans-serif;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 600;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .live-status {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px;
+            color: #4ade80;
+        }
+
+        .live-dot {
+            width: 6px;
+            height: 6px;
+            background: #4ade80;
+            border-radius: 50%;
+            animation: pulse 1.5s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .strategies-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .strategy-card {
+            background: rgba(102, 126, 234, 0.1);
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            transition: all 0.3s ease;
+        }
+
+        .strategy-card:hover {
+            background: rgba(102, 126, 234, 0.15);
+            border-color: rgba(102, 126, 234, 0.5);
+            transform: translateY(-2px);
+        }
+
+        .strategy-name {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .strategy-status {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 10px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-left: 8px;
+        }
+
+        .status-active {
+            background: rgba(74, 222, 128, 0.2);
+            color: #4ade80;
+        }
+
+        .status-paused {
+            background: rgba(251, 191, 36, 0.2);
+            color: #fbbf24;
+        }
+
+        .status-archived {
+            background: rgba(107, 114, 128, 0.2);
+            color: #999;
+        }
+
+        .update-indicator {
+            display: inline-block;
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: #4ade80;
+            animation: pulse 2s infinite;
+        }
+
+        .strategy-metrics {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 15px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+        }
+
+        .metric {
+            font-size: 12px;
+        }
+
+        .metric-label {
+            color: #999;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+            font-size: 10px;
+        }
+
+        .metric-value {
+            font-size: 18px;
+            font-weight: 700;
+            font-family: 'Courier New', monospace;
+        }
+
+        .metric-positive {
+            color: #4ade80;
+        }
+
+        .metric-negative {
+            color: #ef4444;
+        }
+
+        .strategy-description {
+            font-size: 12px;
+            color: #999;
+            line-height: 1.5;
+            margin-bottom: 15px;
+        }
+
+        .strategy-buttons {
+            display: flex;
+            gap: 8px;
+            font-size: 11px;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 8px 12px;
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            background: rgba(102, 126, 234, 0.1);
+            color: #667eea;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .btn:hover {
+            background: rgba(102, 126, 234, 0.2);
+            border-color: rgba(102, 126, 234, 0.5);
+        }
+
+        .charts-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(450px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .chart-card {
+            background: rgba(102, 126, 234, 0.1);
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+
+        .chart-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .chart-container {
+            position: relative;
+            height: 300px;
+        }
+
+        .performance-comparison {
+            background: rgba(102, 126, 234, 0.1);
+            border: 1px solid rgba(102, 126, 234, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+            margin-bottom: 30px;
+        }
+
+        .comparison-title {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .comparison-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead tr {
+            border-bottom: 1px solid rgba(102, 126, 234, 0.2);
+        }
+
+        th {
+            text-align: left;
+            padding: 12px;
+            color: #999;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            font-weight: 600;
+        }
+
+        td {
+            padding: 14px 12px;
+            border-bottom: 1px solid rgba(102, 126, 234, 0.1);
+            font-size: 13px;
+        }
+
+        tr:hover td {
+            background: rgba(102, 126, 234, 0.05);
+        }
+
+        .back-link {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 13px;
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            margin-bottom: 20px;
+        }
+
+        .back-link:hover {
+            color: #764ba2;
+        }
+
+        footer {
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(102, 126, 234, 0.2);
+            text-align: center;
+            color: #666;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <a href="/dashboard-v0.html" class="back-link">← Back to Dashboard</a>
+
+        <header>
+            <h1>🎯 Trading Strategies</h1>
+            <div class="live-status">
+                <div class="live-dot"></div>
+                <span>Real-Time Performance</span>
+            </div>
+        </header>
+
+        <div class="strategies-list" id="strategiesList">
+            <!-- Generated by JavaScript -->
+        </div>
+
+        <div class="charts-grid">
+            <div class="chart-card">
+                <div class="chart-title">
+                    <span class="update-indicator"></span>
+                    Strategy Returns Comparison
+                </div>
+                <div class="chart-container">
+                    <canvas id="returnsChart"></canvas>
+                </div>
+            </div>
+
+            <div class="chart-card">
+                <div class="chart-title">
+                    <span class="update-indicator"></span>
+                    Win Rate by Strategy
+                </div>
+                <div class="chart-container">
+                    <canvas id="winRateChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <div class="performance-comparison">
+            <div class="comparison-title">
+                <span class="update-indicator"></span>
+                Performance Metrics Comparison
+            </div>
+            <table class="comparison-table">
+                <thead>
+                    <tr>
+                        <th>Strategy</th>
+                        <th>Status</th>
+                        <th>Total Trades</th>
+                        <th>Win Rate</th>
+                        <th>Profit Factor</th>
+                        <th>Max Drawdown</th>
+                        <th>YTD Return</th>
+                        <th>Sharpe Ratio</th>
+                    </tr>
+                </thead>
+                <tbody id="comparisonTable">
+                    <!-- Generated by JavaScript -->
+                </tbody>
+            </table>
+        </div>
+
+        <footer>
+            <p>Real-time strategy performance tracking • Last update: <span id="last-update">Just now</span></p>
+            <p>Hermes Trading Platform • © 2025 Aurigraph DLT Corp</p>
+        </footer>
+    </div>
+
+    <script>
+        const strategies = [
+            {
+                name: "Momentum Trading",
+                emoji: "🚀",
+                status: "active",
+                description: "Capitalize on market momentum using technical indicators",
+                totalTrades: 87,
+                winRate: 68.4,
+                ytdReturn: 45.2,
+                profitFactor: 3.21,
+                maxDrawdown: -6.5,
+                currentPnL: 23450,
+                active: true
+            },
+            {
+                name: "Mean Reversion",
+                emoji: "↩️",
+                status: "active",
+                description: "Trade reversions to mean price levels",
+                totalTrades: 124,
+                winRate: 59.7,
+                ytdReturn: 28.5,
+                profitFactor: 2.45,
+                maxDrawdown: -9.2,
+                currentPnL: 18320,
+                active: true
+            },
+            {
+                name: "Breakout System",
+                emoji: "📈",
+                status: "active",
+                description: "Execute trades on key support/resistance breakouts",
+                totalTrades: 56,
+                winRate: 66.1,
+                ytdReturn: 38.9,
+                profitFactor: 2.98,
+                maxDrawdown: -7.1,
+                currentPnL: 15280,
+                active: true
+            },
+            {
+                name: "AI Signals",
+                emoji: "🤖",
+                status: "active",
+                description: "Machine learning generated trading signals",
+                totalTrades: 45,
+                winRate: 71.1,
+                ytdReturn: 52.3,
+                profitFactor: 3.55,
+                maxDrawdown: -5.8,
+                currentPnL: 31450,
+                active: true
+            },
+            {
+                name: "Swing Trading",
+                emoji: "🌊",
+                status: "paused",
+                description: "Medium-term trend following trades",
+                totalTrades: 32,
+                winRate: 62.5,
+                ytdReturn: 22.1,
+                profitFactor: 2.12,
+                maxDrawdown: -8.9,
+                currentPnL: 0,
+                active: false
+            },
+            {
+                name: "Pairs Trading",
+                emoji: "↔️",
+                status: "archived",
+                description: "Exploit relative mispricing between correlated assets",
+                totalTrades: 78,
+                winRate: 55.1,
+                ytdReturn: 12.4,
+                profitFactor: 1.85,
+                maxDrawdown: -12.3,
+                currentPnL: 0,
+                active: false
+            }
+        ];
+
+        // Render strategy cards
+        function renderStrategies() {
+            const list = document.getElementById('strategiesList');
+            list.innerHTML = '';
+
+            strategies.forEach(strategy => {
+                const card = document.createElement('div');
+                card.className = 'strategy-card';
+                card.innerHTML = `
+                    <div class="strategy-name">
+                        ${strategy.emoji} ${strategy.name}
+                        <span class="strategy-status status-${strategy.status}">
+                            ${strategy.status === 'active' ? '⚡ Active' : strategy.status === 'paused' ? '⏸ Paused' : '📋 Archived'}
+                        </span>
+                    </div>
+                    <div class="strategy-metrics">
+                        <div class="metric">
+                            <div class="metric-label">Win Rate</div>
+                            <div class="metric-value metric-positive">${strategy.winRate.toFixed(1)}%</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">YTD Return</div>
+                            <div class="metric-value metric-positive">+${strategy.ytdReturn.toFixed(1)}%</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Profit Factor</div>
+                            <div class="metric-value">${strategy.profitFactor.toFixed(2)}</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-label">Max Drawdown</div>
+                            <div class="metric-value metric-negative">${strategy.maxDrawdown.toFixed(1)}%</div>
+                        </div>
+                    </div>
+                    <div class="strategy-description">
+                        ${strategy.description}
+                    </div>
+                    <div class="strategy-buttons">
+                        <button class="btn">Details</button>
+                        <button class="btn">Edit</button>
+                    </div>
+                `;
+                list.appendChild(card);
+            });
+        }
+
+        // Initialize charts
+        let returnsChart, winRateChart;
+
+        function initializeCharts() {
+            const ctx1 = document.getElementById('returnsChart').getContext('2d');
+            returnsChart = new Chart(ctx1, {
+                type: 'bar',
+                data: {
+                    labels: strategies.map(s => s.name),
+                    datasets: [{
+                        label: 'YTD Return %',
+                        data: strategies.map(s => s.ytdReturn),
+                        backgroundColor: [
+                            '#667eea', '#764ba2', '#667eea', '#667eea', '#999', '#999'
+                        ],
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: {
+                            grid: { color: 'rgba(102, 126, 234, 0.1)' },
+                            ticks: { color: '#999' }
+                        },
+                        y: {
+                            grid: { display: false },
+                            ticks: { color: '#999' }
+                        }
+                    }
+                }
+            });
+
+            const ctx2 = document.getElementById('winRateChart').getContext('2d');
+            winRateChart = new Chart(ctx2, {
+                type: 'radar',
+                data: {
+                    labels: ['Win Rate', 'Profit Factor', 'Risk Adj Return', 'Consistency', 'Efficiency'],
+                    datasets: [
+                        {
+                            label: 'Momentum Trading',
+                            data: [68, 85, 80, 75, 88],
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.2)'
+                        },
+                        {
+                            label: 'AI Signals',
+                            data: [71, 88, 85, 82, 92],
+                            borderColor: '#764ba2',
+                            backgroundColor: 'rgba(118, 75, 162, 0.2)'
+                        },
+                        {
+                            label: 'Breakout System',
+                            data: [66, 80, 78, 70, 85],
+                            borderColor: '#4ade80',
+                            backgroundColor: 'rgba(74, 222, 128, 0.2)'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            labels: { color: '#999' }
+                        }
+                    },
+                    scales: {
+                        r: {
+                            grid: { color: 'rgba(102, 126, 234, 0.2)' },
+                            ticks: { color: '#999', backdropColor: 'transparent' }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Render comparison table
+        function renderComparisonTable() {
+            const tbody = document.getElementById('comparisonTable');
+            tbody.innerHTML = '';
+
+            strategies.forEach(s => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${s.emoji} ${s.name}</td>
+                    <td><span class="strategy-status status-${s.status}">${s.status === 'active' ? '⚡ Active' : s.status === 'paused' ? '⏸ Paused' : '📋 Archived'}</span></td>
+                    <td>${s.totalTrades}</td>
+                    <td style="color: #4ade80;">${s.winRate.toFixed(1)}%</td>
+                    <td>${s.profitFactor.toFixed(2)}</td>
+                    <td style="color: #ef4444;">${s.maxDrawdown.toFixed(1)}%</td>
+                    <td style="color: #4ade80;">+${s.ytdReturn.toFixed(1)}%</td>
+                    <td>${(s.profitFactor * 1.2).toFixed(2)}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Real-time updates
+        function updateData() {
+            // Simulate performance changes
+            strategies.forEach(s => {
+                if (s.active) {
+                    s.currentPnL += Math.random() * 1000 - 300;
+                }
+            });
+
+            const now = new Date();
+            document.getElementById('last-update').textContent = now.toLocaleTimeString();
+        }
+
+        // Initialize
+        renderStrategies();
+        initializeCharts();
+        renderComparisonTable();
+
+        // Update every 5 seconds
+        setInterval(updateData, 5000);
+    </script>
+</body>
+</html>
