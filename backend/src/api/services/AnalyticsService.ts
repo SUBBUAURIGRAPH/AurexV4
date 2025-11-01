@@ -4,11 +4,11 @@
  * @version 1.0.0
  */
 
-import { query } from '../../config/database';
-import { ApiError, ErrorCodes } from '../../types/index';
-import type { Portfolio, MarketStatusInfo } from '../../types/index';
-import PortfolioService from './PortfolioService';
-import TradesService from './TradesService';
+import { query } from '../../config/database.js';
+import { ApiError, ErrorCodes } from '../../types/index.js';
+import type { Portfolio, MarketStatusInfo } from '../../types/index.js';
+import PortfolioService from './PortfolioService.js';
+import TradesService from './TradesService.js';
 
 /**
  * Analytics Service - handles analytics and market-related operations
@@ -104,7 +104,7 @@ export class AnalyticsService {
 
     // Calculate risk factors
     const holdings = await this.portfolioService.getPositions(userId);
-    const positions = holdings.filter(h => h.quantity > 0);
+    const positions = holdings.filter((h: any) => h.quantity > 0);
 
     const factors = {
       volatility: this.calculateVolatility(positions),

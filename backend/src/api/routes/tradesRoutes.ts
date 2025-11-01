@@ -5,8 +5,8 @@
  */
 
 import { Router } from 'express';
-import tradesController from '../controllers/tradesController';
-import { authMiddleware } from '../middleware/auth';
+import tradesController from '../controllers/tradesController.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const router = Router();
 

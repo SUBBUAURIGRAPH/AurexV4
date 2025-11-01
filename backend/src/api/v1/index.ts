@@ -5,9 +5,9 @@
  */
 
 import { Router } from 'express';
-import portfolioRoutes from '../routes/portfolioRoutes';
-import tradesRoutes from '../routes/tradesRoutes';
-import analyticsRoutes from '../routes/analyticsRoutes';
+import portfolioRoutes from '../routes/portfolioRoutes.js';
+import tradesRoutes from '../routes/tradesRoutes.js';
+import analyticsRoutes from '../routes/analyticsRoutes.js';
 
 const router = Router();
 

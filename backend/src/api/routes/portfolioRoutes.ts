@@ -5,8 +5,8 @@
  */
 
 import { Router } from 'express';
-import portfolioController from '../controllers/portfolioController';
-import { authMiddleware } from '../middleware/auth';
+import portfolioController from '../controllers/portfolioController.js';
+import { authMiddleware } from '../middleware/auth.js';
 
 const router = Router();
 

@@ -5,7 +5,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { ApiError, ErrorCodes } from '../../types';
+import { ApiError, ErrorCodes } from '../../types/index.js';
 
 /**
  * Extended Request with user context

@@ -16,8 +16,8 @@ import {
   ApiResponse,
   ApiError,
   ErrorCodes
-} from '../../types';
-import TradesService from '../services/TradesService';
+} from '../../types/index.js';
+import TradesService from '../services/TradesService.js';
 
 /**
  * Extended Request with user context
@@ -108,8 +108,8 @@ export class TradesController {
       const holdings = await this.tradesService.getCurrentHoldings(userId);
 
       // Calculate totals
-      const totalValue = holdings.reduce((sum, h) => sum + (h.totalValue || 0), 0);
-      const totalGainLoss = holdings.reduce((sum, h) => sum + (h.gainLoss || 0), 0);
+      const totalValue = holdings.reduce((sum: number, h: Position) => sum + (h.totalValue || 0), 0);
+      const totalGainLoss = holdings.reduce((sum: number, h: Position) => sum + (h.gainLoss || 0), 0);
       const totalReturnPercent = totalValue > 0 ? (totalGainLoss / (totalValue - totalGainLoss)) * 100 : 0;
 
       const response: ApiResponse<any> = {

@@ -6,10 +6,10 @@
 
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
-import config from './config/env';
-import apiV1Routes from './api/v1';
-import { errorHandler, notFoundHandler } from './api/middleware/errorHandler';
-import authMiddleware from './api/middleware/auth';
+import config from './config/env.js';
+import apiV1Routes from './api/v1/index.js';
+import { errorHandler, notFoundHandler } from './api/middleware/errorHandler.js';
+import authMiddleware from './api/middleware/auth.js';
 
 /**
  * Create and configure Express application

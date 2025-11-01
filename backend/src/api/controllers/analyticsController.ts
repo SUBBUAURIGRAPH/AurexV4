@@ -13,8 +13,8 @@ import {
   ApiResponse,
   ApiError,
   ErrorCodes
-} from '../../types';
-import AnalyticsService from '../services/AnalyticsService';
+} from '../../types/index.js';
+import AnalyticsService from '../services/AnalyticsService.js';
 
 /**
  * Extended Request with user context

@@ -4,10 +4,10 @@
  * @version 1.0.0
  */
 
-import { query } from '../../config/database';
-import { ApiError, ErrorCodes } from '../../types/index';
-import type { Trade, Position } from '../../types/index';
-import config from '../../config/env';
+import { query } from '../../config/database.js';
+import { ApiError, ErrorCodes } from '../../types/index.js';
+import type { Trade, Position } from '../../types/index.js';
+import config from '../../config/env.js';
 
 /**
  * Trades Service - handles all trade and holding-related database operations

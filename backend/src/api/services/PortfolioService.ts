@@ -4,14 +4,14 @@
  * @version 1.0.0
  */
 
-import { query } from '../../config/database';
-import { ApiError, ErrorCodes } from '../../types/index';
+import { query } from '../../config/database.js';
+import { ApiError, ErrorCodes } from '../../types/index.js';
 import type {
   Portfolio,
   Position,
   AssetAllocation,
   PerformanceData
-} from '../../types/index';
+} from '../../types/index.js';
 
 /**
  * Portfolio Service - handles all portfolio-related database operations
@@ -102,13 +102,13 @@ export class PortfolioService {
     }
 
     return {
-      allocations: result.rows.map(row => ({
+      allocations: result.rows.map((row: any) => ({
         category: row.sector,
         percentage: parseFloat(row.percentage),
         value: parseFloat(row.total_value)
       })),
       rebalancingSuggestions: this.generateRebalancingSuggestions(
-        result.rows.map(row => ({
+        result.rows.map((row: any) => ({
           category: row.sector,
           percentage: parseFloat(row.percentage)
         }))

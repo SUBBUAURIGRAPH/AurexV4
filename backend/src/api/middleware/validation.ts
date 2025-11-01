@@ -5,7 +5,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { ApiError, ErrorCodes } from '../../types/index';
+import { ApiError, ErrorCodes } from '../../types/index.js';
 
 /**
  * Validate pagination parameters

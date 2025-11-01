@@ -18,8 +18,8 @@ import {
   PerformanceData,
   ApiError,
   ErrorCodes
-} from '../../types';
-import PortfolioService from '../services/PortfolioService';
+} from '../../types/index.js';
+import PortfolioService from '../services/PortfolioService.js';
 
 /**
  * Extended Request with user context

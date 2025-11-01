@@ -5,7 +5,7 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { ApiError, ErrorCodes, ApiResponse } from '../../types';
+import { ApiError, ErrorCodes, ApiResponse } from '../../types/index.js';
 
 /**
  * Error Handler Middleware

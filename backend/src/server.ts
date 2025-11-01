@@ -4,9 +4,9 @@
  * @version 1.0.0
  */
 
-import createApp from './app';
-import { initializeDatabase, closeDatabase, healthCheck } from './config/database';
-import config, { validateConfig } from './config/env';
+import createApp from './app.js';
+import { initializeDatabase, closeDatabase, healthCheck } from './config/database.js';
+import config, { validateConfig } from './config/env.js';
 
 /**
  * Start the server
