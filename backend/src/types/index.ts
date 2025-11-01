@@ -28,6 +28,14 @@ export interface User {
  */
 export type MarketStatus = 'OPEN' | 'CLOSED' | 'PRE_MARKET' | 'AFTER_HOURS';
 
+export interface MarketStatusInfo {
+  status: MarketStatus;
+  time: string;
+  isWeekday: boolean;
+  nextOpen?: string;
+  nextClose?: string;
+}
+
 export interface Portfolio {
   id: string;
   userId: string;
@@ -110,6 +118,7 @@ export interface PerformanceData {
   value: number;
   return?: number;
   returnPercent?: number;
+  change_percent?: number;
 }
 
 /**
@@ -173,5 +182,8 @@ export const ErrorCodes = {
   VALIDATION_ERROR: 'VALIDATION_ERROR',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
   DATABASE_ERROR: 'DATABASE_ERROR',
-  DUPLICATE_EMAIL: 'DUPLICATE_EMAIL'
+  DUPLICATE_EMAIL: 'DUPLICATE_EMAIL',
+  PORTFOLIO_NOT_FOUND: 'PORTFOLIO_NOT_FOUND',
+  POSITION_NOT_FOUND: 'POSITION_NOT_FOUND',
+  TRADE_NOT_FOUND: 'TRADE_NOT_FOUND'
 } as const;

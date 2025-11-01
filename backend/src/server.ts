@@ -6,7 +6,7 @@
 
 import createApp from './app';
 import { initializeDatabase, closeDatabase, healthCheck } from './config/database';
-import config from './config/env';
+import config, { validateConfig } from './config/env';
 
 /**
  * Start the server
@@ -20,7 +20,7 @@ async function startServer(): Promise<void> {
     // Validate Configuration
     // ============================================
     console.log('🔍 Validating configuration...');
-    config.validateConfig?.();
+    validateConfig();
 
     // ============================================
     // Initialize Database
