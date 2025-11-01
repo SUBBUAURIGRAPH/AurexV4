@@ -57,7 +57,9 @@ EXPOSE 3001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:3001/health || exit 1
+    CMD curl -f http://localhost:3000/health || exit 1
 
-# Start application - use the compiled JavaScript
-CMD ["node", "backend/dist/server.js"]
+# Start application - run the compiled backend server
+# Note: package.json has "type": "module" so we're using ES modules
+WORKDIR /app/backend
+CMD ["node", "dist/server.js"]
