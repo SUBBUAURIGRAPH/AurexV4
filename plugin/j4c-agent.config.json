@@ -352,7 +352,101 @@
       "api": "${HERMES_API_URL:http://localhost:8005}",
       "auth": "${HERMES_API_KEY}",
       "timeout": 30000,
-      "retries": 3
+      "retries": 3,
+      "cacheEnabled": true,
+      "cacheExpireSecs": 300,
+      "discoveryInterval": 3600000,
+      "agentDiscovery": true,
+      "skillAutoload": true,
+      "agents": [
+        {
+          "id": "dlt-developer",
+          "alias": "dlt",
+          "skills": ["blockchain-deploy", "token-creator", "dlt-auditor", "web3-integrator", "gas-optimizer"]
+        },
+        {
+          "id": "trading-operations",
+          "alias": "trading",
+          "skills": ["exchange-connector", "strategy-builder", "backtest-manager", "order-executor", "portfolio-analyzer", "market-scanner", "agent-orchestrator"]
+        },
+        {
+          "id": "devops-engineer",
+          "alias": "devops",
+          "skills": ["deploy-wizard", "docker-manager", "health-monitor", "infrastructure-provisioning", "container-orchestration", "log-aggregator", "monitoring-setup", "backup-manager"]
+        },
+        {
+          "id": "qa-engineer",
+          "alias": "qa",
+          "skills": ["test-runner", "performance-tester", "security-scanner", "test-report-generator", "coverage-analyzer", "regression-tester", "load-tester"]
+        },
+        {
+          "id": "project-manager",
+          "alias": "pm",
+          "skills": ["jira-sync", "todo-analyzer", "status-reporter", "timeline-planner", "risk-assessment", "resource-allocator", "progress-tracker"]
+        },
+        {
+          "id": "security-compliance",
+          "alias": "security",
+          "skills": ["vulnerability-scan", "compliance-check", "penetration-tester", "audit-logger", "credential-manager", "policy-enforcer", "incident-responder"]
+        },
+        {
+          "id": "data-engineer",
+          "alias": "data",
+          "skills": ["pipeline-builder", "data-validator", "analytics-runner", "report-generator", "etl-manager", "data-quality-checker", "warehouse-optimizer"]
+        },
+        {
+          "id": "frontend-developer",
+          "alias": "frontend",
+          "skills": ["ui-designer", "component-builder", "performance-optimizer", "accessibility-checker", "style-generator", "responsive-tester"]
+        },
+        {
+          "id": "sre-reliability",
+          "alias": "sre",
+          "skills": ["incident-response", "slo-monitoring", "auto-scaling-setup", "disaster-recovery-planner", "chaos-testing", "reliability-reporter"]
+        },
+        {
+          "id": "digital-marketing",
+          "alias": "marketing",
+          "skills": ["campaign-setup", "audience-segmentation", "content-planning", "channel-selection", "content-creation", "email-setup", "social-scheduling", "performance-tracking", "ab-testing", "roi-analysis", "reporting"]
+        },
+        {
+          "id": "employee-onboarding",
+          "alias": "onboarding",
+          "skills": ["welcome-setup", "it-provisioning", "orientation-guide", "training-delivery", "progress-assessment", "skill-evaluation", "final-assessment"]
+        },
+        {
+          "id": "gnn-heuristic-agent",
+          "alias": "gnn",
+          "skills": ["graph-analyzer", "optimization-solver", "prediction-engine", "pattern-detector", "anomaly-detector"]
+        },
+        {
+          "id": "dlt-architect",
+          "alias": "architect",
+          "skills": ["system-design", "architecture-review", "scalability-planner", "performance-architect"]
+        },
+        {
+          "id": "master-sop",
+          "alias": "sop",
+          "skills": ["sop-generator", "sop-validator", "best-practice-checker"]
+        }
+      ],
+      "workflows": {
+        "trading-pipeline": {
+          "enabled": true,
+          "description": "Execute Hermes trading pipeline with strategy and backtesting",
+          "agents": ["trading-operations", "devops-engineer", "data-engineer"]
+        },
+        "blockchain-deployment": {
+          "enabled": true,
+          "description": "Deploy blockchain contracts and DLT integrations",
+          "agents": ["dlt-developer", "devops-engineer", "security-compliance"]
+        },
+        "data-analysis": {
+          "enabled": true,
+          "description": "Run comprehensive data analysis and reporting",
+          "agents": ["data-engineer", "analytics", "project-manager"]
+        }
+      }
     },
     "jira": {
       "enabled": true,
