@@ -1,23 +1,18 @@
-# HMS Agent Architecture & Ecosystem
+# Aurigraph Agent Ecosystem - Complete Architecture
 
-**Document**: agents.md
-**Version**: 1.0.0
-**Last Updated**: October 31, 2025
-**Purpose**: Complete agent ecosystem documentation for HMS project
+**Version**: 2.1.0
+**Last Updated**: November 1, 2025
+**Status**: Production Ready ✅
 
----
+## Overview
 
-## 🤖 Agent Ecosystem Overview
-
-The HMS project leverages a sophisticated multi-agent architecture enabling specialized, coordinated development. This document maps all agents, their capabilities, and integration patterns.
-
-**Total Agents**: 13+ active agents
-**Integration Pattern**: Claude Code + Task Tool with specialized subagent types
-**Coordination**: Parallel execution where possible, sequential for dependencies
+The Aurigraph ecosystem consists of 13 specialized agents working collaboratively to provide comprehensive development, trading, and operational capabilities. This document provides a complete architecture reference for all agents.
 
 ---
 
-## 1. Core Framework Agents
+## Agent Directory
+
+### Core Trading Agents (3)
 
 ### 1.1 Haiku 4.5 (Primary Agent)
 **Role**: Main orchestrator and CLI interface
