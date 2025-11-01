@@ -6,7 +6,7 @@
 
 import { query } from '../../config/database';
 import { ApiError, ErrorCodes } from '../../types/index';
-import type { Portfolio } from '../../types/index';
+import type { Portfolio, MarketStatusInfo } from '../../types/index';
 import PortfolioService from './PortfolioService';
 import TradesService from './TradesService';
 
@@ -26,13 +26,7 @@ export class AnalyticsService {
    * Get current market status (OPEN or CLOSED)
    * Maps to: GET /api/v1/market/status
    */
-  async getMarketStatus(): Promise<{
-    status: 'OPEN' | 'CLOSED';
-    time: string;
-    nextOpen?: string;
-    nextClose?: string;
-    isWeekday: boolean;
-  }> {
+  async getMarketStatus(): Promise<MarketStatusInfo> {
     const now = new Date();
 
     // US Market hours: 9:30 AM - 4:00 PM EST (Monday-Friday)
@@ -47,8 +41,8 @@ export class AnalyticsService {
 
     const isOpen = isWeekday && time >= marketOpen && time < marketClose;
 
-    const response = {
-      status: isOpen ? 'OPEN' as const : 'CLOSED' as const,
+    const response: MarketStatusInfo = {
+      status: isOpen ? 'OPEN' : 'CLOSED',
       time: now.toISOString(),
       isWeekday
     };
@@ -97,7 +91,7 @@ export class AnalyticsService {
       );
     }
 
-    const score = portfolio.ai_risk_score || 5;
+    const score = portfolio.aiRiskScore || 5;
     let level: 'LOW' | 'MEDIUM' | 'HIGH';
 
     if (score <= 3) {
@@ -184,8 +178,8 @@ export class AnalyticsService {
 
     // Simplified metrics calculation
     return {
-      totalReturn: portfolio.total_gain_loss_percent || 0,
-      annualizedReturn: (portfolio.total_gain_loss_percent || 0) / 1.5, // Rough estimate
+      totalReturn: portfolio.totalGainLossPercent || 0,
+      annualizedReturn: (portfolio.totalGainLossPercent || 0) / 1.5, // Rough estimate
       sharpeRatio: 1.2, // Placeholder - would need more complex calculation
       maxDrawdown: 12.5, // Placeholder - would need historical data
       winRate: stats.winRate
@@ -213,8 +207,8 @@ export class AnalyticsService {
   private calculateConcentration(positions: any[]): number {
     if (positions.length === 0) return 0;
 
-    const totalValue = positions.reduce((sum, p) => sum + (p.total_value || 0), 0);
-    const largestPosition = Math.max(...positions.map(p => (p.total_value || 0) / totalValue));
+    const totalValue = positions.reduce((sum, p) => sum + (p.totalValue || 0), 0);
+    const largestPosition = Math.max(...positions.map(p => (p.totalValue || 0) / totalValue));
 
     return Math.round(largestPosition * 10);
   }
@@ -224,7 +218,7 @@ export class AnalyticsService {
    */
   private calculateLeverage(portfolio: Portfolio): number {
     // Simplified leverage check
-    const cashRatio = (portfolio.cash || 0) / (portfolio.total_value || 1);
+    const cashRatio = (portfolio.cash || 0) / (portfolio.totalValue || 1);
     const leverage = Math.max(0, (100 - (cashRatio * 100)) / 10);
     return Math.min(Math.round(leverage), 10);
   }

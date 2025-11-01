@@ -108,8 +108,8 @@ export class TradesController {
       const holdings = await this.tradesService.getCurrentHoldings(userId);
 
       // Calculate totals
-      const totalValue = holdings.reduce((sum, h) => sum + (h.total_value || 0), 0);
-      const totalGainLoss = holdings.reduce((sum, h) => sum + (h.gain_loss || 0), 0);
+      const totalValue = holdings.reduce((sum, h) => sum + (h.totalValue || 0), 0);
+      const totalGainLoss = holdings.reduce((sum, h) => sum + (h.gainLoss || 0), 0);
       const totalReturnPercent = totalValue > 0 ? (totalGainLoss / (totalValue - totalGainLoss)) * 100 : 0;
 
       const response: ApiResponse<any> = {

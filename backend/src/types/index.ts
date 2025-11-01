@@ -105,9 +105,13 @@ export interface Trade {
  * AssetAllocation Types
  */
 export interface AssetAllocation {
-  assetClass: string;
-  percentage: number;
-  value: number;
+  allocations: Array<{
+    category: string;
+    percentage: number;
+    value: number;
+  }>;
+  rebalancingSuggestions: string[];
+  lastUpdated: string;
 }
 
 /**
@@ -119,6 +123,7 @@ export interface PerformanceData {
   return?: number;
   returnPercent?: number;
   change_percent?: number;
+  daily_change?: number;
 }
 
 /**

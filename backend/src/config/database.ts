@@ -4,7 +4,7 @@
  * @version 1.0.0
  */
 
-import { Pool, PoolConfig, QueryResult } from 'pg';
+import { Pool, PoolConfig, QueryResult, QueryResultRow } from 'pg';
 
 /**
  * PostgreSQL connection pool
@@ -67,7 +67,7 @@ export async function initializeDatabase(): Promise<void> {
 /**
  * Execute query on pool
  */
-export async function query<T = any>(
+export async function query<T extends QueryResultRow = any>(
   text: string,
   values?: any[]
 ): Promise<QueryResult<T>> {
