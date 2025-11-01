@@ -173,63 +173,259 @@ Jeeves4Coder v1.1.0 is the enterprise-grade code review and quality assurance ag
 
 ---
 
-### 4. Testing Orchestration (1 skill)
+### 4. Testing Orchestration (1 skill - ENHANCED v2.0.0)
 
-#### 4.1 **run-tests** - Unified Test Execution
-**Purpose**: Execute and analyze test suites across frameworks
+#### 4.1 **run-tests** - Unified Test Execution & Analysis (1,555 lines, v2.0.0)
+**Purpose**: Comprehensive test suite execution and intelligent analysis across 8 frameworks
+**Status**: ✅ Production Ready with Advanced Features
 
-**Test Framework Support**:
-- Jest (JavaScript/TypeScript)
-- Pytest (Python)
-- Mocha (JavaScript)
-- Go testing (Go)
-- JUnit (Java)
-- TestNG (Java)
-- Cargo test (Rust)
-- Custom test runners
+**Test Framework Support** (8 frameworks):
+- **Jest** (JavaScript/TypeScript) - Full JSON report parsing + coverage-summary.json
+- **Pytest** (Python) - JSON report + coverage.json integration
+- **Mocha** (JavaScript) - JSON reporter + nyc coverage support
+- **Go Testing** (Go) - JSON output parsing + coverage.out with go tool cover
+- **JUnit** (Java) - Maven/Gradle support + XML report parsing
+- **TestNG** (Java) - TestNG XML format + JaCoCo coverage
+- **gRPC** (Protocol Buffers) - Language detection + Go/Python delegation
+- **SQL** (Database Testing) - Custom assertions + syntax validation
 
-**Capabilities**:
-- Test suite execution
-- Coverage analysis (line, branch, function, statement)
-- Flaky test detection
-- Slow test identification
-- Test dependency analysis
-- Parallel execution optimization
-- Performance profiling
-- Result aggregation
+**Core Capabilities**:
 
-**Output**:
+1. **Framework Auto-Detection**
+   - Intelligent detection from configuration files
+   - Confidence scoring
+   - Explicit specification fallback
+   - 8 file patterns checked
+
+2. **Test Execution** (Multi-Framework)
+   - Automatic framework selection
+   - Parallel execution optimization (configurable workers)
+   - Timeout management (5-minute default)
+   - Graceful error handling
+
+3. **Coverage Analysis** (All 4 Types)
+   - **Line Coverage**: Uncovered code paths
+   - **Branch Coverage**: Conditional branches
+   - **Function Coverage**: Function/method coverage
+   - **Statement Coverage**: Statement-level analysis
+   - **File-level Details**: Ranked uncovered files
+   - **5-minute Cache**: Performance optimization
+
+4. **Advanced Flaky Test Detection** (NEW)
+   - Multi-run testing (configurable: 2-10 runs)
+   - Pattern analysis:
+     * Alternating pass/fail (shared state)
+     * Consistent failures (broken tests)
+     * Variable timing (race conditions)
+   - Failure rate calculation
+   - Severity classification (high/medium/low)
+   - Pattern-based recommendations
+
+5. **Performance Profiling** (Enhanced)
+   - **Test Metrics**:
+     * Average duration per test
+     * Median duration
+     * P95/P99 percentiles
+     * Total suite duration
+   - **Framework Overhead Tracking**:
+     * Detection time
+     * Execution time
+     * Coverage analysis time
+     * Flaky detection time
+     * Report generation time
+   - **Bottleneck Identification**:
+     * Automatic hotspot detection
+     * Impact assessment (high/medium/low)
+     * Optimization suggestions
+
+6. **Slow Test Identification**
+   - Top 10 slowest tests ranked
+   - Threshold ratio calculations
+   - Impact percentage on total suite
+   - Tiered recommendations:
+     * Critical (>10x): Split tests, mock operations
+     * High (>5x): Review queries, use test doubles
+     * Medium (>2x): Optimize setup/teardown
+     * Low: Monitor for regression
+
+7. **Health Score Calculation** (0-100)
+   - **Test Pass Rate Component** (0-40 points deducted)
+   - **Coverage Score Component** (0-30 points deducted)
+   - **Stability Score** (0-20 points deducted for flaky tests)
+   - **Performance Score** (0-10 points deducted for slow tests)
+   - Letter grade assignment (A-F)
+
+8. **Comprehensive Recommendations**
+   - Prioritized by severity (critical/high/medium/low)
+   - Categorized (quality, stability, coverage, performance)
+   - Actionable with impact assessment
+   - Trend-aware suggestions
+
+9. **Execution History & Statistics**
+   - Last 100 executions tracked
+   - Success rate calculation
+   - Average duration (human-readable format)
+   - Average coverage tracking
+   - Health score trending
+   - Trend analysis (improving/declining/stable)
+
+**Output Format** (Comprehensive):
 ```json
 {
+  "status": "failed",
   "summary": {
     "total_tests": 326,
     "passed": 315,
     "failed": 8,
     "skipped": 3,
-    "duration": 145,
-    "success_rate": "96.6%"
+    "duration": 145000,
+    "duration_formatted": "2m 25s",
+    "success_rate": 96.6
   },
   "coverage": {
     "line": 95.2,
     "branch": 87.3,
     "function": 98.1,
-    "statement": 95.1
+    "statement": 95.1,
+    "overall": 94.2,
+    "meets_threshold": {
+      "line": true,
+      "branch": true,
+      "function": true,
+      "statement": true,
+      "overall": true
+    },
+    "gaps": [
+      {
+        "type": "line_coverage",
+        "current": 95.2,
+        "target": 80,
+        "gap": -15.2,
+        "priority": "none",
+        "files": []
+      }
+    ]
   },
   "flaky_tests": [
     {
       "name": "should handle concurrent orders",
-      "failure_rate": "33%",
-      "severity": "high"
+      "failure_rate": "33.3",
+      "severity": "high",
+      "failures": 1,
+      "successes": 2,
+      "total_runs": 3,
+      "average_duration": "1234.56",
+      "runs_detail": [
+        {"passed": true, "duration": 1200, "runNumber": 1},
+        {"passed": false, "error": "Timeout", "runNumber": 2},
+        {"passed": true, "duration": 1300, "runNumber": 3}
+      ],
+      "recommendation": "Alternating pass/fail pattern detected. Likely caused by shared state between tests..."
     }
   ],
   "slow_tests": [
     {
+      "rank": 1,
       "name": "should backtest 5-year history",
       "duration": 8542,
-      "recommendation": "Consider splitting or mocking"
+      "duration_formatted": "8.54s",
+      "threshold_ratio": "8.54",
+      "recommendation": "Critical: Consider splitting into multiple smaller tests...",
+      "impact": "5.8%"
     }
-  ]
+  ],
+  "performance": {
+    "total_duration": 145000,
+    "average_test_duration": 445.2,
+    "median_test_duration": 234,
+    "p95_test_duration": 2100,
+    "p99_test_duration": 5200,
+    "framework_overhead": {
+      "detection_ms": 45,
+      "execution_ms": 140000,
+      "coverage_ms": 3500,
+      "flaky_detection_ms": 1200,
+      "reporting_ms": 255,
+      "total_ms": 145000
+    },
+    "bottlenecks": [
+      {
+        "type": "test_execution",
+        "impact": "high",
+        "message": "Test execution is the primary bottleneck",
+        "time_ms": 140000
+      }
+    ],
+    "optimization_suggestions": [
+      "Enable parallel test execution to reduce execution time"
+    ]
+  },
+  "recommendations": [
+    {
+      "category": "test_quality",
+      "priority": "critical",
+      "message": "8 test(s) failing. Immediate attention required.",
+      "action": "Review failing tests and fix implementation or update test assertions",
+      "impact": "high"
+    },
+    {
+      "category": "test_stability",
+      "priority": "high",
+      "message": "1 flaky test(s) detected (1 high severity).",
+      "action": "Alternating pass/fail pattern detected...",
+      "impact": "medium"
+    }
+  ],
+  "health_score": {
+    "score": 82,
+    "grade": "B",
+    "breakdown": {
+      "test_pass_rate": 96,
+      "coverage_score": 94,
+      "stability_score": 90,
+      "performance_score": 95
+    }
+  },
+  "timestamp": "2025-11-01T10:30:45.123Z"
 }
+```
+
+**Configuration Options**:
+```javascript
+const skill = new RunTestsSkill({
+  timeout: 300000,                // 5 minutes
+  parallel: true,                 // Enable parallel execution
+  maxWorkers: 4,                  // Max parallel workers
+  coverageThreshold: 80,          // Target coverage %
+  flakyThreshold: 0.2,            // Flaky detection threshold
+  flakyDetectionRuns: 3,          // Number of test runs for flaky detection
+  slowTestThreshold: 1000,        // Slow test threshold (ms)
+  verbose: false,                 // Verbose logging
+  performanceProfile: true        // Enable performance profiling
+});
+```
+
+**Real-World Usage**:
+```javascript
+const skill = new RunTestsSkill({ coverageThreshold: 80 });
+
+// Run with auto-detection
+const results = await skill.runTests({
+  projectPath: './my-project'
+});
+
+// Run specific framework
+const jestResults = await skill.runTests({
+  projectPath: './my-project',
+  framework: 'jest',
+  parallel: true
+});
+
+// Get statistics
+const stats = skill.getStatistics();
+console.log(`Success Rate: ${stats.success_rate}%`);
+console.log(`Avg Coverage: ${stats.average_coverage}%`);
+console.log(`Trend: ${stats.trend}`);
 ```
 
 ---
