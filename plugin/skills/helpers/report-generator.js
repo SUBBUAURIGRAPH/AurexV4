@@ -34,14 +34,15 @@ class ReportGenerator {
    * @returns {string} JSON formatted report
    */
   generateJSONReport(findings) {
+    const findingsArray = Array.isArray(findings) ? findings : [findings];
     const report = {
       metadata: {
         generated: this.timestamp,
         version: '1.0.0',
         format: 'json'
       },
-      summary: this.aggregateMetrics(findings),
-      findings: Array.isArray(findings) ? findings : [findings]
+      summary: this.aggregateMetrics(findingsArray),
+      findings: findingsArray
     };
 
     return JSON.stringify(report, null, 2);

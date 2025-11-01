@@ -285,6 +285,14 @@ async function executeTests(testPath, framework, options) {
 
     results.executionTime = Date.now() - startTime;
 
+    // Detect flaky tests if enabled
+    if (options.retryFlaky && results.failedTests && results.failedTests.length > 0) {
+      results.flakyTests = await detectFlakyTests(testPath, framework, results.failedTests, options);
+    }
+
+    // Generate recommendations
+    results.recommendations = generateRecommendations(results);
+
     return results;
   } catch (error) {
     return {
@@ -299,6 +307,182 @@ async function executeTests(testPath, framework, options) {
       executionTime: Date.now() - startTime
     };
   }
+}
+
+/**
+ * Detect flaky tests by retrying failed tests
+ */
+async function detectFlakyTests(testPath, framework, failedTests, options) {
+  const flakyTests = [];
+  const maxRetries = options.maxRetries || 2;
+
+  for (const test of failedTests) {
+    let passCount = 0;
+    let failCount = 0;
+
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        let retryResults = {};
+
+        switch (framework) {
+          case 'jest':
+            retryResults = executeJestSingleTest(testPath, test.name, options);
+            break;
+          case 'mocha':
+            retryResults = executeMochaSingleTest(testPath, test.name, options);
+            break;
+          case 'pytest':
+            retryResults = executePytestSingleTest(testPath, test.name, options);
+            break;
+          default:
+            continue;
+        }
+
+        if (retryResults.success) {
+          passCount++;
+        } else {
+          failCount++;
+        }
+      } catch (e) {
+        failCount++;
+      }
+    }
+
+    if (passCount > 0 && failCount > 0) {
+      flakyTests.push({
+        name: test.name,
+        failureCount: failCount,
+        attempts: maxRetries,
+        flakiness: Math.round((failCount / maxRetries) * 100),
+        severity: failCount > maxRetries / 2 ? 'high' : 'medium'
+      });
+    }
+  }
+
+  return flakyTests;
+}
+
+/**
+ * Execute single Jest test for flaky detection
+ */
+function executeJestSingleTest(testPath, testName, options) {
+  try {
+    const args = ['--testNamePattern="' + testName + '"', '--json'];
+    execSync('npx jest ' + args.join(' ') + ' ' + testPath, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    return { success: true };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+/**
+ * Execute single Mocha test for flaky detection
+ */
+function executeMochaSingleTest(testPath, testName, options) {
+  try {
+    const args = ['--grep="' + testName + '"'];
+    execSync('npx mocha ' + args.join(' ') + ' ' + testPath, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    return { success: true };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+/**
+ * Execute single Pytest test for flaky detection
+ */
+function executePytestSingleTest(testPath, testName, options) {
+  try {
+    const args = ['-k', testName];
+    execSync('pytest ' + args.join(' ') + ' ' + testPath, {
+      encoding: 'utf-8',
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    return { success: true };
+  } catch (error) {
+    return { success: false };
+  }
+}
+
+/**
+ * Generate recommendations based on test results
+ */
+function generateRecommendations(results) {
+  const recommendations = [];
+  const stats = results.statistics || {};
+  const total = stats.total || 0;
+  const failed = stats.failed || 0;
+  const skipped = stats.skipped || 0;
+  const coverage = results.coverage || {};
+
+  // Coverage recommendations
+  if (coverage && coverage.statements !== undefined && coverage.statements < 80) {
+    recommendations.push({
+      type: 'coverage',
+      priority: 'high',
+      message: 'Increase test coverage from ' + coverage.statements + '% to at least 80%',
+      impact: 'Better code reliability and fewer production bugs'
+    });
+  }
+
+  if (coverage && coverage.statements !== undefined && coverage.statements < 90) {
+    recommendations.push({
+      type: 'coverage',
+      priority: 'medium',
+      message: 'Target 90%+ coverage (currently ' + coverage.statements + '%)',
+      impact: 'Improved confidence in code changes'
+    });
+  }
+
+  // Flaky test recommendations
+  if (results.flakyTests && results.flakyTests.length > 0) {
+    recommendations.push({
+      type: 'flakiness',
+      priority: 'high',
+      message: 'Fix ' + results.flakyTests.length + ' flaky tests that intermittently fail',
+      tests: results.flakyTests.map(t => t.name),
+      impact: 'More reliable test suite and faster feedback loops'
+    });
+  }
+
+  // High failure rate
+  if (failed > total * 0.05) {
+    recommendations.push({
+      type: 'failure-rate',
+      priority: 'high',
+      message: 'Failure rate ' + Math.round((failed / total) * 100) + '% is too high',
+      impact: 'Focus on reducing test failures'
+    });
+  }
+
+  // High skip rate
+  if (skipped > total * 0.1) {
+    recommendations.push({
+      type: 'skip-rate',
+      priority: 'medium',
+      message: 'Skip rate ' + Math.round((skipped / total) * 100) + '% is high. Enable or remove skipped tests.',
+      impact: 'Better test coverage and validation'
+    });
+  }
+
+  // Performance recommendations
+  const avgTime = results.executionTime / (total || 1);
+  if (avgTime > 1000) {
+    recommendations.push({
+      type: 'performance',
+      priority: 'medium',
+      message: 'Tests are slow (avg ' + Math.round(avgTime) + 'ms). Consider parallel execution.',
+      impact: 'Faster feedback loops and CI/CD pipelines'
+    });
+  }
+
+  return recommendations;
 }
 
 /**

@@ -1,0 +1,36 @@
+# Grafana Data Source Configuration - Prometheus
+# Place this in grafana/provisioning/datasources/prometheus.yml
+
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    type: prometheus
+    access: proxy
+    url: http://prometheus:9090
+    isDefault: true
+    editable: true
+    jsonData:
+      timeInterval: 15s
+    version: 1
+
+  - name: Alertmanager
+    type: alertlist
+    access: proxy
+    url: http://alertmanager:9093
+    editable: true
+    version: 1
+
+dashboardProviders:
+  dashboardproviders.yaml:
+    apiVersion: 1
+    providers:
+      - name: 'HMS Dashboards'
+        orgId: 1
+        folder: 'HMS Production'
+        type: file
+        disableDeletion: false
+        updateIntervalSeconds: 10
+        allowUiUpdates: true
+        options:
+          path: /var/lib/grafana/dashboards

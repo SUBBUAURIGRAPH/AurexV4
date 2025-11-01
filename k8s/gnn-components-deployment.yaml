@@ -1,0 +1,802 @@
+---
+# GNN-HMS Trading System - Component Deployments
+# Version: 1.0.0
+# Kubernetes 1.24+ Compatible
+# Purpose: Deployment configurations for all 7 GNN components
+
+# ============================================================================
+# 1. GNN TRADING MANAGER - Foundation & Graph Management
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gnn-trading-manager
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-trading-manager
+    version: "1.0.0"
+    tier: core
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: gnn-hms-trading-system
+      component: gnn-trading-manager
+  template:
+    metadata:
+      labels:
+        app: gnn-hms-trading-system
+        component: gnn-trading-manager
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: gnn-hms-sa
+      priorityClassName: gnn-hms-critical
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: component
+                  operator: In
+                  values:
+                  - gnn-trading-manager
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: gnn-trading-manager
+        image: aurigraph/gnn-hms:1.0.0-trading-manager
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8001
+          protocol: TCP
+        - name: metrics
+          containerPort: 9090
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: COMPONENT_NAME
+          value: "gnn-trading-manager"
+        - name: SERVICE_PORT
+          value: "8001"
+        - name: METRICS_PORT
+          value: "9090"
+        - name: LOG_LEVEL
+          value: "info"
+        envFrom:
+        - configMapRef:
+            name: gnn-hms-config
+        - secretRef:
+            name: gnn-hms-secrets
+        resources:
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+          limits:
+            cpu: "2000m"
+            memory: "2Gi"
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8001
+            scheme: HTTP
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8001
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        startupProbe:
+          httpGet:
+            path: /health/startup
+            port: 8001
+            scheme: HTTP
+          failureThreshold: 30
+          periodSeconds: 10
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+        - name: cache-volume
+          mountPath: /app/cache
+        - name: logs-volume
+          mountPath: /app/logs
+      volumes:
+      - name: config-volume
+        configMap:
+          name: gnn-trading-manager-config
+      - name: cache-volume
+        emptyDir:
+          sizeLimit: 1Gi
+      - name: logs-volume
+        emptyDir:
+          sizeLimit: 2Gi
+
+---
+# ============================================================================
+# 2. GNN HMS INTEGRATION - Unified Orchestration Layer
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gnn-hms-integration
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-hms-integration
+    version: "1.0.0"
+    tier: orchestration
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: gnn-hms-trading-system
+      component: gnn-hms-integration
+  template:
+    metadata:
+      labels:
+        app: gnn-hms-trading-system
+        component: gnn-hms-integration
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9091"
+    spec:
+      serviceAccountName: gnn-hms-sa
+      priorityClassName: gnn-hms-critical
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: component
+                  operator: In
+                  values:
+                  - gnn-hms-integration
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: gnn-hms-integration
+        image: aurigraph/gnn-hms:1.0.0-hms-integration
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8002
+          protocol: TCP
+        - name: metrics
+          containerPort: 9091
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: COMPONENT_NAME
+          value: "gnn-hms-integration"
+        - name: SERVICE_PORT
+          value: "8002"
+        - name: METRICS_PORT
+          value: "9091"
+        - name: GNN_MANAGER_HOST
+          value: "gnn-trading-manager:8001"
+        envFrom:
+        - configMapRef:
+            name: gnn-hms-config
+        - secretRef:
+            name: gnn-hms-secrets
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "1Gi"
+          limits:
+            cpu: "2500m"
+            memory: "2.5Gi"
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8002
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8002
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        volumeMounts:
+        - name: config-volume
+          mountPath: /app/config
+          readOnly: true
+        - name: cache-volume
+          mountPath: /app/cache
+      volumes:
+      - name: config-volume
+        configMap:
+          name: gnn-hms-integration-config
+      - name: cache-volume
+        emptyDir:
+          sizeLimit: 2Gi
+
+---
+# ============================================================================
+# 3. GNN MARKET RECOGNIZER - Real-time Pattern Detection
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gnn-market-recognizer
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-market-recognizer
+    version: "1.0.0"
+    tier: analysis
+spec:
+  replicas: 4
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: gnn-hms-trading-system
+      component: gnn-market-recognizer
+  template:
+    metadata:
+      labels:
+        app: gnn-hms-trading-system
+        component: gnn-market-recognizer
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9092"
+    spec:
+      serviceAccountName: gnn-hms-sa
+      priorityClassName: gnn-hms-critical
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: component
+                  operator: In
+                  values:
+                  - gnn-market-recognizer
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: gnn-market-recognizer
+        image: aurigraph/gnn-hms:1.0.0-market-recognizer
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8003
+          protocol: TCP
+        - name: metrics
+          containerPort: 9092
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: COMPONENT_NAME
+          value: "gnn-market-recognizer"
+        - name: SERVICE_PORT
+          value: "8003"
+        - name: METRICS_PORT
+          value: "9092"
+        - name: PATTERN_CACHE_SIZE
+          value: "10000"
+        envFrom:
+        - configMapRef:
+            name: gnn-hms-config
+        - secretRef:
+            name: gnn-hms-secrets
+        resources:
+          requests:
+            cpu: "1500m"
+            memory: "1.5Gi"
+          limits:
+            cpu: "3000m"
+            memory: "3Gi"
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8003
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8003
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        volumeMounts:
+        - name: pattern-cache
+          mountPath: /app/patterns
+      volumes:
+      - name: pattern-cache
+        emptyDir:
+          sizeLimit: 3Gi
+
+---
+# ============================================================================
+# 4. GNN PORTFOLIO OPTIMIZER - Advanced Allocation Engine
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gnn-portfolio-optimizer
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-portfolio-optimizer
+    version: "1.0.0"
+    tier: optimization
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: gnn-hms-trading-system
+      component: gnn-portfolio-optimizer
+  template:
+    metadata:
+      labels:
+        app: gnn-hms-trading-system
+        component: gnn-portfolio-optimizer
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9093"
+    spec:
+      serviceAccountName: gnn-hms-sa
+      priorityClassName: gnn-hms-critical
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: component
+                  operator: In
+                  values:
+                  - gnn-portfolio-optimizer
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: gnn-portfolio-optimizer
+        image: aurigraph/gnn-hms:1.0.0-portfolio-optimizer
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8004
+          protocol: TCP
+        - name: metrics
+          containerPort: 9093
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: COMPONENT_NAME
+          value: "gnn-portfolio-optimizer"
+        - name: SERVICE_PORT
+          value: "8004"
+        - name: METRICS_PORT
+          value: "9093"
+        - name: OPTIMIZATION_TIMEOUT
+          value: "30000"
+        envFrom:
+        - configMapRef:
+            name: gnn-hms-config
+        - secretRef:
+            name: gnn-hms-secrets
+        resources:
+          requests:
+            cpu: "2000m"
+            memory: "2Gi"
+          limits:
+            cpu: "4000m"
+            memory: "4Gi"
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8004
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8004
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        volumeMounts:
+        - name: optimization-cache
+          mountPath: /app/optimization
+      volumes:
+      - name: optimization-cache
+        emptyDir:
+          sizeLimit: 2Gi
+
+---
+# ============================================================================
+# 5. GNN RISK DETECTOR - Multi-level Risk Analysis
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gnn-risk-detector
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-risk-detector
+    version: "1.0.0"
+    tier: risk-management
+spec:
+  replicas: 4
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: gnn-hms-trading-system
+      component: gnn-risk-detector
+  template:
+    metadata:
+      labels:
+        app: gnn-hms-trading-system
+        component: gnn-risk-detector
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9094"
+    spec:
+      serviceAccountName: gnn-hms-sa
+      priorityClassName: gnn-hms-critical
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: component
+                  operator: In
+                  values:
+                  - gnn-risk-detector
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: gnn-risk-detector
+        image: aurigraph/gnn-hms:1.0.0-risk-detector
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8005
+          protocol: TCP
+        - name: metrics
+          containerPort: 9094
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: COMPONENT_NAME
+          value: "gnn-risk-detector"
+        - name: SERVICE_PORT
+          value: "8005"
+        - name: METRICS_PORT
+          value: "9094"
+        - name: ALERT_THRESHOLD
+          value: "0.7"
+        - name: MONITORING_INTERVAL
+          value: "5000"
+        envFrom:
+        - configMapRef:
+            name: gnn-hms-config
+        - secretRef:
+            name: gnn-hms-secrets
+        resources:
+          requests:
+            cpu: "1500m"
+            memory: "1.5Gi"
+          limits:
+            cpu: "3000m"
+            memory: "3Gi"
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8005
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8005
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        volumeMounts:
+        - name: alerts-volume
+          mountPath: /app/alerts
+      volumes:
+      - name: alerts-volume
+        emptyDir:
+          sizeLimit: 1Gi
+
+---
+# ============================================================================
+# 6. GNN STRATEGY LEARNER - Continuous Learning Engine
+# ============================================================================
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: gnn-strategy-learner
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-strategy-learner
+    version: "1.0.0"
+    tier: learning
+spec:
+  serviceName: gnn-strategy-learner
+  replicas: 2
+  selector:
+    matchLabels:
+      app: gnn-hms-trading-system
+      component: gnn-strategy-learner
+  template:
+    metadata:
+      labels:
+        app: gnn-hms-trading-system
+        component: gnn-strategy-learner
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9095"
+    spec:
+      serviceAccountName: gnn-hms-sa
+      priorityClassName: gnn-hms-critical
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: component
+                  operator: In
+                  values:
+                  - gnn-strategy-learner
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: gnn-strategy-learner
+        image: aurigraph/gnn-hms:1.0.0-strategy-learner
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8006
+          protocol: TCP
+        - name: metrics
+          containerPort: 9095
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: COMPONENT_NAME
+          value: "gnn-strategy-learner"
+        - name: SERVICE_PORT
+          value: "8006"
+        - name: METRICS_PORT
+          value: "9095"
+        - name: LEARNING_RATE
+          value: "0.001"
+        - name: BATCH_SIZE
+          value: "32"
+        envFrom:
+        - configMapRef:
+            name: gnn-hms-config
+        - secretRef:
+            name: gnn-hms-secrets
+        resources:
+          requests:
+            cpu: "2000m"
+            memory: "2Gi"
+          limits:
+            cpu: "4000m"
+            memory: "4Gi"
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8006
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8006
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        volumeMounts:
+        - name: learning-data
+          mountPath: /app/learning
+        - name: model-storage
+          mountPath: /app/models
+  volumeClaimTemplates:
+  - metadata:
+      name: learning-data
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: fast-ssd
+      resources:
+        requests:
+          storage: 10Gi
+  - metadata:
+      name: model-storage
+    spec:
+      accessModes: ["ReadWriteOnce"]
+      storageClassName: fast-ssd
+      resources:
+        requests:
+          storage: 10Gi
+
+---
+# ============================================================================
+# 7. GNN PRODUCTION DEPLOYMENT MANAGER - Enterprise Deployment & Monitoring
+# ============================================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: gnn-production-deployment
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-production-deployment
+    version: "1.0.0"
+    tier: deployment
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app: gnn-hms-trading-system
+      component: gnn-production-deployment
+  template:
+    metadata:
+      labels:
+        app: gnn-hms-trading-system
+        component: gnn-production-deployment
+        version: "1.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9096"
+    spec:
+      serviceAccountName: gnn-hms-sa
+      priorityClassName: gnn-hms-normal
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: component
+                  operator: In
+                  values:
+                  - gnn-production-deployment
+              topologyKey: kubernetes.io/hostname
+      containers:
+      - name: gnn-production-deployment
+        image: aurigraph/gnn-hms:1.0.0-production-deployment
+        imagePullPolicy: IfNotPresent
+        ports:
+        - name: http
+          containerPort: 8007
+          protocol: TCP
+        - name: metrics
+          containerPort: 9096
+          protocol: TCP
+        env:
+        - name: NODE_ENV
+          value: "production"
+        - name: COMPONENT_NAME
+          value: "gnn-production-deployment"
+        - name: SERVICE_PORT
+          value: "8007"
+        - name: METRICS_PORT
+          value: "9096"
+        - name: DEPLOYMENT_MODE
+          value: "blue-green"
+        - name: HEALTH_CHECK_INTERVAL
+          value: "30000"
+        envFrom:
+        - configMapRef:
+            name: gnn-hms-config
+        - secretRef:
+            name: gnn-hms-secrets
+        resources:
+          requests:
+            cpu: "1000m"
+            memory: "1Gi"
+          limits:
+            cpu: "2000m"
+            memory: "2Gi"
+        livenessProbe:
+          httpGet:
+            path: /health/live
+            port: 8007
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health/ready
+            port: 8007
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 2
+        volumeMounts:
+        - name: deployment-config
+          mountPath: /app/deployments
+        - name: monitoring-data
+          mountPath: /app/monitoring
+      volumes:
+      - name: deployment-config
+        configMap:
+          name: gnn-production-deployment-config
+      - name: monitoring-data
+        emptyDir:
+          sizeLimit: 2Gi

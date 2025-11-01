@@ -1,0 +1,199 @@
+{
+  "dashboard": {
+    "title": "GNN Risk Decomposition",
+    "uid": "gnn-risk-decomposition",
+    "version": 1,
+    "timezone": "UTC",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Portfolio Risk",
+        "type": "gauge",
+        "gridPos": { "h": 8, "w": 6, "x": 0, "y": 0 },
+        "targets": [
+          { "expr": "gnn_total_risk" }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 0.5,
+            "unit": "percentunit",
+            "color": { "mode": "thresholds" },
+            "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 0.2 }, { "color": "red", "value": 0.3 }] }
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Concentration Risk",
+        "type": "gauge",
+        "gridPos": { "h": 8, "w": 6, "x": 6, "y": 0 },
+        "targets": [
+          { "expr": "gnn_herfindahl_index" }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 1,
+            "color": { "mode": "thresholds" },
+            "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": 0 }, { "color": "yellow", "value": 0.2 }, { "color": "red", "value": 0.4 }] }
+          }
+        }
+      },
+      {
+        "id": 3,
+        "title": "Volatility",
+        "type": "stat",
+        "gridPos": { "h": 8, "w": 6, "x": 12, "y": 0 },
+        "targets": [
+          { "expr": "gnn_volatility" }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "percentunit" }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Max Drawdown",
+        "type": "stat",
+        "gridPos": { "h": 8, "w": 6, "x": 18, "y": 0 },
+        "targets": [
+          { "expr": "gnn_max_drawdown" }
+        ],
+        "fieldConfig": {
+          "defaults": { "unit": "percentunit" }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Risk Factors Decomposition",
+        "type": "piechart",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+        "targets": [
+          { "expr": "gnn_factor_risk_breakdown" }
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Correlation Matrix",
+        "type": "heatmap",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+        "targets": [
+          { "expr": "gnn_correlation_matrix" }
+        ]
+      },
+      {
+        "id": 7,
+        "title": "Value at Risk (VaR)",
+        "type": "stat",
+        "gridPos": { "h": 6, "w": 6, "x": 0, "y": 16 },
+        "targets": [
+          { "expr": "gnn_var_95" },
+          { "expr": "gnn_var_99" }
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Conditional VaR (CVaR)",
+        "type": "stat",
+        "gridPos": { "h": 6, "w": 6, "x": 6, "y": 16 },
+        "targets": [
+          { "expr": "gnn_cvar_95" },
+          { "expr": "gnn_cvar_99" }
+        ]
+      },
+      {
+        "id": 9,
+        "title": "Tail Risk Metrics",
+        "type": "stat",
+        "gridPos": { "h": 6, "w": 6, "x": 12, "y": 16 },
+        "targets": [
+          { "expr": "gnn_excess_kurtosis" },
+          { "expr": "gnn_skewness" }
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Diversification Score",
+        "type": "gauge",
+        "gridPos": { "h": 6, "w": 6, "x": 18, "y": 16 },
+        "targets": [
+          { "expr": "gnn_diversification_score" }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 1,
+            "color": { "mode": "thresholds" },
+            "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 0.5 }, { "color": "green", "value": 0.7 }] }
+          }
+        }
+      },
+      {
+        "id": 11,
+        "title": "Stress Test Scenarios",
+        "type": "table",
+        "gridPos": { "h": 8, "w": 24, "x": 0, "y": 22 },
+        "targets": [
+          { "expr": "gnn_stress_test_results" }
+        ]
+      },
+      {
+        "id": 12,
+        "title": "Rolling Volatility (60-day)",
+        "type": "timeseries",
+        "gridPos": { "h": 6, "w": 12, "x": 0, "y": 30 },
+        "targets": [
+          { "expr": "gnn_rolling_volatility_60" }
+        ]
+      },
+      {
+        "id": 13,
+        "title": "Rolling Correlation (AAPL/SPY)",
+        "type": "timeseries",
+        "gridPos": { "h": 6, "w": 12, "x": 12, "y": 30 },
+        "targets": [
+          { "expr": "gnn_rolling_correlation_60" }
+        ]
+      },
+      {
+        "id": 14,
+        "title": "Concentration by Sector",
+        "type": "bargauge",
+        "gridPos": { "h": 8, "w": 12, "x": 0, "y": 36 },
+        "targets": [
+          { "expr": "gnn_sector_concentration" }
+        ]
+      },
+      {
+        "id": 15,
+        "title": "Liquidity Score",
+        "type": "gauge",
+        "gridPos": { "h": 8, "w": 12, "x": 12, "y": 36 },
+        "targets": [
+          { "expr": "gnn_liquidity_score" }
+        ],
+        "fieldConfig": {
+          "defaults": {
+            "min": 0,
+            "max": 100,
+            "color": { "mode": "thresholds" },
+            "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": 0 }, { "color": "yellow", "value": 50 }, { "color": "green", "value": 80 }] }
+          }
+        }
+      }
+    ],
+    "refresh": "5m",
+    "time": { "from": "now-1y", "to": "now" },
+    "templating": {
+      "list": [
+        {
+          "name": "confidence_level",
+          "type": "custom",
+          "options": ["0.90", "0.95", "0.99"],
+          "current": { "value": "0.95" }
+        }
+      ]
+    }
+  }
+}

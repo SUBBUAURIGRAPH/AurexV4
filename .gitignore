@@ -9,6 +9,7 @@ plugin/package-lock.json
 
 # Build output
 dist/
+build/
 plugin/dist/
 *.tgz
 
@@ -46,3 +47,4 @@ coverage/
 *secrets*.json
 *.key
 *.pem
+hermes-*.tar.gz

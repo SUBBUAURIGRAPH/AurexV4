@@ -1,0 +1,590 @@
+---
+# GNN-HMS Trading System - Horizontal Pod Autoscaling
+# Version: 1.0.0
+# Purpose: Auto-scaling based on CPU, memory, latency, and custom metrics
+
+# ============================================================================
+# METRICS SERVER (Required for HPA)
+# Install: kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+# ============================================================================
+
+# ============================================================================
+# GNN TRADING MANAGER HPA
+# ============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gnn-trading-manager-hpa
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-trading-manager
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gnn-trading-manager
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+      - type: Pods
+        value: 1
+        periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+
+---
+# ============================================================================
+# GNN HMS INTEGRATION HPA
+# ============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gnn-hms-integration-hpa
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-hms-integration
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gnn-hms-integration
+  minReplicas: 3
+  maxReplicas: 12
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 65
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Pods
+    pods:
+      metric:
+        name: http_request_duration_seconds
+      target:
+        type: AverageValue
+        averageValue: 200m  # 200 milliseconds
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 30
+      - type: Pods
+        value: 2
+        periodSeconds: 30
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 25
+        periodSeconds: 60
+
+---
+# ============================================================================
+# GNN MARKET RECOGNIZER HPA
+# ============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gnn-market-recognizer-hpa
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-market-recognizer
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gnn-market-recognizer
+  minReplicas: 4
+  maxReplicas: 15
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 60
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Pods
+    pods:
+      metric:
+        name: trade_signals_per_second
+      target:
+        type: AverageValue
+        averageValue: "1000"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 0
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+      - type: Pods
+        value: 2
+        periodSeconds: 15
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+
+---
+# ============================================================================
+# GNN PORTFOLIO OPTIMIZER HPA
+# ============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gnn-portfolio-optimizer-hpa
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-portfolio-optimizer
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gnn-portfolio-optimizer
+  minReplicas: 3
+  maxReplicas: 10
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  - type: Pods
+    pods:
+      metric:
+        name: optimization_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: "100"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+      - type: Pods
+        value: 1
+        periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 25
+        periodSeconds: 120
+
+---
+# ============================================================================
+# GNN RISK DETECTOR HPA
+# ============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gnn-risk-detector-hpa
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-risk-detector
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gnn-risk-detector
+  minReplicas: 4
+  maxReplicas: 12
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 65
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 75
+  - type: Pods
+    pods:
+      metric:
+        name: alerts_per_second
+      target:
+        type: AverageValue
+        averageValue: "50"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 30
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 30
+      - type: Pods
+        value: 1
+        periodSeconds: 30
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 50
+        periodSeconds: 60
+
+---
+# ============================================================================
+# GNN PRODUCTION DEPLOYMENT HPA
+# ============================================================================
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: gnn-production-deployment-hpa
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-production-deployment
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: gnn-production-deployment
+  minReplicas: 3
+  maxReplicas: 8
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 75
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 60
+      selectPolicy: Max
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Pods
+        value: 1
+        periodSeconds: 120
+
+---
+# ============================================================================
+# CUSTOM METRICS - PROMETHEUS ADAPTER CONFIG
+# Install: helm install prometheus-adapter prometheus-community/prometheus-adapter
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-adapter-config
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+data:
+  config.yaml: |
+    rules:
+    - seriesQuery: 'http_request_duration_seconds_bucket'
+      seriesFilters: []
+      resources:
+        template: <<.Resource>>
+      name:
+        matches: "^http_request_duration_seconds_bucket"
+        as: "http_request_duration_seconds"
+      metricsQuery: 'rate(http_request_duration_seconds_sum[1m]) / rate(http_request_duration_seconds_count[1m])'
+
+    - seriesQuery: 'trade_signals_total'
+      seriesFilters: []
+      resources:
+        template: <<.Resource>>
+      name:
+        matches: "^trade_signals_total"
+        as: "trade_signals_per_second"
+      metricsQuery: 'rate(trade_signals_total[1m])'
+
+    - seriesQuery: 'optimization_requests_total'
+      seriesFilters: []
+      resources:
+        template: <<.Resource>>
+      name:
+        matches: "^optimization_requests_total"
+        as: "optimization_requests_per_second"
+      metricsQuery: 'rate(optimization_requests_total[1m])'
+
+    - seriesQuery: 'alerts_generated_total'
+      seriesFilters: []
+      resources:
+        template: <<.Resource>>
+      name:
+        matches: "^alerts_generated_total"
+        as: "alerts_per_second"
+      metricsQuery: 'rate(alerts_generated_total[1m])'
+
+    - seriesQuery: 'portfolio_volatility'
+      seriesFilters: []
+      resources:
+        template: <<.Resource>>
+      name:
+        matches: "^portfolio_volatility"
+        as: "current_portfolio_volatility"
+      metricsQuery: 'portfolio_volatility'
+
+    - seriesQuery: 'trade_volume_per_minute'
+      seriesFilters: []
+      resources:
+        template: <<.Resource>>
+      name:
+        matches: "^trade_volume_per_minute"
+        as: "current_trade_volume"
+      metricsQuery: 'trade_volume_per_minute'
+
+---
+# ============================================================================
+# VERTICAL POD AUTOSCALER (VPA) - For resource recommendations
+# Install: https://github.com/kubernetes/autoscaler/tree/master/vertical-pod-autoscaler
+# ============================================================================
+apiVersion: autoscaling.k8s.io/v1
+kind: VerticalPodAutoscaler
+metadata:
+  name: gnn-trading-manager-vpa
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-trading-manager
+spec:
+  targetRef:
+    apiVersion: "apps/v1"
+    kind: Deployment
+    name: gnn-trading-manager
+  updatePolicy:
+    updateMode: "Auto"  # Can be "Off", "Initial", "Recreate", or "Auto"
+  resourcePolicy:
+    containerPolicies:
+    - containerName: gnn-trading-manager
+      minAllowed:
+        cpu: 100m
+        memory: 128Mi
+      maxAllowed:
+        cpu: 2
+        memory: 2Gi
+      controlledResources:
+      - cpu
+      - memory
+
+---
+# ============================================================================
+# SCHEDULED SCALING POLICY (CronJobs for predictable patterns)
+# ============================================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gnn-hms-scale-up-market-open
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: scaling
+spec:
+  # Scale up 30 minutes before market open (9:30 AM ET = 1:30 PM UTC)
+  schedule: "0 13 * * 1-5"  # 1:00 PM UTC (weekdays only)
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: gnn-hms-sa
+          containers:
+          - name: scale-up
+            image: bitnami/kubectl:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              kubectl patch hpa gnn-market-recognizer-hpa -p '{"spec":{"minReplicas":8}}' -n gnn-hms
+              kubectl patch hpa gnn-risk-detector-hpa -p '{"spec":{"minReplicas":6}}' -n gnn-hms
+          restartPolicy: OnFailure
+
+---
+# ============================================================================
+# SCHEDULED SCALING POLICY - Market Close Scale Down
+# ============================================================================
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: gnn-hms-scale-down-market-close
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: scaling
+spec:
+  # Scale down 30 minutes after market close (4:00 PM ET = 8:00 PM UTC)
+  schedule: "30 20 * * 1-5"  # 8:30 PM UTC (weekdays only)
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: gnn-hms-sa
+          containers:
+          - name: scale-down
+            image: bitnami/kubectl:latest
+            command:
+            - /bin/sh
+            - -c
+            - |
+              kubectl patch hpa gnn-market-recognizer-hpa -p '{"spec":{"minReplicas":4}}' -n gnn-hms
+              kubectl patch hpa gnn-risk-detector-hpa -p '{"spec":{"minReplicas":4}}' -n gnn-hms
+          restartPolicy: OnFailure
+
+---
+# ============================================================================
+# AUTOSCALING POLICY DOCUMENTATION
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gnn-autoscaling-policy
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: autoscaling
+data:
+  scaling-strategy.md: |
+    # GNN-HMS Autoscaling Strategy
+
+    ## Overview
+    - Components scale based on CPU, memory, and custom metrics
+    - Trading-intensive components (Market Recognizer, Risk Detector) scale more aggressively
+    - Scaling respects business hours with scheduled adjustments
+
+    ## Component Scaling Targets
+
+    ### Trading Manager
+    - Min Replicas: 3
+    - Max Replicas: 10
+    - CPU Target: 70%
+    - Memory Target: 80%
+    - Scale-up: 60s stabilization, 50% increase
+    - Scale-down: 300s stabilization, 50% decrease
+
+    ### HMS Integration
+    - Min Replicas: 3
+    - Max Replicas: 12
+    - CPU Target: 65%
+    - Memory Target: 75%
+    - Latency Target: 200ms p95
+    - Scale-up: 30s stabilization, 100% increase (aggressive)
+    - Scale-down: 300s stabilization, 25% decrease
+
+    ### Market Recognizer
+    - Min Replicas: 4 (8 during market hours)
+    - Max Replicas: 15
+    - CPU Target: 60%
+    - Memory Target: 70%
+    - Signal Volume Target: 1000 signals/sec per pod
+    - Scale-up: 15s stabilization, 100% increase (very aggressive)
+    - Scale-down: 300s stabilization, 50% decrease
+
+    ### Portfolio Optimizer
+    - Min Replicas: 3
+    - Max Replicas: 10
+    - CPU Target: 75%
+    - Memory Target: 80%
+    - Optimization Load Target: 100 req/sec per pod
+    - Scale-up: 60s stabilization, 50% increase
+    - Scale-down: 300s stabilization, 25% decrease
+
+    ### Risk Detector
+    - Min Replicas: 4 (6 during market hours)
+    - Max Replicas: 12
+    - CPU Target: 65%
+    - Memory Target: 75%
+    - Alert Rate Target: 50 alerts/sec per pod
+    - Scale-up: 30s stabilization, 50% increase
+    - Scale-down: 300s stabilization, 50% decrease
+
+    ### Production Deployment
+    - Min Replicas: 3
+    - Max Replicas: 8
+    - CPU Target: 70%
+    - Memory Target: 75%
+    - Scale-up: 60s stabilization, single pod at a time
+    - Scale-down: 300s stabilization, single pod at a time
+
+    ## Business Hour Adjustments
+    - Market Open (9:30 AM ET): Scale to 80% of max replicas
+    - Market Close (4:00 PM ET): Scale to minimum replicas
+    - After-hours: Maintenance and learning mode at minimum replicas
+
+    ## Scaling Triggers
+    1. CPU Utilization: Primary trigger
+    2. Memory Utilization: Secondary trigger
+    3. Custom Metrics: Trade signals, optimization requests, alerts
+    4. Latency: Response time thresholds
+    5. Business Logic: Market hours and trading volume
+
+    ## Monitoring and Alerts
+    - Monitor HPA status: kubectl get hpa -n gnn-hms -w
+    - Check scaling events: kubectl describe hpa <name> -n gnn-hms
+    - Alert on failed scaling: HPA reaching max replicas consistently
+    - Alert on underutilization: Components below 20% resource utilization

@@ -481,7 +481,262 @@ Always strive to leave code better than you found it.
 
 ---
 
+## ✨ ENHANCED FEATURES (Added October 31, 2025)
+
+### 8. Performance Profiling & Benchmarking 🚀
+**NEW CAPABILITY**: Comprehensive code profiling and performance analysis
+
+When performance profiling is needed, MUST:
+- Identify CPU hotspots using language-specific profilers
+- Analyze memory usage patterns and potential leaks
+- Generate flame graphs for visualization
+- Provide benchmarking recommendations
+- Suggest optimization targets with impact analysis
+- Compare performance before/after optimizations
+
+**Supported Languages**:
+- Node.js: V8 Inspector, Clinic.js
+- Python: cProfile, py-spy, Scalene
+- Rust: cargo-flamegraph, perf
+- Go: pprof, trace
+- Java: JFR, VisualVM
+- .NET: dotTrace, Windows Performance Toolkit
+
+**Trigger Phrases**: "profile this code", "memory leak", "performance bottleneck", "flamegraph", "benchmark"
+
+**Output Format**:
+```json
+{
+  "status": "complete",
+  "hotspots": [
+    {"function": "processOrder", "cpu%": 45, "samples": 1200},
+    {"function": "calculateMetrics", "cpu%": 30, "samples": 800}
+  ],
+  "memory": {
+    "peak_mb": 256,
+    "leaks_detected": 0,
+    "recommendations": ["Use object pool for X", "Cache expensive computation Y"]
+  },
+  "optimization_targets": [
+    {"function": "processOrder", "potential_improvement": "40%", "effort": "medium"}
+  ]
+}
+```
+
+### 9. Documentation Generation 📖
+**NEW CAPABILITY**: Automated documentation creation and quality improvement
+
+When documentation is needed, PROACTIVELY:
+- Generate OpenAPI 3.0 specifications from code
+- Create comprehensive README files
+- Generate API documentation with examples
+- Create architecture diagrams
+- Assess comment quality and coverage
+- Generate changelog entries
+- Create user guides and tutorials
+
+**Features**:
+- Auto-detect public APIs
+- Extract parameter documentation
+- Generate request/response examples
+- Create endpoint grouping
+- Generate SDK documentation
+- Multi-language support (TypeScript, Python, Java, etc.)
+
+**Output Formats**:
+- OpenAPI YAML/JSON
+- Markdown documentation
+- HTML output
+- PDF generation (when requested)
+- Mermaid diagrams
+- Swagger UI ready
+
+**Trigger Phrases**: "generate docs", "create API documentation", "document API", "generate README"
+
+### 10. Testing Orchestration & Optimization 🧪
+**NEW CAPABILITY**: Comprehensive test strategy and execution management
+
+When testing requires orchestration:
+- Design test architecture for comprehensive coverage
+- Identify critical test paths (80/20 rule)
+- Optimize test execution order
+- Detect and eliminate flaky tests
+- Generate test coverage reports
+- Implement advanced testing patterns
+- Suggest testing frameworks and tools
+
+**Testing Levels**:
+1. **Unit Tests**: Function-level testing (Jest, Pytest, etc.)
+2. **Integration Tests**: Module interaction testing
+3. **Contract Tests**: API contract validation
+4. **E2E Tests**: Full user journey testing
+5. **Performance Tests**: Load and stress testing
+6. **Security Tests**: Vulnerability scanning
+
+**Test Optimization Techniques**:
+- Parallel test execution
+- Test dependency analysis
+- Flaky test quarantine
+- Test data management
+- Mock and stub optimization
+- Coverage-guided testing
+
+**Output**:
+```json
+{
+  "test_strategy": {
+    "unit_tests": {"count": 150, "coverage": "95%", "time_ms": 1200},
+    "integration_tests": {"count": 45, "coverage": "85%", "time_ms": 3500},
+    "e2e_tests": {"count": 20, "coverage": "80%", "time_ms": 15000}
+  },
+  "flaky_tests": [{"test": "testOrderProcessing", "fail_rate": "2%"}],
+  "recommendations": ["Parallelize unit tests", "Mock external APIs", "Use TestContainers"]
+}
+```
+
+### 11. Advanced Code Coverage Analysis 📊
+**NEW CAPABILITY**: Deep code coverage analysis with gap identification
+
+When code coverage matters:
+- Analyze coverage across multiple dimensions
+- Identify untested code paths
+- Find critical gaps in coverage
+- Suggest high-impact tests to implement
+- Generate coverage trend reports
+- Compare coverage across versions
+- Branch coverage analysis (not just line coverage)
+
+**Coverage Dimensions**:
+- Line coverage (statement execution)
+- Branch coverage (conditional paths)
+- Function coverage (function calls)
+- Statement coverage (individual statements)
+- Path coverage (all execution paths)
+
+**Analysis Output**:
+```json
+{
+  "overall_coverage": 95.2,
+  "gaps": [
+    {"file": "orders.ts", "line": 145, "reason": "Error handling branch not tested"},
+    {"file": "strategy.ts", "line": 230, "reason": "Edge case: empty array"}
+  ],
+  "high_impact_tests": [
+    {"name": "error handling for invalid orders", "impact": "high", "effort": "low"}
+  ],
+  "critical_uncovered": 5,
+  "recommendations": ["Add error case tests", "Test edge cases for strategy engine"]
+}
+```
+
+### 12. Dependency Management & Audit 🔐
+**NEW CAPABILITY**: Comprehensive dependency analysis and security auditing
+
+When dependencies need review:
+- Audit dependencies for vulnerabilities
+- Check for outdated packages
+- Analyze dependency tree for conflicts
+- Identify unused dependencies
+- Suggest safe upgrade paths
+- Assess dependency licenses
+- Monitor for security advisories
+
+**Security Checks**:
+- CVE vulnerability scanning
+- Known vulnerability database (NVD)
+- SNYK vulnerability assessment
+- Malware detection in packages
+- License compliance checking
+- Breaking change detection
+
+**Features**:
+- Dependency tree visualization
+- Update path recommendations
+- Risk assessment for each dependency
+- Compatibility checking
+- Security patch prioritization
+
+**Output**:
+```json
+{
+  "vulnerabilities": [
+    {"package": "lodash", "version": "3.10.1", "severity": "high", "cve": "CVE-2021-23337"}
+  ],
+  "outdated": [
+    {"package": "jest", "current": "27.0.0", "latest": "29.0.0", "recommendation": "update"}
+  ],
+  "unused_dependencies": ["lodash-es", "moment"],
+  "license_compliance": {"status": "ok", "conflicts": []},
+  "recommendations": ["Update jest to 29.0.0", "Remove unused dependencies"]
+}
+```
+
+### 13. Best Practices & Standards Enforcement 📋
+**NEW CAPABILITY**: Enforce coding standards and best practices
+
+When best practices are needed:
+- Assess adherence to SOLID principles
+- Check design pattern usage
+- Verify naming conventions
+- Analyze code organization
+- Ensure security best practices
+- Validate performance patterns
+- Check documentation standards
+
+**Checks Performed**:
+- SOLID principles compliance
+- Design pattern correctness
+- Naming convention consistency
+- Code organization efficiency
+- Error handling completeness
+- Security practice adherence
+- Documentation completeness
+- Type safety verification
+
+**Standards Supported**:
+- Google Style Guides
+- Airbnb Style Guides
+- Microsoft Best Practices
+- Enterprise Java Best Practices
+- Python PEP 8 & Enhancement Proposals
+- Rust API Guidelines
+- Custom organizational standards
+
+---
+
+## Updated Responsibilities Summary
+
+| Feature | Status | Use Case |
+|---------|--------|----------|
+| Code Review | ⭐⭐⭐⭐⭐ | Pre-merge quality gate |
+| Refactoring | ⭐⭐⭐⭐⭐ | Technical debt reduction |
+| Architecture | ⭐⭐⭐⭐⭐ | System design |
+| Performance | ⭐⭐⭐⭐⭐ | Optimization |
+| Security | ⭐⭐⭐⭐⭐ | Vulnerability assessment |
+| Testing | ⭐⭐⭐⭐⭐ | Quality assurance |
+| Documentation | ⭐⭐⭐⭐ | API & code docs |
+| **Performance Profiling** | ⭐⭐⭐⭐⭐ | **Bottleneck identification** |
+| **Doc Generation** | ⭐⭐⭐⭐⭐ | **Auto documentation** |
+| **Test Orchestration** | ⭐⭐⭐⭐⭐ | **Test strategy** |
+| **Coverage Analysis** | ⭐⭐⭐⭐ | **Gap identification** |
+| **Dependency Audit** | ⭐⭐⭐⭐⭐ | **Security & compliance** |
+| **Best Practices** | ⭐⭐⭐⭐⭐ | **Standards enforcement** |
+
+---
+
+## Enhanced Output Specifications
+
+All new features provide structured JSON output with:
+- **Status**: Operation result (complete/partial/failed)
+- **Summary**: Executive summary
+- **Details**: Comprehensive analysis
+- **Recommendations**: Prioritized actions
+- **Metrics**: Quantified results
+- **Next Steps**: Actionable follow-ups
+
+---
+
 ## Tags & Categories
 
-`#code-review` `#refactoring` `#architecture` `#performance` `#security` `#testing` `#design-patterns` `#code-quality` `#quality-assurance` `#mentoring`
+`#code-review` `#refactoring` `#architecture` `#performance` `#security` `#testing` `#design-patterns` `#code-quality` `#quality-assurance` `#mentoring` `#profiling` `#documentation` `#test-orchestration` `#coverage-analysis` `#dependency-audit` `#best-practices`
 

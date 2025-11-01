@@ -1,0 +1,103 @@
+version: '3.8'
+
+services:
+  # HMS Backend Application
+  hms-app:
+    image: hms-gnn:v2.0.0
+    container_name: hms-app
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      HOST: 0.0.0.0
+      LOG_LEVEL: info
+
+      # Database Configuration
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_NAME: hermes_db
+      DB_USER: postgres
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+
+      # JWT Configuration
+      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
+      JWT_EXPIRY: 24h
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change-me-in-production}
+      JWT_REFRESH_EXPIRY: 7d
+
+      # CORS Configuration
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost:3000}
+      CORS_CREDENTIALS: 'true'
+
+      # Feature Flags
+      ENABLE_PAPER_TRADING: 'true'
+      ENABLE_AI_SIGNALS: 'true'
+      ENABLE_REAL_TIME_UPDATES: 'true'
+
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+    networks:
+      - hms-network
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
+    volumes:
+      - ./logs:/app/logs
+      - ./data:/app/data
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    container_name: hms-postgres
+    environment:
+      POSTGRES_DB: hermes_db
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      PGDATA: /var/lib/postgresql/data/pgdata
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    ports:
+      - "5432:5432"
+
+    networks:
+      - hms-network
+
+    restart: unless-stopped
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  postgres_data:
+    driver: local
+
+networks:
+  hms-network:
+    driver: bridge

@@ -1,0 +1,386 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'docker-compose.prod.yml'
+      - 'Dockerfile.prod'
+      - '.github/workflows/deploy-production.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+# 🚫 DISABLED - GitHub Actions notifications stopped
+concurrency:
+  group: disabled-workflow
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/aurigraph
+
+jobs:
+  # Build & Test
+  build:
+    runs-on: ubuntu-latest
+    if: false  # 🚫 Workflow disabled
+    permissions:
+      contents: read
+      packages: write
+
+    outputs:
+      image-tag: ${{ steps.meta.outputs.tags }}
+      image-digest: ${{ steps.build.outputs.digest }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run linter
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npm run test:unit
+
+      - name: Run integration tests
+        run: npm run test:integration
+
+      - name: Build TypeScript
+        run: npm run build
+
+      - name: Check code coverage
+        run: npm run test:coverage
+        continue-on-error: true
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=branch
+            type=sha,prefix={{branch}}-
+            type=raw,value=v2.1.0-prod
+
+      - name: Build and push Docker image
+        id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfile.prod
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NODE_ENV=production
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+            VERSION=v2.1.0
+
+      - name: Scan image with Trivy
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: ${{ steps.meta.outputs.tags }}
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+
+      - name: Upload Trivy results to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # Deploy to Staging
+  deploy-staging:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event.inputs.environment == 'staging' || (github.ref == 'refs/heads/main' && github.event_name == 'push')
+    environment:
+      name: staging
+      url: https://staging.aurigraph.example.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Deploy to ECS
+        env:
+          CLUSTER_NAME: aurigraph-staging
+          SERVICE_NAME: aurigraph-staging
+          TASK_DEFINITION: aurigraph-staging
+        run: |
+          # Update task definition
+          aws ecs register-task-definition \
+            --cli-input-json file://./infrastructure/aws/task-definition.json
+
+          # Update service
+          aws ecs update-service \
+            --cluster $CLUSTER_NAME \
+            --service $SERVICE_NAME \
+            --force-new-deployment
+
+          # Wait for deployment
+          aws ecs wait services-stable \
+            --cluster $CLUSTER_NAME \
+            --services $SERVICE_NAME
+
+      - name: Run smoke tests
+        run: |
+          ./scripts/smoke-tests.sh staging
+        env:
+          API_ENDPOINT: https://staging.aurigraph.example.com
+
+      - name: Notify deployment
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'Staging deployment successful'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+  # Deploy to Production
+  deploy-production:
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.event.inputs.environment == 'production' || (github.ref == 'refs/heads/main' && github.event_name == 'push')
+    environment:
+      name: production
+      url: https://api.aurigraph.example.com
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Wait for approval
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          draft: true
+          generate_release_notes: true
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+
+      - name: Create database backups
+        run: |
+          # Backup RDS
+          aws rds create-db-snapshot \
+            --db-instance-identifier aurigraph-production \
+            --db-snapshot-identifier aurigraph-prod-backup-$(date +%s)
+
+          echo "RDS backup initiated"
+
+          # Note: ElastiCache backup is handled by replication
+
+      - name: Deploy to ECS
+        env:
+          CLUSTER_NAME: aurigraph-production
+          SERVICE_NAME: aurigraph-production
+          TASK_DEFINITION: aurigraph-production
+        run: |
+          # Update task definition
+          aws ecs register-task-definition \
+            --cli-input-json file://./infrastructure/aws/task-definition.json
+
+          # Update service with blue-green deployment
+          aws ecs update-service \
+            --cluster $CLUSTER_NAME \
+            --service $SERVICE_NAME \
+            --force-new-deployment \
+            --deployment-configuration \
+              maximumPercent=200,minimumHealthyPercent=100
+
+          # Wait for deployment
+          aws ecs wait services-stable \
+            --cluster $CLUSTER_NAME \
+            --services $SERVICE_NAME
+
+      - name: Run comprehensive tests
+        run: |
+          ./scripts/smoke-tests.sh production
+          ./scripts/health-checks.sh production
+        env:
+          API_ENDPOINT: https://api.aurigraph.example.com
+
+      - name: Monitor metrics
+        run: |
+          # Check error rates
+          aws cloudwatch get-metric-statistics \
+            --namespace AWS/ECS \
+            --metric-name CPUUtilization \
+            --dimensions Name=ServiceName,Value=aurigraph-production \
+            --start-time $(date -u -d '5 minutes ago' +%Y-%m-%dT%H:%M:%S) \
+            --end-time $(date -u +%Y-%m-%dT%H:%M:%S) \
+            --period 300 \
+            --statistics Average
+
+      - name: Create GitHub Deployment
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const deployment = await github.rest.repos.createDeployment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              ref: context.sha,
+              environment: 'production',
+              description: 'Automated deployment v2.1.0',
+              required_contexts: [],
+              auto_merge: false
+            });
+
+            await github.rest.repos.createDeploymentStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              deployment_id: deployment.data.id,
+              state: 'success',
+              environment_url: 'https://api.aurigraph.example.com',
+              description: 'Production deployment successful'
+            });
+
+      - name: Notify deployment
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'Production deployment successful - v2.1.0'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          fields: 'repo,message,commit,author,action'
+
+      - name: Notify rollback team
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'Production deployment FAILED - initiate rollback'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK_CRITICAL }}
+          fields: 'repo,message,commit,author,action'
+
+  # Performance Testing
+  performance-test:
+    needs: [build, deploy-staging]
+    runs-on: ubuntu-latest
+    if: success()
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run performance tests
+        uses: grafana/k6-action@v0.3.0
+        with:
+          filename: ./tests/performance/load-test.js
+          cloud: true
+        env:
+          K6_CLOUD_TOKEN: ${{ secrets.K6_CLOUD_TOKEN }}
+
+      - name: Analyze results
+        if: always()
+        run: |
+          echo "Performance test results available at k6 Cloud"
+
+  # Security Scanning
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          args: --severity-threshold=high
+
+      - name: Run OWASP dependency check
+        uses: dependency-check/Dependency-Check_Action@main
+        with:
+          project: 'Aurigraph'
+          path: '.'
+          format: 'SARIF'
+          args: >
+            --enableExperimental
+
+      - name: Upload to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'dependency-check-report.sarif'
+
+  # Rollback (Manual Trigger)
+  rollback:
+    runs-on: ubuntu-latest
+    if: failure() && github.event_name == 'workflow_dispatch'
+    environment:
+      name: production
+
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Rollback ECS service
+        run: |
+          aws ecs update-service \
+            --cluster aurigraph-production \
+            --service aurigraph-production \
+            --force-new-deployment
+
+          aws ecs wait services-stable \
+            --cluster aurigraph-production \
+            --services aurigraph-production
+
+      - name: Notify rollback
+        uses: 8398a7/action-slack@v3
+        with:
+          status: 'warning'
+          text: 'Production rollback completed'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}

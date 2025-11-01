@@ -158,7 +158,7 @@ describe('PatternMatcher', () => {
     });
 
     test('should detect dynamic WHERE clauses', () => {
-      const code = 'SELECT * FROM users WHERE status = \'' + status + '\'';
+      const code = "SELECT * FROM users WHERE status = '" + " + status + " + "'";
 
       const findings = matcher.matchSQLInjectionPatterns(code);
 

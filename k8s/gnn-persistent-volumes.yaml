@@ -1,0 +1,505 @@
+---
+# GNN-HMS Trading System - Persistent Volumes & Storage
+# Version: 1.0.0
+# Purpose: Storage configuration for stateful data and components
+
+# ============================================================================
+# STORAGE CLASS - HIGH PERFORMANCE SSD (For Strategy Learner models)
+# ============================================================================
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: fast-ssd
+  labels:
+    app: gnn-hms-trading-system
+    performance: high
+provisioner: ebs.csi.aws.com
+allowVolumeExpansion: true
+parameters:
+  type: gp3
+  iops: "3000"
+  throughput: "125"
+  encrypted: "true"
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Delete
+
+---
+# ============================================================================
+# STORAGE CLASS - STANDARD PERSISTENT (For logs and cache)
+# ============================================================================
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: standard-persistent
+  labels:
+    app: gnn-hms-trading-system
+    performance: standard
+provisioner: ebs.csi.aws.com
+allowVolumeExpansion: true
+parameters:
+  type: gp3
+  iops: "1000"
+  throughput: "50"
+  encrypted: "true"
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+
+---
+# ============================================================================
+# STORAGE CLASS - DATABASE OPTIMIZED (For MongoDB)
+# ============================================================================
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: database-optimized
+  labels:
+    app: gnn-hms-trading-system
+    performance: database
+provisioner: ebs.csi.aws.com
+allowVolumeExpansion: true
+parameters:
+  type: io2
+  iops: "20000"
+  throughput: "1000"
+  encrypted: "true"
+volumeBindingMode: WaitForFirstConsumer
+reclaimPolicy: Retain
+
+---
+# ============================================================================
+# PERSISTENT VOLUME - LEARNING DATA (GNN Strategy Learner)
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: gnn-learning-data-pv
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-strategy-learner
+    data-type: learning
+spec:
+  capacity:
+    storage: 100Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: fast-ssd
+  csi:
+    driver: ebs.csi.aws.com
+    volumeHandle: vol-xxxxxxxxxxxxxx  # Replace with actual EBS volume ID
+  persistentVolumeReclaimPolicy: Retain
+
+---
+# ============================================================================
+# PERSISTENT VOLUME CLAIM - LEARNING DATA
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gnn-learning-data-pvc
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-strategy-learner
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: fast-ssd
+  resources:
+    requests:
+      storage: 100Gi
+
+---
+# ============================================================================
+# PERSISTENT VOLUME - MODEL STORAGE
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: gnn-model-storage-pv
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-strategy-learner
+    data-type: models
+spec:
+  capacity:
+    storage: 100Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: fast-ssd
+  csi:
+    driver: ebs.csi.aws.com
+    volumeHandle: vol-yyyyyyyyyyyyyyyy  # Replace with actual EBS volume ID
+
+---
+# ============================================================================
+# PERSISTENT VOLUME CLAIM - MODEL STORAGE
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gnn-model-storage-pvc
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-strategy-learner
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: fast-ssd
+  resources:
+    requests:
+      storage: 100Gi
+
+---
+# ============================================================================
+# PERSISTENT VOLUME - LOGS AND AUDIT TRAIL
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: gnn-logs-pv
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    data-type: logs
+spec:
+  capacity:
+    storage: 200Gi
+  accessModes:
+    - ReadWriteMany
+  storageClassName: standard-persistent
+  nfs:
+    server: nfs-server.gnn-hms.svc.cluster.local
+    path: "/exports/gnn-logs"
+
+---
+# ============================================================================
+# PERSISTENT VOLUME CLAIM - LOGS
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gnn-logs-pvc
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: standard-persistent
+  resources:
+    requests:
+      storage: 200Gi
+
+---
+# ============================================================================
+# PERSISTENT VOLUME - MONITORING & METRICS DATA
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: gnn-metrics-pv
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    data-type: metrics
+spec:
+  capacity:
+    storage: 500Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: database-optimized
+  csi:
+    driver: ebs.csi.aws.com
+    volumeHandle: vol-zzzzzzzzzzzzzzzz  # Replace with actual EBS volume ID
+
+---
+# ============================================================================
+# PERSISTENT VOLUME CLAIM - METRICS
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gnn-metrics-pvc
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: database-optimized
+  resources:
+    requests:
+      storage: 500Gi
+
+---
+# ============================================================================
+# PERSISTENT VOLUME - DATABASE (MongoDB)
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: gnn-mongodb-pv
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: mongodb
+    data-type: database
+spec:
+  capacity:
+    storage: 500Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: database-optimized
+  csi:
+    driver: ebs.csi.aws.com
+    volumeHandle: vol-aaaaaaaaaaaaaaa  # Replace with actual EBS volume ID
+  persistentVolumeReclaimPolicy: Retain
+
+---
+# ============================================================================
+# PERSISTENT VOLUME CLAIM - DATABASE
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gnn-mongodb-pvc
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: mongodb
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: database-optimized
+  resources:
+    requests:
+      storage: 500Gi
+
+---
+# ============================================================================
+# PERSISTENT VOLUME - BACKUP STORAGE
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: gnn-backup-pv
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    data-type: backup
+spec:
+  capacity:
+    storage: 1Ti
+  accessModes:
+    - ReadWriteMany
+  storageClassName: standard-persistent
+  nfs:
+    server: backup-nfs-server.gnn-hms.svc.cluster.local
+    path: "/exports/gnn-backups"
+  persistentVolumeReclaimPolicy: Retain
+
+---
+# ============================================================================
+# PERSISTENT VOLUME CLAIM - BACKUP STORAGE
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gnn-backup-pvc
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: standard-persistent
+  resources:
+    requests:
+      storage: 1Ti
+
+---
+# ============================================================================
+# PERSISTENT VOLUME - ELASTICSEARCH DATA
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: gnn-elasticsearch-pv
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: elasticsearch
+    data-type: logs
+spec:
+  capacity:
+    storage: 200Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: database-optimized
+  csi:
+    driver: ebs.csi.aws.com
+    volumeHandle: vol-bbbbbbbbbbbbbbb  # Replace with actual EBS volume ID
+
+---
+# ============================================================================
+# PERSISTENT VOLUME CLAIM - ELASTICSEARCH
+# ============================================================================
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: gnn-elasticsearch-pvc
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: elasticsearch
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: database-optimized
+  resources:
+    requests:
+      storage: 200Gi
+
+---
+# ============================================================================
+# SNAPSHOT CLASS - FOR VOLUME SNAPSHOTS
+# ============================================================================
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshotClass
+metadata:
+  name: gnn-hms-snapshot-class
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+driver: ebs.csi.aws.com
+deletionPolicy: Delete
+
+---
+# ============================================================================
+# VOLUME SNAPSHOT - LEARNING DATA BACKUP
+# ============================================================================
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: gnn-learning-data-snapshot
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-strategy-learner
+spec:
+  volumeSnapshotClassName: gnn-hms-snapshot-class
+  source:
+    persistentVolumeClaimName: gnn-learning-data-pvc
+
+---
+# ============================================================================
+# VOLUME SNAPSHOT - MODEL STORAGE BACKUP
+# ============================================================================
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: gnn-model-storage-snapshot
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: gnn-strategy-learner
+spec:
+  volumeSnapshotClassName: gnn-hms-snapshot-class
+  source:
+    persistentVolumeClaimName: gnn-model-storage-pvc
+
+---
+# ============================================================================
+# VOLUME SNAPSHOT - DATABASE BACKUP
+# ============================================================================
+apiVersion: snapshot.storage.k8s.io/v1
+kind: VolumeSnapshot
+metadata:
+  name: gnn-mongodb-snapshot
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+    component: mongodb
+spec:
+  volumeSnapshotClassName: gnn-hms-snapshot-class
+  source:
+    persistentVolumeClaimName: gnn-mongodb-pvc
+
+---
+# ============================================================================
+# STORAGE QUOTA POLICY
+# ============================================================================
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: gnn-storage-policy
+  namespace: gnn-hms
+  labels:
+    app: gnn-hms-trading-system
+data:
+  retention-policy: |
+    # Data Retention Policy
+
+    Learning Data:
+      - Retention: 12 months
+      - Backup Frequency: Daily
+      - Snapshot Frequency: Weekly
+      - Encryption: AES-256
+
+    Models:
+      - Retention: Indefinite (versioned)
+      - Backup Frequency: On each training completion
+      - Snapshot Frequency: Weekly
+      - Encryption: AES-256
+
+    Logs:
+      - Retention: 90 days
+      - Archive to S3: After 30 days
+      - Compression: gzip
+      - Encryption: AES-256
+
+    Metrics:
+      - Retention: 90 days (high resolution), 2 years (low resolution)
+      - Aggregation: Hourly after 1 day
+      - Backup: Weekly
+      - Encryption: AES-256
+
+    Database:
+      - Backup Frequency: Daily + Point-in-time recovery
+      - Retention: 30 days for backups
+      - Replication: 3-node replica set
+      - Encryption: AES-256
+
+    Backups:
+      - Frequency: Daily
+      - Retention: 1 year
+      - Location: Multi-region S3
+      - Encryption: AES-256
+      - Verification: Monthly restore test
+
+  scaling-policy: |
+    # Auto-scaling Rules for Storage
+
+    Fast-SSD:
+      - Monitor: Disk usage percentage
+      - Trigger: 80% capacity
+      - Action: Expand by 50% or 50Gi (whichever is larger)
+      - Max size: 500Gi
+      - Cool-down period: 1 hour
+
+    Database-Optimized:
+      - Monitor: Disk usage percentage
+      - Trigger: 85% capacity
+      - Action: Expand by 25% or 100Gi (whichever is larger)
+      - Max size: 2Ti
+      - Cool-down period: 2 hours
+
+    Standard-Persistent:
+      - Monitor: Disk usage percentage
+      - Trigger: 80% capacity
+      - Action: Expand by 50% or 100Gi (whichever is larger)
+      - Max size: 1Ti
+      - Cool-down period: 1 hour

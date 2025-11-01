@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  # HMS Mobile App Web Server (TEST MODE - HTTP ONLY)
+  hms-mobile-web:
+    image: hms-web:latest
+    container_name: hms-mobile-web
+    restart: always
+    ports:
+      - "8080:80"
+    volumes:
+      # Nginx logs
+      - ./logs/nginx:/var/log/nginx
+      # Test nginx config (HTTP only)
+      - ./nginx-test.conf:/etc/nginx/conf.d/default.conf:ro
+    environment:
+      - FRONTEND_URL=http://localhost:8080
+      - API_URL=https://apihms.aurex.in
+      - WS_URL=wss://apihms.aurex.in
+      - NODE_ENV=test
+    networks:
+      - hms-network
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    labels:
+      - "app=hms-mobile"
+      - "environment=test"
+      - "version=1.0.0"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "100m"
+        max-file: "10"
+        labels: "app=hms-mobile"
+
+networks:
+  hms-network:
+    driver: bridge
+
+volumes:
+  nginx-logs:
+    driver: local

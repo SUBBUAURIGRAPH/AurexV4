@@ -1,0 +1,467 @@
+# HMS (Hermes Trading Platform) - Alertmanager Configuration
+# Phase 4: Performance & Monitoring Infrastructure
+# Production Server: hms.aurex.in
+# Last Updated: October 30, 2025
+
+# Global configuration
+global:
+  # Time to wait before sending a notification about new alerts
+  resolve_timeout: 5m
+
+  # SMTP configuration for email notifications
+  smtp_smarthost: 'smtp.gmail.com:587'
+  smtp_from: 'alerts@aurex.in'
+  smtp_auth_username: 'alerts@aurex.in'
+  smtp_auth_password: '${SMTP_PASSWORD}'
+  smtp_require_tls: true
+
+  # Slack webhook URL (set via environment variable)
+  slack_api_url: '${SLACK_WEBHOOK_URL}'
+
+  # PagerDuty integration key
+  pagerduty_url: 'https://events.pagerduty.com/v2/enqueue'
+
+# Templates for notifications
+templates:
+  - '/etc/alertmanager/templates/*.tmpl'
+
+# Route tree for alert routing
+route:
+  # Default receiver for all alerts
+  receiver: 'default-receiver'
+
+  # Group alerts by these labels
+  group_by: ['alertname', 'cluster', 'service', 'severity']
+
+  # Wait time before sending initial notification
+  group_wait: 30s
+
+  # Wait time before sending notification about new alerts in same group
+  group_interval: 5m
+
+  # Wait time before re-sending notification
+  repeat_interval: 12h
+
+  # Child routes with specific matching
+  routes:
+    # ========================================
+    # CRITICAL ALERTS - PagerDuty + Slack
+    # ========================================
+    - match:
+        severity: critical
+      receiver: 'critical-pagerduty'
+      group_wait: 10s
+      group_interval: 5m
+      repeat_interval: 30m
+      continue: true  # Continue to other routes
+      routes:
+        # Database critical alerts
+        - match:
+            component: database
+          receiver: 'critical-database-team'
+          group_wait: 5s
+
+        # API critical alerts
+        - match:
+            component: hms-api
+          receiver: 'critical-backend-team'
+          group_wait: 5s
+
+        # Trading critical alerts
+        - match:
+            component: trading
+          receiver: 'critical-trading-team'
+          group_wait: 5s
+
+    # ========================================
+    # WARNING ALERTS - Slack + Email
+    # ========================================
+    - match:
+        severity: warning
+      receiver: 'warning-slack'
+      group_wait: 2m
+      group_interval: 10m
+      repeat_interval: 4h
+      routes:
+        # Performance warnings
+        - match:
+            component: hms-api
+          receiver: 'warning-backend-team'
+
+        # System resource warnings
+        - match:
+            component: system
+          receiver: 'warning-devops-team'
+
+        # WebSocket warnings
+        - match:
+            component: websocket
+          receiver: 'warning-backend-team'
+
+        # Database warnings
+        - match:
+            component: database
+          receiver: 'warning-database-team'
+
+    # ========================================
+    # INFO ALERTS - Slack Only
+    # ========================================
+    - match:
+        severity: info
+      receiver: 'info-slack'
+      group_wait: 5m
+      group_interval: 30m
+      repeat_interval: 24h
+
+    # ========================================
+    # BUSINESS METRICS - Product Team
+    # ========================================
+    - match:
+        team: product
+      receiver: 'product-team-slack'
+      group_wait: 5m
+      group_interval: 1h
+      repeat_interval: 24h
+
+    # ========================================
+    # SSL CERTIFICATE ALERTS - DevOps
+    # ========================================
+    - match_re:
+        alertname: '^SSL.*'
+      receiver: 'devops-email'
+      group_wait: 1h
+      repeat_interval: 24h
+
+# Inhibition rules - suppress certain alerts when others are firing
+inhibit_rules:
+  # Inhibit warning/info alerts if critical alert is firing for same service
+  - source_match:
+      severity: critical
+    target_match:
+      severity: warning
+    equal: ['alertname', 'service', 'instance']
+
+  - source_match:
+      severity: critical
+    target_match:
+      severity: info
+    equal: ['alertname', 'service', 'instance']
+
+  # If API is down, don't alert on high latency
+  - source_match:
+      alertname: HMSAPIDown
+    target_match_re:
+      alertname: '^High.*Latency$'
+    equal: ['instance']
+
+  # If database is down, don't alert on connection issues
+  - source_match:
+      alertname: PostgresDatabaseDown
+    target_match_re:
+      alertname: '^Database.*'
+    equal: ['instance']
+
+  # If NGINX is down, don't alert on endpoint unavailability
+  - source_match:
+      alertname: NginxProxyDown
+    target_match:
+      severity: warning
+    equal: ['instance']
+
+# Receivers - notification integrations
+receivers:
+  # ========================================
+  # DEFAULT RECEIVER
+  # ========================================
+  - name: 'default-receiver'
+    slack_configs:
+      - channel: '#monitoring-alerts'
+        title: 'HMS Alert - {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        send_resolved: true
+        color: '{{ if eq .Status "firing" }}danger{{ else }}good{{ end }}'
+
+  # ========================================
+  # CRITICAL - PAGERDUTY
+  # ========================================
+  - name: 'critical-pagerduty'
+    pagerduty_configs:
+      - routing_key: '${PAGERDUTY_ROUTING_KEY}'
+        severity: '{{ .GroupLabels.severity }}'
+        description: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        details:
+          firing: '{{ .Alerts.Firing | len }}'
+          resolved: '{{ .Alerts.Resolved | len }}'
+          alert_details: '{{ range .Alerts }}{{ .Annotations.description }}{{ end }}'
+          action_required: '{{ range .Alerts }}{{ .Annotations.action }}{{ end }}'
+          dashboard: '{{ range .Alerts }}{{ .Annotations.dashboard }}{{ end }}'
+        send_resolved: true
+
+    slack_configs:
+      - channel: '#critical-alerts'
+        username: 'HMS Critical Alert'
+        icon_emoji: ':rotating_light:'
+        title: ':fire: CRITICAL: {{ .GroupLabels.alertname }}'
+        text: |
+          *Severity:* {{ .GroupLabels.severity }}
+          *Component:* {{ .GroupLabels.component }}
+          *Priority:* {{ .GroupLabels.priority }}
+
+          {{ range .Alerts }}
+          *Summary:* {{ .Annotations.summary }}
+          *Description:* {{ .Annotations.description }}
+          *Action Required:*
+          ```
+          {{ .Annotations.action }}
+          ```
+          {{ if .Annotations.dashboard }}*Dashboard:* {{ .Annotations.dashboard }}{{ end }}
+          {{ if .Annotations.runbook }}*Runbook:* {{ .Annotations.runbook }}{{ end }}
+          {{ end }}
+        send_resolved: true
+        color: 'danger'
+        actions:
+          - type: button
+            text: 'View Dashboard'
+            url: 'https://hms.aurex.in/grafana'
+          - type: button
+            text: 'View Logs'
+            url: 'https://hms.aurex.in/grafana/explore'
+          - type: button
+            text: 'Acknowledge'
+            url: 'https://hms.aurex.in/alertmanager'
+
+  # ========================================
+  # CRITICAL - BACKEND TEAM
+  # ========================================
+  - name: 'critical-backend-team'
+    email_configs:
+      - to: 'backend-team@aurex.in'
+        headers:
+          Subject: '[CRITICAL] HMS Backend Alert - {{ .GroupLabels.alertname }}'
+        html: '{{ template "email.default.html" . }}'
+        send_resolved: true
+
+    slack_configs:
+      - channel: '#backend-critical'
+        title: ':fire: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        send_resolved: true
+        color: 'danger'
+
+  # ========================================
+  # CRITICAL - DATABASE TEAM
+  # ========================================
+  - name: 'critical-database-team'
+    email_configs:
+      - to: 'database-team@aurex.in'
+        headers:
+          Subject: '[CRITICAL] HMS Database Alert - {{ .GroupLabels.alertname }}'
+        html: '{{ template "email.default.html" . }}'
+        send_resolved: true
+
+    slack_configs:
+      - channel: '#database-critical'
+        title: ':fire: Database Alert - {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        send_resolved: true
+        color: 'danger'
+
+  # ========================================
+  # CRITICAL - TRADING TEAM
+  # ========================================
+  - name: 'critical-trading-team'
+    email_configs:
+      - to: 'trading-team@aurex.in'
+        headers:
+          Subject: '[CRITICAL] HMS Trading Alert - {{ .GroupLabels.alertname }}'
+        html: '{{ template "email.default.html" . }}'
+        send_resolved: true
+
+    slack_configs:
+      - channel: '#trading-critical'
+        title: ':fire: Trading Alert - {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        send_resolved: true
+        color: 'danger'
+
+  # ========================================
+  # WARNING - SLACK
+  # ========================================
+  - name: 'warning-slack'
+    slack_configs:
+      - channel: '#devops-alerts'
+        username: 'HMS Warning'
+        icon_emoji: ':warning:'
+        title: ':warning: WARNING: {{ .GroupLabels.alertname }}'
+        text: |
+          *Component:* {{ .GroupLabels.component }}
+          *Priority:* {{ .GroupLabels.priority }}
+
+          {{ range .Alerts }}
+          {{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
+        send_resolved: true
+        color: 'warning'
+
+  # ========================================
+  # WARNING - BACKEND TEAM
+  # ========================================
+  - name: 'warning-backend-team'
+    email_configs:
+      - to: 'backend-team@aurex.in'
+        headers:
+          Subject: '[WARNING] HMS Backend - {{ .GroupLabels.alertname }}'
+        html: '{{ template "email.default.html" . }}'
+        send_resolved: true
+
+    slack_configs:
+      - channel: '#backend-warnings'
+        title: ':warning: {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        send_resolved: true
+        color: 'warning'
+
+  # ========================================
+  # WARNING - DEVOPS TEAM
+  # ========================================
+  - name: 'warning-devops-team'
+    email_configs:
+      - to: 'devops@aurex.in'
+        headers:
+          Subject: '[WARNING] HMS Infrastructure - {{ .GroupLabels.alertname }}'
+        html: '{{ template "email.default.html" . }}'
+        send_resolved: true
+
+    slack_configs:
+      - channel: '#devops-warnings'
+        title: ':warning: Infrastructure - {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        send_resolved: true
+        color: 'warning'
+
+  # ========================================
+  # WARNING - DATABASE TEAM
+  # ========================================
+  - name: 'warning-database-team'
+    email_configs:
+      - to: 'database-team@aurex.in'
+        headers:
+          Subject: '[WARNING] HMS Database - {{ .GroupLabels.alertname }}'
+        html: '{{ template "email.default.html" . }}'
+        send_resolved: true
+
+    slack_configs:
+      - channel: '#database-warnings'
+        title: ':warning: Database - {{ .GroupLabels.alertname }}'
+        text: '{{ range .Alerts }}{{ .Annotations.summary }}{{ end }}'
+        send_resolved: true
+        color: 'warning'
+
+  # ========================================
+  # INFO - SLACK
+  # ========================================
+  - name: 'info-slack'
+    slack_configs:
+      - channel: '#monitoring-info'
+        username: 'HMS Info'
+        icon_emoji: ':information_source:'
+        title: ':information_source: INFO: {{ .GroupLabels.alertname }}'
+        text: |
+          {{ range .Alerts }}
+          {{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
+        send_resolved: true
+        color: 'good'
+
+  # ========================================
+  # PRODUCT TEAM - SLACK
+  # ========================================
+  - name: 'product-team-slack'
+    slack_configs:
+      - channel: '#product-metrics'
+        username: 'HMS Business Metrics'
+        icon_emoji: ':chart_with_upwards_trend:'
+        title: ':chart_with_upwards_trend: Business Metrics Alert'
+        text: |
+          {{ range .Alerts }}
+          {{ .Annotations.summary }}
+          {{ .Annotations.description }}
+          {{ end }}
+        send_resolved: true
+        color: '#439FE0'
+
+  # ========================================
+  # DEVOPS - EMAIL
+  # ========================================
+  - name: 'devops-email'
+    email_configs:
+      - to: 'devops@aurex.in'
+        headers:
+          Subject: '[HMS] {{ .GroupLabels.alertname }}'
+        html: '{{ template "email.default.html" . }}'
+        send_resolved: true
+
+# ========================================
+# ALERT NOTIFICATION FLOW
+# ========================================
+#
+# CRITICAL Alerts:
+# 1. Immediately sent to PagerDuty (on-call engineer)
+# 2. Posted to #critical-alerts Slack channel
+# 3. Email to relevant team (backend/database/trading)
+# 4. Repeat every 30 minutes if not resolved
+#
+# WARNING Alerts:
+# 1. Posted to #devops-alerts Slack channel
+# 2. Email to relevant team
+# 3. Repeat every 4 hours if not resolved
+#
+# INFO Alerts:
+# 1. Posted to #monitoring-info Slack channel
+# 2. Repeat every 24 hours if not resolved
+#
+# ========================================
+# ESCALATION POLICY
+# ========================================
+#
+# If critical alert not acknowledged within 15 minutes:
+# - PagerDuty escalates to backup on-call
+# - Additional notification to team lead
+#
+# If critical alert not resolved within 1 hour:
+# - Notification to engineering manager
+# - Incident channel created
+# - War room initiated
+#
+# ========================================
+# SETUP INSTRUCTIONS
+# ========================================
+#
+# 1. Set environment variables:
+#    export SMTP_PASSWORD="your-smtp-password"
+#    export SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+#    export PAGERDUTY_ROUTING_KEY="your-pagerduty-routing-key"
+#
+# 2. Create Slack channels:
+#    - #critical-alerts
+#    - #devops-alerts
+#    - #monitoring-info
+#    - #backend-critical
+#    - #backend-warnings
+#    - #database-critical
+#    - #database-warnings
+#    - #trading-critical
+#    - #product-metrics
+#
+# 3. Configure PagerDuty:
+#    - Create service: "HMS Production"
+#    - Set escalation policy
+#    - Get routing key
+#
+# 4. Test alerting:
+#    amtool alert add --alertmanager.url=http://localhost:9093 \
+#      alertname=TestAlert severity=critical service=test
+#
+# ========================================

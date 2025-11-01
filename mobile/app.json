@@ -1,0 +1,62 @@
+{
+  "expo": {
+    "name": "Hermes Trading Platform",
+    "slug": "hms-trading",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1f2937"
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTabletMode": true,
+      "usesAppleSignIn": false,
+      "bundleIdentifier": "com.aurigraph.hms",
+      "buildNumber": "1"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1f2937"
+      },
+      "package": "com.aurigraph.hms",
+      "versionCode": 1,
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.INTERNET"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-secure-store"
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Hermes to access your camera for biometric authentication"
+        }
+      ]
+    ],
+    "extra": {
+      "apiBaseUrl": "https://apihms.aurex.in",
+      "websocketUrl": "wss://apihms.aurex.in"
+    }
+  }
+}

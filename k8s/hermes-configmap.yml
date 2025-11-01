@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: hermes-config
+  namespace: hermes
+data:
+  # Database Configuration
+  db.host: "postgres.hermes.svc.cluster.local"
+  db.port: "5432"
+  db.name: "hermes_trading"
+
+  # Redis Configuration
+  redis.host: "redis.hermes.svc.cluster.local"
+  redis.port: "6379"
+  redis.db: "0"
+
+  # MongoDB Configuration
+  mongodb.host: "mongodb.hermes.svc.cluster.local"
+  mongodb.port: "27017"
+  mongodb.database: "hermes_audit"
+
+  # Application Configuration
+  node.env: "production"
+  log.level: "info"
+
+  # Rate Limiting
+  rate.limit.global.qps: "500"
+  rate.limit.burst.multiplier: "2.0"
+
+  # Health Check Intervals
+  health.check.interval.ms: "60000"
+  health.check.timeout.ms: "3000"
+
+  # Connection Pool
+  connection.pool.min: "5"
+  connection.pool.max: "50"
+  connection.pool.idle.timeout.ms: "30000"
+
+  # Credential Rotation
+  credential.rotation.days: "90"
+  credential.expiration.warning.days: "7"
+
+  # Circuit Breaker
+  circuit.breaker.threshold: "5"
+  circuit.breaker.timeout.ms: "60000"
+
+  # Backtest Configuration
+  backtest.max.workers: "4"
+  backtest.timeout.seconds: "300"
+
+  # Feature Flags
+  feature.paper.trading: "true"
+  feature.backtesting: "true"
+  feature.optimization: "true"
+  feature.risk.management: "true"
+
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hermes-secrets
+  namespace: hermes
+type: Opaque
+stringData:
+  # Database Credentials
+  db.user: "hermes_user"
+  db.password: "change-this-password-in-production"
+
+  # Redis Credentials
+  redis.password: "change-this-password-in-production"
+
+  # MongoDB Credentials
+  mongodb.user: "hermes_user"
+  mongodb.password: "change-this-password-in-production"
+
+  # Encryption Key
+  encryption.key: "change-this-key-in-production-must-be-32-bytes"
+
+  # JWT Secrets
+  jwt.secret: "change-this-secret-in-production"
+  jwt.refresh.secret: "change-this-secret-in-production"
+
+  # API Keys (for third-party services if needed)
+  # aws.access.key: "YOUR_AWS_ACCESS_KEY"
+  # aws.secret.key: "YOUR_AWS_SECRET_KEY"

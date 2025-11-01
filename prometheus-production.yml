@@ -1,0 +1,168 @@
+# Prometheus Production Configuration
+# Monitors HMS Mobile Trading Platform on hms.aurex.in
+# Scrapes metrics from Docker containers and APIs
+
+global:
+  scrape_interval: 15s      # Default: scrape every 15 seconds
+  evaluation_interval: 15s  # Default: evaluate rules every 15 seconds
+  external_labels:
+    monitor: 'hms-production'
+    environment: 'production'
+    region: 'apac'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - localhost:9093
+
+# Load rules once and periodically evaluate them
+rule_files:
+  - 'alert-rules.yml'
+  - 'recording-rules.yml'
+
+# Scrape configurations for different targets
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+
+  # Docker Daemon metrics via cAdvisor (if available)
+  - job_name: 'cadvisor'
+    static_configs:
+      - targets: ['localhost:8080']
+    scrape_interval: 30s
+    metrics_path: '/metrics'
+
+  # HMS Mobile Web Server
+  - job_name: 'hms-mobile-web'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['localhost:80']
+        labels:
+          service: 'hms-mobile-web'
+          component: 'nginx'
+    scrape_interval: 15s
+    timeout: 5s
+    # Relabel to add custom labels
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+
+  # Backend API Server (apihms.aurex.in)
+  - job_name: 'hms-backend-api'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets: ['apihms.aurex.in:443']
+        labels:
+          service: 'hms-backend-api'
+          component: 'nodejs'
+    scrape_interval: 15s
+    timeout: 5s
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
+
+  # PostgreSQL Database (via postgres_exporter)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['localhost:9187']
+        labels:
+          service: 'hms-postgres'
+          component: 'database'
+    scrape_interval: 30s
+
+  # Redis Cache (via redis_exporter)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['localhost:9121']
+        labels:
+          service: 'hms-redis'
+          component: 'cache'
+    scrape_interval: 15s
+
+  # Node Exporter (system metrics)
+  - job_name: 'node'
+    static_configs:
+      - targets: ['localhost:9100']
+        labels:
+          service: 'system'
+          component: 'os'
+    scrape_interval: 15s
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+
+  # Docker Service Monitoring
+  - job_name: 'docker'
+    static_configs:
+      - targets: ['localhost:9323']
+        labels:
+          service: 'docker'
+          component: 'daemon'
+    scrape_interval: 30s
+
+  # Application Health Checks
+  - job_name: 'health-checks'
+    metrics_path: '/health'
+    static_configs:
+      - targets:
+          - 'hms.aurex.in:80'
+          - 'apihms.aurex.in:443'
+        labels:
+          service: 'health-monitor'
+          component: 'liveness'
+    scrape_interval: 10s
+    timeout: 3s
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
+
+  # SSL Certificate Monitoring
+  - job_name: 'ssl-cert-check'
+    metrics_path: '/probe'
+    static_configs:
+      - targets:
+          - 'https://hms.aurex.in'
+          - 'https://apihms.aurex.in'
+        labels:
+          service: 'ssl-monitor'
+          component: 'certificates'
+    scrape_interval: 1h
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: localhost:9219
+
+  # Nginx Monitoring (via nginx-prometheus-exporter)
+  - job_name: 'nginx'
+    static_configs:
+      - targets: ['localhost:4040']
+        labels:
+          service: 'nginx'
+          component: 'webserver'
+    scrape_interval: 15s
+
+  # Trading Platform Metrics (custom application metrics)
+  - job_name: 'trading-metrics'
+    metrics_path: '/api/metrics'
+    static_configs:
+      - targets: ['apihms.aurex.in:443']
+        labels:
+          service: 'trading-engine'
+          component: 'application'
+    scrape_interval: 30s
+    timeout: 5s
+    scheme: https
+    tls_config:
+      insecure_skip_verify: true
+
+# Service discovery (if using Consul or similar)
+# - job_name: 'consul-sd'
+#   consul_sd_configs:
+#     - server: 'localhost:8500'

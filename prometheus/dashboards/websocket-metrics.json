@@ -1,0 +1,228 @@
+{
+  "dashboard": {
+    "title": "WebSocket Metrics Dashboard",
+    "tags": ["hms", "websocket", "realtime"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "10s",
+    "time": {
+      "from": "now-15m",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Active WebSocket Connections",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "websocket_active_connections",
+            "legendFormat": "Active connections",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Connections"},
+          {"format": "short"}
+        ],
+        "alert": {
+          "conditions": [
+            {
+              "evaluator": {"params": [1000], "type": "gt"},
+              "operator": {"type": "and"},
+              "query": {"params": ["A", "5m", "now"]},
+              "reducer": {"params": [], "type": "avg"},
+              "type": "query"
+            }
+          ],
+          "name": "High WebSocket Connections"
+        }
+      },
+      {
+        "id": 2,
+        "title": "Connection Rate",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(websocket_connections_total[2m])",
+            "legendFormat": "Connection rate",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(websocket_disconnections_total[2m])",
+            "legendFormat": "Disconnection rate",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "cps", "label": "Connections/sec"},
+          {"format": "short"}
+        ],
+        "seriesOverrides": [
+          {
+            "alias": "Disconnection rate",
+            "color": "red"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Message Latency",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(websocket_message_latency_seconds_bucket[5m]))",
+            "legendFormat": "p95 latency",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(websocket_message_latency_seconds_bucket[5m]))",
+            "legendFormat": "p50 latency",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Latency"},
+          {"format": "short"}
+        ],
+        "thresholds": [
+          {"value": 0.1, "colorMode": "critical", "op": "gt"}
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Message Rate",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(websocket_messages_sent_total[2m])",
+            "legendFormat": "Messages sent/sec",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(websocket_messages_received_total[2m])",
+            "legendFormat": "Messages received/sec",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "mps", "label": "Messages/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 5,
+        "title": "Connection Duration",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 16, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(websocket_connection_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95 duration",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(websocket_connection_duration_seconds_bucket[5m]))",
+            "legendFormat": "p50 duration",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Duration"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Subscription Metrics",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 16, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(websocket_subscriptions) by (channel)",
+            "legendFormat": "{{channel}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Subscriptions"},
+          {"format": "short"}
+        ],
+        "legend": {
+          "show": true,
+          "values": true,
+          "current": true,
+          "alignAsTable": true
+        }
+      },
+      {
+        "id": 7,
+        "title": "Error Rate",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 24, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "rate(websocket_errors_total[2m])",
+            "legendFormat": "{{error_type}}",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "ops", "label": "Errors/sec"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 8,
+        "title": "Connection by Protocol",
+        "type": "piechart",
+        "gridPos": {"x": 12, "y": 24, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "sum(websocket_active_connections) by (protocol)",
+            "legendFormat": "{{protocol}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "pieType": "donut",
+          "legend": {
+            "show": true,
+            "placement": "right"
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "Average Connection Duration",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 24, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "avg(websocket_connection_duration_seconds)",
+            "legendFormat": "Avg duration",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "orientation": "auto",
+          "textMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "s",
+            "decimals": 1
+          }
+        }
+      }
+    ]
+  },
+  "overwrite": true
+}

@@ -13,7 +13,68 @@
 
 const fs = require('fs');
 const path = require('path');
-const chalk = require('chalk');
+// Handle chalk v5.3.0 ESM import compatibility
+let chalk;
+
+// Create a chainable chalk-like object
+function createChalkProxy() {
+  const styles = {
+    red: (s) => `\x1b[31m${s}\x1b[0m`,
+    green: (s) => `\x1b[32m${s}\x1b[0m`,
+    yellow: (s) => `\x1b[33m${s}\x1b[0m`,
+    blue: (s) => `\x1b[34m${s}\x1b[0m`,
+    magenta: (s) => `\x1b[35m${s}\x1b[0m`,
+    cyan: (s) => `\x1b[36m${s}\x1b[0m`,
+    white: (s) => `\x1b[37m${s}\x1b[0m`,
+    gray: (s) => `\x1b[90m${s}\x1b[0m`,
+    grey: (s) => `\x1b[90m${s}\x1b[0m`,
+    black: (s) => `\x1b[30m${s}\x1b[0m`,
+    bold: (s) => `\x1b[1m${s}\x1b[0m`,
+    dim: (s) => `\x1b[2m${s}\x1b[0m`,
+    italic: (s) => `\x1b[3m${s}\x1b[0m`,
+    underline: (s) => `\x1b[4m${s}\x1b[0m`,
+    inverse: (s) => `\x1b[7m${s}\x1b[0m`,
+    hidden: (s) => `\x1b[8m${s}\x1b[0m`,
+    strikethrough: (s) => `\x1b[9m${s}\x1b[0m`,
+  };
+
+  return new Proxy({}, {
+    get: (target, prop) => {
+      if (prop in styles) {
+        // Return a function that can also be chained
+        const fn = styles[prop];
+        return new Proxy(fn, {
+          get: (fnTarget, chainProp) => {
+            if (chainProp in styles) {
+              // Support chaining: chalk.bold.cyan(...) or chalk.cyan.bold(...)
+              return (str) => {
+                let result = str;
+                result = fn(result);
+                result = styles[chainProp](result);
+                return result;
+              };
+            }
+            // Return the original function for other properties
+            return fnTarget[chainProp];
+          },
+          apply: (fnTarget, thisArg, args) => {
+            return fn(...args);
+          }
+        });
+      }
+      return target[prop];
+    }
+  });
+}
+
+try {
+  chalk = require('chalk');
+  if (!chalk.red || typeof chalk.red !== 'function') {
+    chalk = createChalkProxy();
+  }
+} catch (e) {
+  chalk = createChalkProxy();
+}
 const AurigraphAgentsPlugin = require('./index');
 
 // Initialize plugin

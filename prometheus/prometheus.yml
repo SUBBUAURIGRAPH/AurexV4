@@ -1,0 +1,378 @@
+# HMS (Hermes Trading Platform) - Prometheus Configuration
+# Phase 4: Performance & Monitoring Infrastructure
+# Production Server: hms.aurex.in
+# Last Updated: October 30, 2025
+
+global:
+  # Scrape interval: How frequently to scrape targets by default
+  scrape_interval: 15s
+
+  # Evaluation interval: How frequently to evaluate rules
+  evaluation_interval: 15s
+
+  # Scrape timeout: Default timeout when scraping targets
+  scrape_timeout: 10s
+
+  # External labels: Labels to add to any time series or alerts
+  external_labels:
+    cluster: 'hms-production'
+    environment: 'production'
+    region: 'us-east-1'
+    platform: 'hermes-trading'
+    monitor: 'hms-prometheus'
+
+# Alertmanager configuration
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+            - 'alertmanager:9093'
+      timeout: 10s
+      api_version: v2
+
+# Load alert rules from external files
+rule_files:
+  - 'alert-rules.yml'
+  - 'recording-rules.yml'
+
+# Scrape configurations
+scrape_configs:
+  # ====================
+  # 1. HMS API Server (J4C Agent)
+  # ====================
+  - job_name: 'hms-j4c-agent'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    scrape_timeout: 5s
+    static_configs:
+      - targets:
+          - 'hms-j4c-agent:9003'
+        labels:
+          service: 'hms-api'
+          component: 'j4c-agent'
+          tier: 'application'
+
+    # Relabeling rules
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: instance
+        regex: '([^:]+)(?::\d+)?'
+        replacement: '$1'
+
+    # Metric relabeling
+    metric_relabel_configs:
+      # Drop high-cardinality metrics
+      - source_labels: [__name__]
+        regex: 'go_gc_.*'
+        action: drop
+
+  # ====================
+  # 2. PostgreSQL Database
+  # ====================
+  - job_name: 'hms-postgres'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    static_configs:
+      - targets:
+          - 'postgres-exporter:9187'
+        labels:
+          service: 'postgresql'
+          component: 'database'
+          tier: 'data'
+
+    # PostgreSQL specific relabeling
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: db_instance
+        replacement: 'hms-postgres'
+
+    metric_relabel_configs:
+      # Add database name label
+      - source_labels: [datname]
+        target_label: database
+      # Add table name label
+      - source_labels: [relname]
+        target_label: table
+
+  # ====================
+  # 3. Node Exporter (System Metrics)
+  # ====================
+  - job_name: 'node-exporter'
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    static_configs:
+      - targets:
+          - 'node-exporter:9100'
+        labels:
+          service: 'node-exporter'
+          component: 'system'
+          tier: 'infrastructure'
+
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: host
+        regex: '([^:]+)(?::\d+)?'
+        replacement: 'hms.aurex.in'
+
+  # ====================
+  # 4. Grafana Monitoring
+  # ====================
+  - job_name: 'grafana'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    static_configs:
+      - targets:
+          - 'grafana:3000'
+        labels:
+          service: 'grafana'
+          component: 'monitoring'
+          tier: 'observability'
+
+  # ====================
+  # 5. Prometheus Self-Monitoring
+  # ====================
+  - job_name: 'prometheus'
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    static_configs:
+      - targets:
+          - 'localhost:9090'
+        labels:
+          service: 'prometheus'
+          component: 'monitoring'
+          tier: 'observability'
+
+  # ====================
+  # 6. NGINX Proxy Metrics
+  # ====================
+  - job_name: 'nginx'
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    static_configs:
+      - targets:
+          - 'nginx-exporter:9113'
+        labels:
+          service: 'nginx'
+          component: 'proxy'
+          tier: 'edge'
+
+  # ====================
+  # 7. Blackbox Exporter (Health Checks)
+  # ====================
+  - job_name: 'blackbox-http'
+    metrics_path: '/probe'
+    scrape_interval: 30s
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets:
+          - 'https://hms.aurex.in/health'
+          - 'https://apihms.aurex.in/health'
+          - 'https://hms.aurex.in/api/orders'
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: target
+      - target_label: __address__
+        replacement: 'blackbox-exporter:9115'
+
+    metric_relabel_configs:
+      - source_labels: [target]
+        target_label: endpoint
+        regex: 'https?://[^/]+(.*)$'
+        replacement: '$1'
+
+  # ====================
+  # 8. Redis Cache Metrics (if applicable)
+  # ====================
+  - job_name: 'redis'
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    static_configs:
+      - targets:
+          - 'redis-exporter:9121'
+        labels:
+          service: 'redis'
+          component: 'cache'
+          tier: 'data'
+
+  # ====================
+  # 9. Docker Container Metrics
+  # ====================
+  - job_name: 'docker'
+    metrics_path: '/metrics'
+    scrape_interval: 20s
+    static_configs:
+      - targets:
+          - 'cadvisor:8080'
+        labels:
+          service: 'docker'
+          component: 'container-runtime'
+          tier: 'infrastructure'
+
+  # ====================
+  # 10. WebSocket Metrics (Custom Application Metrics)
+  # ====================
+  - job_name: 'hms-websocket'
+    metrics_path: '/metrics'
+    scrape_interval: 10s
+    static_configs:
+      - targets:
+          - 'hms-j4c-agent:9003'
+        labels:
+          service: 'websocket'
+          component: 'realtime'
+          tier: 'application'
+
+    # Filter only WebSocket metrics
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'websocket_.*|ws_.*'
+        action: keep
+
+  # ====================
+  # 11. Alpaca Trading API Metrics (Custom)
+  # ====================
+  - job_name: 'alpaca-broker'
+    metrics_path: '/metrics'
+    scrape_interval: 15s
+    static_configs:
+      - targets:
+          - 'hms-j4c-agent:9003'
+        labels:
+          service: 'alpaca-broker'
+          component: 'trading'
+          tier: 'integration'
+
+    # Filter only Alpaca-related metrics
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: 'alpaca_.*|broker_.*|order_.*|trade_.*'
+        action: keep
+
+# Remote write configuration (for long-term storage)
+remote_write:
+  - url: 'http://thanos-receive:19291/api/v1/receive'
+    queue_config:
+      capacity: 10000
+      max_shards: 50
+      max_samples_per_send: 5000
+      batch_send_deadline: 5s
+      max_retries: 3
+
+    # Write relabeling
+    write_relabel_configs:
+      # Keep only production metrics
+      - source_labels: [environment]
+        regex: 'production'
+        action: keep
+
+# Remote read configuration (for querying long-term storage)
+remote_read:
+  - url: 'http://thanos-query:19192/api/v1/query'
+    read_recent: true
+
+# Storage configuration
+storage:
+  tsdb:
+    # Retention period: 30 days
+    retention.time: 30d
+
+    # Retention size: 50GB
+    retention.size: 50GB
+
+    # Path for storing data
+    path: /prometheus/data
+
+    # Compression enabled
+    wal-compression: true
+
+# Tracing configuration (optional, for distributed tracing)
+tracing:
+  enabled: false
+
+# Service discovery (for dynamic targets)
+# This section can be extended for Kubernetes, Consul, etc.
+# kubernetes_sd_configs:
+#   - role: pod
+#     namespaces:
+#       names:
+#         - hms-production
+
+# ====================
+# Additional Configuration Options
+# ====================
+
+# Query logging
+# query_log_file: /prometheus/logs/query.log
+
+# Maximum samples per query
+# query:
+#   max_samples: 50000000
+#   timeout: 2m
+#   max_concurrency: 20
+
+# Web configuration
+# web:
+#   console_templates: /etc/prometheus/consoles
+#   console_libraries: /etc/prometheus/console_libraries
+#   page_title: 'HMS Prometheus'
+#   cors_origin: '.*'
+
+# Feature flags
+# --enable-feature=exemplar-storage
+# --enable-feature=memory-snapshot-on-shutdown
+# --enable-feature=expand-external-labels
+
+# ====================
+# Metric Collection Summary
+# ====================
+#
+# This configuration collects metrics from:
+# 1. HMS J4C Agent API (port 9003) - Application metrics
+# 2. PostgreSQL Database (port 9187) - Database performance
+# 3. Node Exporter (port 9100) - System resources (CPU, memory, disk, network)
+# 4. Grafana (port 3000) - Dashboard and visualization metrics
+# 5. Prometheus (port 9090) - Self-monitoring
+# 6. NGINX Proxy (port 9113) - Reverse proxy metrics
+# 7. Blackbox Exporter (port 9115) - Health checks and uptime
+# 8. Redis Cache (port 9121) - Cache performance
+# 9. Docker/cAdvisor (port 8080) - Container metrics
+# 10. WebSocket Server - Real-time connection metrics
+# 11. Alpaca Broker Integration - Trading API metrics
+#
+# Total scrape targets: 11 services
+# Total metrics collected: ~5,000-10,000 time series
+# Storage requirement: ~2-3 GB per month
+# Query load: ~100-500 queries per minute (with Grafana dashboards)
+#
+# ====================
+# Performance Tuning Notes
+# ====================
+#
+# 1. Scrape intervals optimized per service:
+#    - Critical services (API, WebSocket): 10s
+#    - Standard services (Node, Prometheus): 15s
+#    - Database and caches: 30s
+#
+# 2. Metric relabeling used to:
+#    - Drop high-cardinality metrics
+#    - Filter service-specific metrics
+#    - Add consistent labeling
+#
+# 3. Remote write configured for long-term storage (Thanos)
+# 4. Retention: 30 days local, unlimited remote
+# 5. WAL compression enabled for disk savings
+#
+# ====================
+# Security Considerations
+# ====================
+#
+# 1. All internal service communication (no external exposure)
+# 2. Authentication required for remote read/write
+# 3. TLS encryption for remote storage
+# 4. RBAC enforced via Grafana for dashboard access
+# 5. Sensitive metrics filtered via relabeling
+#
+# ====================

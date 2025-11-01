@@ -1,0 +1,340 @@
+{
+  "dashboard": {
+    "title": "Trading Metrics Dashboard",
+    "tags": ["hms", "trading", "alpaca", "orders"],
+    "timezone": "browser",
+    "schemaVersion": 38,
+    "version": 1,
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "id": 1,
+        "title": "Order Creation Rate",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(orders_created_total[5m]) * 60",
+            "legendFormat": "Orders/min",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "short", "label": "Orders/min"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Order Confirmation Latency",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 0, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(order_confirmation_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95 confirmation time",
+            "refId": "A"
+          },
+          {
+            "expr": "histogram_quantile(0.50, rate(order_confirmation_duration_seconds_bucket[5m]))",
+            "legendFormat": "p50 confirmation time",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Latency"},
+          {"format": "short"}
+        ],
+        "thresholds": [
+          {"value": 0.5, "colorMode": "critical", "op": "gt", "fill": true, "line": true}
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Order Success Rate",
+        "type": "gauge",
+        "gridPos": {"x": 0, "y": 8, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "(sum(rate(orders_filled_total[5m])) / sum(rate(orders_created_total[5m]))) * 100",
+            "legendFormat": "Success rate",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showThresholdLabels": true,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 90, "color": "yellow"},
+                {"value": 95, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 4,
+        "title": "Order Rejection Rate",
+        "type": "gauge",
+        "gridPos": {"x": 6, "y": 8, "w": 6, "h": 6},
+        "targets": [
+          {
+            "expr": "(sum(rate(orders_rejected_total[5m])) / sum(rate(orders_created_total[5m]))) * 100",
+            "legendFormat": "Rejection rate",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "showThresholdLabels": true,
+          "showThresholdMarkers": true
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "percent",
+            "min": 0,
+            "max": 100,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "green"},
+                {"value": 5, "color": "yellow"},
+                {"value": 10, "color": "red"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 5,
+        "title": "Portfolio Value",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 8, "w": 12, "h": 6},
+        "targets": [
+          {
+            "expr": "sum(portfolio_value_usd)",
+            "legendFormat": "Total portfolio value",
+            "refId": "A"
+          },
+          {
+            "expr": "sum(portfolio_equity_usd)",
+            "legendFormat": "Equity",
+            "refId": "B"
+          },
+          {
+            "expr": "sum(portfolio_cash_usd)",
+            "legendFormat": "Cash",
+            "refId": "C"
+          }
+        ],
+        "yaxes": [
+          {"format": "currencyUSD", "label": "Value"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 6,
+        "title": "Order Rejection Reasons",
+        "type": "piechart",
+        "gridPos": {"x": 0, "y": 14, "w": 8, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(orders_rejected_total[5m])) by (reason)",
+            "legendFormat": "{{reason}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "pieType": "pie",
+          "legend": {
+            "show": true,
+            "placement": "right"
+          }
+        }
+      },
+      {
+        "id": 7,
+        "title": "Orders by Type",
+        "type": "bargauge",
+        "gridPos": {"x": 8, "y": 14, "w": 8, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(orders_created_total[5m])) by (order_type)",
+            "legendFormat": "{{order_type}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "orientation": "horizontal",
+          "displayMode": "gradient"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "ops"
+          }
+        }
+      },
+      {
+        "id": 8,
+        "title": "Orders by Side",
+        "type": "piechart",
+        "gridPos": {"x": 16, "y": 14, "w": 8, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(orders_created_total[5m])) by (side)",
+            "legendFormat": "{{side}}",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "pieType": "donut",
+          "legend": {
+            "show": true,
+            "placement": "right"
+          }
+        }
+      },
+      {
+        "id": 9,
+        "title": "Trading Volume ($)",
+        "type": "graph",
+        "gridPos": {"x": 0, "y": 22, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "sum(rate(order_value_usd_sum[5m]))",
+            "legendFormat": "Trading volume",
+            "refId": "A"
+          }
+        ],
+        "yaxes": [
+          {"format": "currencyUSD", "label": "Volume"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 10,
+        "title": "Alpaca API Performance",
+        "type": "graph",
+        "gridPos": {"x": 12, "y": 22, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(alpaca_api_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "p95 API latency",
+            "refId": "A"
+          },
+          {
+            "expr": "rate(alpaca_api_errors_total[5m])",
+            "legendFormat": "API errors/sec",
+            "refId": "B"
+          }
+        ],
+        "yaxes": [
+          {"format": "s", "label": "Latency / Errors"},
+          {"format": "short"}
+        ]
+      },
+      {
+        "id": 11,
+        "title": "Alpaca Rate Limit Status",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 30, "w": 8, "h": 4},
+        "targets": [
+          {
+            "expr": "alpaca_rate_limit_remaining",
+            "legendFormat": "Remaining calls",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "orientation": "auto",
+          "textMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short",
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": 0, "color": "red"},
+                {"value": 10, "color": "yellow"},
+                {"value": 50, "color": "green"}
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 12,
+        "title": "Position Count",
+        "type": "stat",
+        "gridPos": {"x": 8, "y": 30, "w": 8, "h": 4},
+        "targets": [
+          {
+            "expr": "count(portfolio_position_quantity > 0)",
+            "legendFormat": "Open positions",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "orientation": "auto",
+          "textMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "short"
+          }
+        }
+      },
+      {
+        "id": 13,
+        "title": "P&L Today",
+        "type": "stat",
+        "gridPos": {"x": 16, "y": 30, "w": 8, "h": 4},
+        "targets": [
+          {
+            "expr": "sum(portfolio_pnl_today_usd)",
+            "legendFormat": "P&L",
+            "refId": "A"
+          }
+        ],
+        "options": {
+          "colorMode": "background",
+          "graphMode": "area",
+          "orientation": "auto",
+          "textMode": "value"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "unit": "currencyUSD",
+            "decimals": 2,
+            "thresholds": {
+              "mode": "absolute",
+              "steps": [
+                {"value": -1000, "color": "red"},
+                {"value": 0, "color": "yellow"},
+                {"value": 1000, "color": "green"}
+              ]
+            }
+          }
+        }
+      }
+    ]
+  },
+  "overwrite": true
+}

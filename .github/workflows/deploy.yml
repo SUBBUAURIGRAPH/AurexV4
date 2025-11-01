@@ -1,0 +1,392 @@
+name: Deploy to Production
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'mobile/**'
+      - 'docker-compose.yml'
+      - 'prometheus-production.yml'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy to'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+# 🚫 DISABLED - GitHub Actions notifications stopped
+concurrency:
+  group: disabled-workflow
+  cancel-in-progress: true
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/hms-mobile-web
+
+jobs:
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    if: false  # 🚫 Workflow disabled
+    environment:
+      name: staging
+      url: https://staging-hms.aurex.in
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Validate deployment prerequisites
+        run: |
+          echo "Validating deployment prerequisites..."
+          if [ -z "${{ secrets.STAGING_SSH_KEY }}" ]; then
+            echo "❌ STAGING_SSH_KEY not configured"
+            exit 1
+          fi
+          if [ -z "${{ secrets.STAGING_HOST }}" ]; then
+            echo "❌ STAGING_HOST not configured"
+            exit 1
+          fi
+          echo "✓ All prerequisites validated"
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.STAGING_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.STAGING_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Deploy to staging
+        run: |
+          ssh -i ~/.ssh/id_rsa ${{ secrets.STAGING_USER }}@${{ secrets.STAGING_HOST }} << 'EOF'
+          set -e
+
+          echo "🚀 Starting deployment to staging..."
+
+          # Navigate to project directory
+          cd /opt/HMS-staging
+
+          # Pull latest code
+          git pull origin main
+
+          # Pull latest Docker image
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main
+
+          # Stop old containers
+          docker-compose down || true
+
+          # Start new containers
+          docker-compose up -d
+
+          # Run health checks
+          sleep 10
+          curl -f http://localhost/health || exit 1
+
+          echo "✅ Staging deployment successful"
+          EOF
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests on staging..."
+
+          # Test HTTP endpoint
+          response=$(curl -s -o /dev/null -w "%{http_code}" http://staging-hms.aurex.in/)
+          if [ "$response" == "200" ] || [ "$response" == "301" ]; then
+            echo "✓ HTTP endpoint responding"
+          else
+            echo "❌ HTTP endpoint failed with status $response"
+            exit 1
+          fi
+
+          # Test HTTPS endpoint
+          response=$(curl -s -k -o /dev/null -w "%{http_code}" https://staging-hms.aurex.in/)
+          if [ "$response" == "200" ] || [ "$response" == "301" ]; then
+            echo "✓ HTTPS endpoint responding"
+          else
+            echo "❌ HTTPS endpoint failed with status $response"
+            exit 1
+          fi
+
+      - name: Notify deployment status
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: 'Staging Deployment #${{ github.run_number }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          fields: repo,message,commit,author
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: [deploy-staging]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    environment:
+      name: production
+      url: https://hms.aurex.in
+    concurrency:
+      group: production-deployment
+      cancel-in-progress: false
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Wait for manual approval
+        run: |
+          echo "⏳ Waiting for production deployment approval..."
+          echo "Manual approval required before deploying to production"
+
+      - name: Validate deployment prerequisites
+        run: |
+          echo "Validating production deployment prerequisites..."
+          if [ -z "${{ secrets.PRODUCTION_SSH_KEY }}" ]; then
+            echo "❌ PRODUCTION_SSH_KEY not configured"
+            exit 1
+          fi
+          if [ -z "${{ secrets.PRODUCTION_HOST }}" ]; then
+            echo "❌ PRODUCTION_HOST not configured"
+            exit 1
+          fi
+          echo "✓ All prerequisites validated"
+
+      - name: Setup SSH for production
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PRODUCTION_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.PRODUCTION_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Pre-deployment checks
+        run: |
+          ssh -i ~/.ssh/id_rsa ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} << 'EOF'
+          echo "Running pre-deployment checks..."
+
+          # Check disk space
+          available=$(df /opt/HMS | awk 'NR==2 {print $4}')
+          if [ "$available" -lt 2097152 ]; then
+            echo "❌ Insufficient disk space"
+            exit 1
+          fi
+          echo "✓ Disk space: OK ($(($available / 1024 / 1024))GB available)"
+
+          # Check database connectivity
+          pg_isready -h localhost -p 5432 || { echo "❌ Database unreachable"; exit 1; }
+          echo "✓ Database connectivity: OK"
+
+          # Check Redis connectivity
+          redis-cli -h localhost -p 6379 ping || { echo "❌ Redis unreachable"; exit 1; }
+          echo "✓ Redis connectivity: OK"
+
+          # Check API endpoint
+          curl -f http://localhost/health || { echo "❌ API health check failed"; exit 1; }
+          echo "✓ API health: OK"
+
+          echo "✓ All pre-deployment checks passed"
+          EOF
+
+      - name: Deploy to production
+        run: |
+          ssh -i ~/.ssh/id_rsa ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} << 'EOF'
+          set -e
+
+          echo "🚀 Starting production deployment..."
+
+          # Create backup of current state
+          cd /opt/HMS
+          git log -1 --oneline > /tmp/pre-deploy-commit.txt
+          docker-compose ps > /tmp/pre-deploy-status.txt
+
+          # Pull latest code
+          git pull origin main
+
+          # Pull latest Docker image
+          docker pull ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:main
+
+          # Stop old containers gracefully
+          docker-compose down --remove-orphans
+
+          # Wait for cleanup
+          sleep 5
+
+          # Start new containers
+          docker-compose up -d
+
+          # Wait for services to be ready
+          sleep 15
+
+          # Run health checks
+          max_attempts=30
+          attempt=0
+
+          while [ $attempt -lt $max_attempts ]; do
+            if curl -f http://localhost/health > /dev/null 2>&1; then
+              echo "✅ Health check passed"
+              break
+            fi
+            attempt=$((attempt + 1))
+            sleep 2
+          done
+
+          if [ $attempt -eq $max_attempts ]; then
+            echo "❌ Health checks failed"
+            # Rollback
+            git checkout HEAD~1
+            docker-compose up -d
+            exit 1
+          fi
+
+          echo "✅ Production deployment successful"
+          EOF
+
+      - name: Run production smoke tests
+        run: |
+          echo "Running production smoke tests..."
+
+          # Test primary endpoint
+          for attempt in {1..10}; do
+            response=$(curl -s -o /dev/null -w "%{http_code}" https://hms.aurex.in/)
+            if [ "$response" == "200" ] || [ "$response" == "301" ]; then
+              echo "✓ Primary endpoint responding"
+              break
+            fi
+            if [ $attempt -eq 10 ]; then
+              echo "❌ Primary endpoint failed after 10 attempts"
+              exit 1
+            fi
+            sleep 2
+          done
+
+          # Test API endpoint
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://apihms.aurex.in/health)
+          if [ "$response" == "200" ]; then
+            echo "✓ API endpoint responding"
+          else
+            echo "⚠️ API endpoint status: $response"
+          fi
+
+      - name: Monitor deployment
+        run: |
+          echo "Monitoring deployment for 5 minutes..."
+
+          for i in {1..5}; do
+            echo "Check $i/5..."
+
+            # Check container status
+            containers=$(ssh -i ~/.ssh/id_rsa ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} \
+              "docker-compose ps" 2>/dev/null | grep -c "Up" || echo "0")
+
+            if [ "$containers" -gt 0 ]; then
+              echo "✓ Containers running: $containers"
+            else
+              echo "❌ No containers running"
+              exit 1
+            fi
+
+            sleep 60
+          done
+
+          echo "✅ Deployment stable"
+
+      - name: Notify production deployment
+        if: success()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: 'success'
+          text: '✅ Production Deployment Successful #${{ github.run_number }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          fields: repo,message,commit,author
+          custom_payload: |
+            {
+              text: "🚀 Production Deployment Complete",
+              attachments: [{
+                color: "good",
+                fields: [
+                  { title: "Environment", value: "Production", short: true },
+                  { title: "Commit", value: "${{ github.sha }}", short: true },
+                  { title: "Author", value: "${{ github.actor }}", short: true },
+                  { title: "URL", value: "https://hms.aurex.in", short: true }
+                ]
+              }]
+            }
+
+      - name: Notify deployment failure
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: 'failure'
+          text: '❌ Production Deployment Failed #${{ github.run_number }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          fields: repo,message,commit,author
+          custom_payload: |
+            {
+              text: "🚨 Production Deployment Failed",
+              attachments: [{
+                color: "danger",
+                fields: [
+                  { title: "Environment", value: "Production", short: true },
+                  { title: "Build", value: "#${{ github.run_number }}", short: true },
+                  { title: "Author", value: "${{ github.actor }}", short: true }
+                ]
+              }]
+            }
+
+  rollback:
+    name: Rollback on Failure
+    runs-on: ubuntu-latest
+    needs: [deploy-production]
+    if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.PRODUCTION_SSH_KEY }}" > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${{ secrets.PRODUCTION_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Rollback to previous version
+        run: |
+          ssh -i ~/.ssh/id_rsa ${{ secrets.PRODUCTION_USER }}@${{ secrets.PRODUCTION_HOST }} << 'EOF'
+          echo "⚠️ Rolling back to previous version..."
+
+          cd /opt/HMS
+
+          # Get previous commit
+          prev_commit=$(git rev-parse HEAD~1)
+
+          # Check out previous version
+          git checkout $prev_commit
+
+          # Stop containers
+          docker-compose down || true
+
+          # Start containers with previous version
+          docker-compose up -d
+
+          # Wait for services
+          sleep 10
+
+          # Verify rollback
+          if curl -f http://localhost/health > /dev/null 2>&1; then
+            echo "✅ Rollback successful"
+          else
+            echo "❌ Rollback failed"
+            exit 1
+          fi
+          EOF
+
+      - name: Notify rollback
+        uses: 8398a7/action-slack@v3
+        with:
+          status: 'failure'
+          text: '🔄 Production Rollback Executed #${{ github.run_number }}'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+          fields: repo,message,commit,author
