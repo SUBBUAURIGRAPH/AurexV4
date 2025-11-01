@@ -156,9 +156,10 @@ async function startServer(): Promise<void> {
   }
 }
 
-// Start the server if this file is executed directly
-if (require.main === module) {
-  startServer();
-}
+// Start the server
+startServer().catch((err) => {
+  console.error('❌ Failed to start server:', err);
+  process.exit(1);
+});
 
 export default startServer;

@@ -48,3 +48,4 @@ coverage/
 *.key
 *.pem
 hermes-*.tar.gz
+hms-v2.2.0.tar.gz
