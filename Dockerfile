@@ -26,10 +26,9 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Install runtime dependencies (including dumb-init and curl for health checks)
+# Install runtime dependencies (curl for health checks)
 RUN apk add --no-cache \
     curl \
-    dumb-init \
     cairo \
     jpeg \
     pango \
@@ -60,8 +59,5 @@ EXPOSE 3001
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
     CMD curl -f http://localhost:3001/health || exit 1
 
-# Use dumb-init to handle signals properly
-ENTRYPOINT ["/usr/sbin/dumb-init", "--"]
-
-# Start application - use the compiled JavaScript instead of TypeScript
+# Start application - use the compiled JavaScript
 CMD ["node", "backend/dist/server.js"]
