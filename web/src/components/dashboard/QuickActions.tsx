@@ -5,6 +5,7 @@
  */
 
 import React from 'react';
+import { useNavigate } from 'react-router-dom';
 import styles from './QuickActions.module.css';
 
 interface ActionButton {
@@ -16,24 +17,23 @@ interface ActionButton {
 }
 
 const QuickActions: React.FC = () => {
+  const navigate = useNavigate();
+
   const handleNewTrade = () => {
-    console.log('Navigate to new trade page');
-    // TODO: Implement navigation to trading page
+    navigate('/trading/new');
   };
 
   const handleViewSignals = () => {
-    console.log('Navigate to AI signals');
-    // TODO: Implement navigation to signals page
+    navigate('/tools/signals');
   };
 
   const handleConfigureAI = () => {
-    console.log('Navigate to AI configuration');
-    // TODO: Implement navigation to settings/AI config
+    navigate('/settings');
   };
 
   const handleMobileApp = () => {
-    console.log('Show mobile app info');
-    // TODO: Implement mobile app promotion or link
+    // Open mobile app link in new tab
+    window.open('https://apps.apple.com/app/hermes-trading', '_blank');
   };
 
   const actions: ActionButton[] = [

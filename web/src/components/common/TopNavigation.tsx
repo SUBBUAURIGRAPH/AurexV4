@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import styles from './TopNavigation.module.css';
 
 interface NavDropdownItem {
@@ -26,6 +27,31 @@ interface NavMenu {
 const TopNavigation: React.FC = () => {
   const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+
+  // Navigation routes mapping
+  const routeMap: Record<string, string> = {
+    'new-trade': '/trading/new',
+    'orders': '/trading/orders',
+    'positions': '/trading/positions',
+    'paper-trading': '/trading/paper',
+    'dashboard': '/',
+    'performance': '/analytics/performance',
+    'risk-analysis': '/analytics/risk',
+    'reports': '/analytics/reports',
+    'export': '/analytics/export',
+    'ai-signals': '/tools/signals',
+    'alerts': '/tools/alerts',
+    'portfolio-builder': '/tools/portfolio',
+    'settings': '/settings',
+    'documentation': '/help/docs',
+    'tutorials': '/help/tutorials',
+    'faq': '/help/faq',
+    'support': '/help/support',
+    'profile': '/profile',
+    'security': '/settings/security',
+    'logout': '/logout'
+  };
 
   // Navigation menus
   const navMenus: NavMenu[] = [
@@ -34,11 +60,11 @@ const TopNavigation: React.FC = () => {
       label: 'Trading',
       icon: '⚡',
       items: [
-        { id: 'new-trade', label: 'New Trade', icon: '➕', href: '#' },
-        { id: 'orders', label: 'Orders', icon: '📋', href: '#' },
-        { id: 'positions', label: 'Positions', icon: '📊', href: '#' },
+        { id: 'new-trade', label: 'New Trade', icon: '➕', href: '/trading/new' },
+        { id: 'orders', label: 'Orders', icon: '📋', href: '/trading/orders' },
+        { id: 'positions', label: 'Positions', icon: '📊', href: '/trading/positions' },
         { divider: true, id: 'divider1', label: '' },
-        { id: 'paper-trading', label: 'Paper Trading', icon: '📝', href: '#' }
+        { id: 'paper-trading', label: 'Paper Trading', icon: '📝', href: '/trading/paper' }
       ]
     },
     {
@@ -46,12 +72,12 @@ const TopNavigation: React.FC = () => {
       label: 'Analytics',
       icon: '📈',
       items: [
-        { id: 'dashboard', label: 'Dashboard', icon: '🏠', href: '#' },
-        { id: 'performance', label: 'Performance', icon: '📊', href: '#' },
-        { id: 'risk-analysis', label: 'Risk Analysis', icon: '⚠️', href: '#' },
+        { id: 'dashboard', label: 'Dashboard', icon: '🏠', href: '/' },
+        { id: 'performance', label: 'Performance', icon: '📊', href: '/analytics/performance' },
+        { id: 'risk-analysis', label: 'Risk Analysis', icon: '⚠️', href: '/analytics/risk' },
         { divider: true, id: 'divider2', label: '' },
-        { id: 'reports', label: 'Reports', icon: '📄', href: '#' },
-        { id: 'export', label: 'Export Data', icon: '⬇️', href: '#' }
+        { id: 'reports', label: 'Reports', icon: '📄', href: '/analytics/reports' },
+        { id: 'export', label: 'Export Data', icon: '⬇️', href: '/analytics/export' }
       ]
     },
     {
@@ -59,11 +85,11 @@ const TopNavigation: React.FC = () => {
       label: 'Tools',
       icon: '🔧',
       items: [
-        { id: 'ai-signals', label: 'AI Signals', icon: '🤖', href: '#' },
-        { id: 'alerts', label: 'Alerts', icon: '🔔', href: '#' },
-        { id: 'portfolio-builder', label: 'Portfolio Builder', icon: '🏗️', href: '#' },
+        { id: 'ai-signals', label: 'AI Signals', icon: '🤖', href: '/tools/signals' },
+        { id: 'alerts', label: 'Alerts', icon: '🔔', href: '/tools/alerts' },
+        { id: 'portfolio-builder', label: 'Portfolio Builder', icon: '🏗️', href: '/tools/portfolio' },
         { divider: true, id: 'divider3', label: '' },
-        { id: 'settings', label: 'Settings', icon: '⚙️', href: '#' }
+        { id: 'settings', label: 'Settings', icon: '⚙️', href: '/settings' }
       ]
     },
     {
@@ -71,11 +97,11 @@ const TopNavigation: React.FC = () => {
       label: 'Help',
       icon: '❓',
       items: [
-        { id: 'documentation', label: 'Documentation', icon: '📚', href: '#' },
-        { id: 'tutorials', label: 'Tutorials', icon: '🎓', href: '#' },
-        { id: 'faq', label: 'FAQ', icon: '💬', href: '#' },
+        { id: 'documentation', label: 'Documentation', icon: '📚', href: '/help/docs' },
+        { id: 'tutorials', label: 'Tutorials', icon: '🎓', href: '/help/tutorials' },
+        { id: 'faq', label: 'FAQ', icon: '💬', href: '/help/faq' },
         { divider: true, id: 'divider4', label: '' },
-        { id: 'support', label: 'Support', icon: '🆘', href: '#' }
+        { id: 'support', label: 'Support', icon: '🆘', href: '/help/support' }
       ]
     }
   ];
@@ -101,6 +127,9 @@ const TopNavigation: React.FC = () => {
   const handleMenuItemClick = (item: NavDropdownItem) => {
     if (item.action) {
       item.action();
+    } else if (item.href && item.href !== '#') {
+      // Navigate using React Router
+      navigate(item.href);
     }
     setActiveDropdown(null);
   };
@@ -108,7 +137,12 @@ const TopNavigation: React.FC = () => {
   return (
     <nav className={styles.topNav} ref={dropdownRef}>
       {/* Logo/Branding */}
-      <div className={styles.navBrand}>
+      <div
+        className={styles.navBrand}
+        onClick={() => navigate('/')}
+        style={{ cursor: 'pointer' }}
+        title="Back to Dashboard"
+      >
         <span className={styles.logo}>📈</span>
         <span className={styles.brandName}>HERMES</span>
       </div>
@@ -173,20 +207,44 @@ const TopNavigation: React.FC = () => {
 
           {activeDropdown === 'user' && (
             <div className={styles.dropdown} style={{ right: 0 }}>
-              <button className={styles.dropdownItem}>
+              <button
+                className={styles.dropdownItem}
+                onClick={() => {
+                  navigate('/profile');
+                  setActiveDropdown(null);
+                }}
+              >
                 <span className={styles.itemIcon}>👤</span>
                 <span className={styles.itemLabel}>Profile</span>
               </button>
-              <button className={styles.dropdownItem}>
+              <button
+                className={styles.dropdownItem}
+                onClick={() => {
+                  navigate('/settings');
+                  setActiveDropdown(null);
+                }}
+              >
                 <span className={styles.itemIcon}>⚙️</span>
                 <span className={styles.itemLabel}>Settings</span>
               </button>
-              <button className={styles.dropdownItem}>
+              <button
+                className={styles.dropdownItem}
+                onClick={() => {
+                  navigate('/settings/security');
+                  setActiveDropdown(null);
+                }}
+              >
                 <span className={styles.itemIcon}>🔐</span>
                 <span className={styles.itemLabel}>Security</span>
               </button>
               <div className={styles.divider} />
-              <button className={styles.dropdownItem}>
+              <button
+                className={styles.dropdownItem}
+                onClick={() => {
+                  navigate('/logout');
+                  setActiveDropdown(null);
+                }}
+              >
                 <span className={styles.itemIcon}>🚪</span>
                 <span className={styles.itemLabel}>Logout</span>
               </button>
