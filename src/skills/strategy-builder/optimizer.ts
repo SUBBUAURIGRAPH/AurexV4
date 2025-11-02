@@ -346,7 +346,7 @@ export class StrategyOptimizer {
     parameters: Parameter[]
   ): ParameterSet {
     // Simplified UCB: explore regions with high variance
-    const explored Count = explored.length;
+    const exploredCount = explored.length;
     const exploration = Math.sqrt(Math.log(exploredCount) / exploredCount);
 
     // Generate random candidate

@@ -93,7 +93,7 @@ export class Validator {
    * Validate symbol (e.g., AAPL, BTC/USD)
    */
   static validateSymbol(symbol: string): string {
-    const pattern = /^[A-Z0-9]+(\\/[A-Z0-9]+)?$/;
+    const pattern = /^[A-Z0-9]+(\/[A-Z0-9]+)?$/;
     if (!pattern.test(symbol)) {
       throw this.createError(
         `${symbol} is not a valid symbol`,

@@ -67,7 +67,7 @@ export interface SyncConfig {
 
 export interface SyncHealthStatus {
   healthy: boolean;
-  activeSync s: number;
+  activeSyncs: number;
   queuedSyncs: number;
   failedSyncsLast24h: number;
   averageSyncDurationMs: number;

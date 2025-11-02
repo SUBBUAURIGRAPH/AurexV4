@@ -892,7 +892,7 @@ export class StrategyTemplateRegistry {
    * Get statistics
    */
   static getStatistics() {
-    const byCat egory = strategyTemplates.reduce(
+    const byCategory = strategyTemplates.reduce(
       (acc, t) => {
         acc[t.category] = (acc[t.category] || 0) + 1;
         return acc;
