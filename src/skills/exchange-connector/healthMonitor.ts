@@ -20,7 +20,7 @@ export class HealthMonitor {
   private health: Map<string, ExchangeHealth>;
   private metrics: Map<string, HealthMetrics>;
   private config: HealthMonitorConfig;
-  private checkInterval?: NodeJS.Timer;
+  private checkInterval?: NodeJS.Timeout;
   private healthChecks: Array<() => Promise<ExchangeHealth>>;
 
   constructor(config?: HealthMonitorConfig) {
@@ -56,7 +56,7 @@ export class HealthMonitor {
     this.checkInterval = setInterval(
       () => this.performHealthChecks(),
       this.config.checkInterval || 60000
-    );
+    ) as NodeJS.Timeout;
   }
 
   /**

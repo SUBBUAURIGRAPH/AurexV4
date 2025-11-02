@@ -4,7 +4,7 @@
  * Version: 1.0.0
  */
 
-import BaseExchangeAdapter from './baseAdapter';
+import { BaseExchangeAdapter } from './baseAdapter';
 import {
   CredentialConfig,
   Balance,

@@ -73,7 +73,7 @@ describe('ConnectionManager', () => {
       const poolSize = status?.totalCount || 5;
 
       // Allocate all connections
-      const connections = [];
+      const connections: any[] = [];
       for (let i = 0; i < poolSize; i++) {
         connections.push(await connectionManager.getConnection('binance'));
       }
@@ -458,7 +458,7 @@ describe('RateLimiter', () => {
 
   describe('Request Queuing', () => {
     test('should queue request when rate limited', async () => {
-      const callback = jest.fn().mockResolvedValue('success');
+      const callback = jest.fn(async () => 'success') as any;
 
       // Queue should accept the request
       const promise = rateLimiter.queueRequest('binance', callback, 0);
@@ -467,8 +467,8 @@ describe('RateLimiter', () => {
 
     test('should process queue in priority order', async () => {
       const results: number[] = [];
-      const callback1 = jest.fn(async () => { results.push(1); });
-      const callback2 = jest.fn(async () => { results.push(2); });
+      const callback1 = jest.fn(async () => { results.push(1); }) as any;
+      const callback2 = jest.fn(async () => { results.push(2); }) as any;
 
       // Queue with different priorities
       await rateLimiter.queueRequest('kraken', callback1, 1);

@@ -125,7 +125,7 @@ export class ExchangeErrorHandler {
   /**
    * Record failure for circuit breaker
    */
-  private recordFailure(exchange: string): void {
+  recordFailure(exchange: string): void {
     if (!this.circuitBreakers.has(exchange)) {
       this.circuitBreakers.set(exchange, { failureCount: 0, lastFailure: new Date(), open: false });
     }

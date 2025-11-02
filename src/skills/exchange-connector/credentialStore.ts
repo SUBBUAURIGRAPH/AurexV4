@@ -158,7 +158,7 @@ export class CredentialStore {
       (new Date().getTime() - stored.rotatedAt.getTime()) / (1000 * 60 * 60 * 24)
     );
 
-    const rotationDays = parseInt(this.config.rotationPolicy?.match(/\d+/) || ['90'][0]);
+    const rotationDays = parseInt((this.config.rotationPolicy?.match(/\d+/) || ['90'])[0]);
     return daysSinceRotation >= rotationDays;
   }
 
@@ -222,7 +222,7 @@ export class CredentialStore {
    * Calculate expiration date based on rotation policy
    */
   private calculateExpiration(): Date {
-    const days = parseInt(this.config.rotationPolicy?.match(/\d+/) || ['90'][0]);
+    const days = parseInt((this.config.rotationPolicy?.match(/\d+/) || ['90'])[0]);
     const expiration = new Date();
     expiration.setDate(expiration.getDate() + days);
     return expiration;
