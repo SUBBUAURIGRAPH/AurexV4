@@ -6,10 +6,11 @@
  */
 
 import spdy from 'spdy';
-import fs from 'fs';
-import path from 'path';
+import * as fs from 'fs';
+import * as path from 'path';
 import type { Request, Response } from 'express';
 import express from 'express';
+import './types/http2.js';
 
 /**
  * Create HTTP/2 server with Express
@@ -55,15 +56,10 @@ export function createHttp2Server(app: express.Application, options?: {
 
             return server;
         } else {
-            // Fall back to standard HTTP/2 without TLS
-            const server = spdy.createSecureServer({
-                spdy: {
-                    protocols: ['h2', 'http/1.1'],
-                    plain: true,
-                },
-            }, app);
-
-            return server;
+            // Fall back to standard HTTP server (HTTP/2 requires TLS in production)
+            // For development/testing, use plain HTTP/1.1
+            console.warn('HTTP/2 requires SSL certificates. Falling back to HTTP/1.1');
+            return app as any;
         }
     } catch (error) {
         console.error('Failed to create HTTP/2 server:', error);
@@ -117,7 +113,7 @@ export function http2ServerPush(res: Response, filePath: string, contentType: st
             response: { 'content-type': contentType },
         });
 
-        push.on('error', (err) => {
+        push.on('error', (err: Error) => {
             console.error(`Failed to push ${filePath}:`, err);
         });
     } catch (error) {

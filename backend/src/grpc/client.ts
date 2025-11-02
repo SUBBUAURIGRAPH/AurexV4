@@ -14,7 +14,6 @@ import path from 'path';
  */
 export class AnalyticsServiceClient {
     private client: any;
-    private channel: grpc.Channel;
 
     constructor(host: string = 'localhost', port: number = 50051) {
         const protoPath = path.join(__dirname, 'proto', 'analytics.proto');
@@ -29,18 +28,15 @@ export class AnalyticsServiceClient {
         const hmsProto = grpc.loadPackageDefinition(packageDefinition) as any;
         const address = `${host}:${port}`;
 
-        // Create channel with connection pooling
-        this.channel = grpc.createChannel(address, grpc.credentials.createInsecure(), {
-            'grpc.max_concurrent_streams': 1000,
-            'grpc.max_receive_message_length': 10 * 1024 * 1024,
-            'grpc.keepalive_time_ms': 30000,
-        });
-
+        // Create client with connection options
+        // Note: Channels are managed internally by gRPC-JS clients
         this.client = new hmsProto.hms.analytics.AnalyticsService(
             address,
             grpc.credentials.createInsecure(),
             {
                 'grpc.max_concurrent_streams': 1000,
+                'grpc.max_receive_message_length': 10 * 1024 * 1024,
+                'grpc.keepalive_time_ms': 30000,
             }
         );
     }
@@ -110,11 +106,11 @@ export class AnalyticsServiceClient {
     }
 
     /**
-     * Close the gRPC channel
+     * Close the gRPC client
      */
     close(): Promise<void> {
         return new Promise((resolve) => {
-            this.channel.close();
+            this.client.close();
             setTimeout(() => resolve(), 1000);
         });
     }

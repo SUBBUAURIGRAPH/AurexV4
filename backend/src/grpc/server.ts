@@ -24,7 +24,7 @@ const hmsProto = grpc.loadPackageDefinition(packageDefinition) as any;
 /**
  * Analytics Service Implementation
  */
-class AnalyticsServiceImpl implements hmsProto.hms.analytics.AnalyticsService {
+class AnalyticsServiceImpl {
 
     /**
      * Get performance metrics for a strategy
@@ -165,10 +165,9 @@ class AnalyticsServiceImpl implements hmsProto.hms.analytics.AnalyticsService {
                 clearInterval(interval);
             });
         } catch (error) {
-            call.destroy({
-                code: grpc.status.INTERNAL,
-                message: `Error streaming metrics: ${error}`,
-            });
+            const grpcError = new Error(`Error streaming metrics: ${error}`) as any;
+            grpcError.code = grpc.status.INTERNAL;
+            call.destroy(grpcError);
         }
     }
 }
@@ -183,14 +182,14 @@ export function startGrpcServer(port: number = 50051): grpc.Server {
         'grpc.max_send_message_length': 10 * 1024 * 1024,
         'grpc.keepalive_time_ms': 30000,
         'grpc.keepalive_timeout_ms': 10000,
-        'grpc.keepalive_permit_without_calls': true,
+        'grpc.keepalive_permit_without_calls': 1,
         'grpc.http2.max_pings_without_data': 0,
     });
 
     // Register service
     server.addService(
         hmsProto.hms.analytics.AnalyticsService.service,
-        new AnalyticsServiceImpl()
+        new AnalyticsServiceImpl() as any
     );
 
     // Start server
