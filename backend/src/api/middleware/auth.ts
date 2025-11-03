@@ -1,10 +1,11 @@
 /**
  * Authentication Middleware
  * Validates JWT tokens and extracts user context
- * @version 1.0.0
+ * @version 2.0.0 - Production-grade JWT verification
  */
 
 import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
 import { ApiError, ErrorCodes } from '../../types/index.js';
 
 /**
@@ -17,32 +18,38 @@ export interface AuthenticatedRequest extends Request {
 
 /**
  * Verify JWT Token
+ * Validates token signature, expiration, and claims
+ * @param token - JWT token string
+ * @returns Decoded payload or null if invalid
+ * @throws Never - returns null on verification failure
  */
 export const verifyToken = (token: string): any => {
   try {
-    // TODO: Verify JWT token using jsonwebtoken library
-    // import jwt from 'jsonwebtoken'
-    // return jwt.verify(token, process.env.JWT_SECRET)
-
-    // For now, simulate token verification
-    if (!token || token.length < 20) {
+    // Get JWT secret from environment
+    const secret = process.env.JWT_SECRET;
+    if (!secret) {
+      console.error('JWT_SECRET environment variable is not set');
       return null;
     }
 
-    // Decode token structure (simplified)
-    const parts = token.split('.');
-    if (parts.length !== 3) {
+    // Verify token signature and expiration
+    const payload = jwt.verify(token, secret) as any;
+
+    // Ensure required fields are present
+    if (!payload.userId || !payload.email) {
+      console.warn('JWT token missing required fields (userId, email)');
       return null;
     }
 
-    // Return decoded payload
-    return {
-      userId: 'user-uuid',
-      email: 'user@example.com',
-      iat: Math.floor(Date.now() / 1000),
-      exp: Math.floor(Date.now() / 1000) + 86400
-    };
+    return payload;
   } catch (error) {
+    if (error instanceof jwt.TokenExpiredError) {
+      console.warn('JWT token has expired');
+    } else if (error instanceof jwt.JsonWebTokenError) {
+      console.warn('JWT verification failed:', (error as any).message);
+    } else {
+      console.error('Unexpected error during JWT verification:', error);
+    }
     return null;
   }
 };
@@ -80,22 +87,13 @@ export const authMiddleware = (
 
     const token = parts[1];
 
-    // Verify token
+    // Verify token (handles signature, expiration, and claims validation)
     const payload = verifyToken(token);
     if (!payload) {
       throw new ApiError(
         ErrorCodes.INVALID_TOKEN,
         401,
         'Invalid or expired token'
-      );
-    }
-
-    // Check token expiration
-    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
-      throw new ApiError(
-        ErrorCodes.EXPIRED_TOKEN,
-        401,
-        'Token has expired'
       );
     }
 
