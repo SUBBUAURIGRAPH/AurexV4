@@ -11,6 +11,7 @@ import config from './config/env.js';
 import apiV1Routes from './api/v1/index.js';
 import { errorHandler, notFoundHandler } from './api/middleware/errorHandler.js';
 import authMiddleware from './api/middleware/auth.js';
+import { loggingMiddleware, errorLoggingMiddleware } from './api/middleware/logging.js';
 
 /**
  * Configure rate limiters for different endpoints
@@ -79,26 +80,10 @@ export function createApp(): Express {
   );
 
   // ============================================
-  // Request Logging Middleware
+  // Structured Request Logging Middleware
   // ============================================
-  app.use((req: Request, res: Response, next: NextFunction) => {
-    const startTime = Date.now();
-
-    res.on('finish', () => {
-      const duration = Date.now() - startTime;
-      const logLevel =
-        res.statusCode >= 500 ? '❌' :
-        res.statusCode >= 400 ? '⚠️' :
-        res.statusCode >= 300 ? '🔄' :
-        '✅';
-
-      console.log(
-        `${logLevel} ${req.method} ${req.path} - ${res.statusCode} (${duration}ms)`
-      );
-    });
-
-    next();
-  });
+  // Add correlation ID and Winston logger to requests
+  app.use(loggingMiddleware);
 
   // ============================================
   // Security Headers Middleware
@@ -138,6 +123,11 @@ export function createApp(): Express {
   // 404 Handler (must be after all routes)
   // ============================================
   app.use(notFoundHandler);
+
+  // ============================================
+  // Error Logging (must be before error handler)
+  // ============================================
+  app.use(errorLoggingMiddleware);
 
   // ============================================
   // Error Handler (must be last middleware)
