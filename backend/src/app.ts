@@ -16,6 +16,34 @@ import metricsMiddleware from './api/middleware/metrics.js';
 import { getMetrics } from './utils/metrics.js';
 
 /**
+ * Configure CORS origin validation
+ * Supports dynamic origin checking based on environment
+ */
+const getCorsOrigin = (origin: string | undefined): boolean => {
+  // Allow requests with no origin (same origin requests)
+  if (!origin) return true;
+
+  // Development environments
+  if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'staging') {
+    // Allow localhost and 127.0.0.1 with any port
+    if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(origin)) {
+      return true;
+    }
+  }
+
+  // Production allowed origins
+  const allowedOrigins = [
+    'https://hms.aurex.in',
+    'https://www.hms.aurex.in',
+    'https://apihms.aurex.in',
+    'https://api.hms.aurex.in',
+    'https://api-hms.aurex.in'
+  ];
+
+  return allowedOrigins.includes(origin);
+};
+
+/**
  * Configure rate limiters for different endpoints
  */
 const createRateLimiter = (
@@ -30,8 +58,10 @@ const createRateLimiter = (
   legacyHeaders: false,
   skipSuccessfulRequests: false,
   skip: (req) => {
-    // Skip rate limiting for health checks
-    return req.path === '/health';
+    // Skip rate limiting for health checks and metrics in staging
+    if (req.path === '/health') return true;
+    if (req.path === '/metrics' && process.env.NODE_ENV !== 'production') return true;
+    return false;
   }
 });
 
@@ -70,14 +100,32 @@ export function createApp(): Express {
 
   // ============================================
   // CORS Configuration
+  // Supports wildcard in development, strict whitelist in production
   // ============================================
   app.use(
     cors({
-      origin: config.CORS_ORIGIN,
-      credentials: config.CORS_CREDENTIALS,
-      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-      allowedHeaders: ['Content-Type', 'Authorization'],
-      maxAge: 86400 // 24 hours
+      origin: getCorsOrigin,
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS', 'HEAD'],
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-Requested-With',
+        'X-Correlation-ID',
+        'Accept',
+        'Origin',
+        'Access-Control-Request-Method',
+        'Access-Control-Request-Headers'
+      ],
+      exposedHeaders: [
+        'X-Correlation-ID',
+        'X-RateLimit-Limit',
+        'X-RateLimit-Remaining',
+        'X-RateLimit-Reset',
+        'Content-Length'
+      ],
+      maxAge: 86400, // 24 hours
+      optionsSuccessStatus: 200
     })
   );
 

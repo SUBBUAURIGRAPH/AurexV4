@@ -1,0 +1,108 @@
+# Docker Compose configuration for NGINX reverse proxy
+# Adds NGINX service to the staging deployment
+# Usage: docker-compose -f docker-compose-staging.yml -f docker-compose-nginx.yml up -d
+
+version: '3.9'
+
+services:
+  # NGINX Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: hms-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "8080:8080"
+    volumes:
+      # Configuration
+      - ./nginx-hms-production.conf:/etc/nginx/nginx.conf:ro
+
+      # SSL Certificates (mount from host)
+      # NOTE: Update these paths to match your certificate location
+      - /etc/letsencrypt/live/aurexcrt1:/etc/letsencrypt/live/aurexcrt1:ro
+
+      # Logging
+      - ./logs/nginx:/var/log/nginx
+
+      # Let's Encrypt ACME challenge directory
+      - ./certbot/www:/var/www/certbot:ro
+
+      # Performance: increase worker connections
+      - /etc/security/limits.conf:/etc/security/limits.conf:ro
+
+    environment:
+      # NGINX environment variables (if needed)
+      TZ: UTC
+
+    networks:
+      - hms-network
+
+    depends_on:
+      - hms-app
+
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 512M
+        reservations:
+          cpus: '1'
+          memory: 256M
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=nginx"
+
+    labels:
+      com.example.description: "NGINX Reverse Proxy for HMS"
+
+  # Certbot for automatic certificate renewal
+  certbot:
+    image: certbot/certbot:latest
+    container_name: hms-certbot
+    restart: unless-stopped
+    volumes:
+      # Certificates (must exist on host)
+      - /etc/letsencrypt:/etc/letsencrypt
+      - /var/lib/letsencrypt:/var/lib/letsencrypt
+      - ./certbot/www:/var/www/certbot
+
+    environment:
+      TZ: UTC
+
+    # Run renewal check twice daily
+    # This is a placeholder - actual renewal is typically handled by cron or systemd timer
+    entrypoint: /bin/sh -c "trap exit TERM; while :; do certbot renew --webroot -w /var/www/certbot --quiet; sleep 86400 & wait \$!; done"
+
+    networks:
+      - hms-network
+
+    depends_on:
+      - nginx
+
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+        labels: "service=certbot"
+
+    labels:
+      com.example.description: "Let's Encrypt Certificate Management"
+
+networks:
+  hms-network:
+    driver: bridge
+    name: hms-network
