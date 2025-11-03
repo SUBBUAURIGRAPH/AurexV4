@@ -6,10 +6,52 @@
 
 import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import config from './config/env.js';
 import apiV1Routes from './api/v1/index.js';
 import { errorHandler, notFoundHandler } from './api/middleware/errorHandler.js';
 import authMiddleware from './api/middleware/auth.js';
+
+/**
+ * Configure rate limiters for different endpoints
+ */
+const createRateLimiter = (
+  windowMs: number,
+  maxRequests: number,
+  message: string
+) => rateLimit({
+  windowMs,
+  max: maxRequests,
+  message,
+  standardHeaders: true,
+  legacyHeaders: false,
+  skipSuccessfulRequests: false,
+  skip: (req) => {
+    // Skip rate limiting for health checks
+    return req.path === '/health';
+  }
+});
+
+// General API limiter: 100 requests per 15 minutes
+const apiLimiter = createRateLimiter(
+  config.RATE_LIMIT_WINDOW,
+  config.RATE_LIMIT_MAX_REQUESTS,
+  'Too many requests from this IP, please try again later.'
+);
+
+// Auth limiter: stricter limit for authentication endpoints
+const authLimiter = createRateLimiter(
+  15 * 60 * 1000, // 15 minutes
+  10, // 10 requests
+  'Too many authentication attempts, please try again later.'
+);
+
+// Public endpoints limiter: more generous
+const publicLimiter = createRateLimiter(
+  15 * 60 * 1000, // 15 minutes
+  100, // 100 requests
+  'Too many requests, please try again later.'
+);
 
 /**
  * Create and configure Express application
@@ -20,8 +62,8 @@ export function createApp(): Express {
   // ============================================
   // Request Parsing Middleware
   // ============================================
-  app.use(express.json({ limit: '10mb' }));
-  app.use(express.urlencoded({ limit: '10mb', extended: true }));
+  app.use(express.json({ limit: '2mb' })); // Reduced from 10mb for security
+  app.use(express.urlencoded({ limit: '2mb', extended: true }));
 
   // ============================================
   // CORS Configuration
@@ -80,6 +122,12 @@ export function createApp(): Express {
       environment: config.NODE_ENV
     });
   });
+
+  // ============================================
+  // Rate Limiting Middleware
+  // ============================================
+  // Apply general rate limiter to all API routes
+  app.use(`${config.API_PREFIX}`, apiLimiter);
 
   // ============================================
   // API Routes
