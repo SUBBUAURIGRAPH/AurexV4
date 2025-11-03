@@ -1,6 +1,6 @@
 /**
  * gRPC Client for Internal Service Communication
- * Uses HTTP/2 multiplexing for efficient communication between services
+ * Uses HTTP/2 multiplexing and TLS/mTLS encryption for secure communication
  *
  * @module grpc/client
  */
@@ -9,6 +9,7 @@ import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { loadClientCredentials } from './tls-certificates.js';
 
 // Handle ES module __dirname and __filename
 const __filename = fileURLToPath(import.meta.url);
@@ -16,6 +17,8 @@ const __dirname = path.dirname(__filename);
 
 /**
  * Analytics Service Client
+ * Supports both TLS-encrypted and plaintext connections
+ * mTLS enabled for service-to-service authentication
  */
 export class AnalyticsServiceClient {
     private client: any;
@@ -33,11 +36,14 @@ export class AnalyticsServiceClient {
         const hmsProto = grpc.loadPackageDefinition(packageDefinition) as any;
         const address = `${host}:${port}`;
 
-        // Create client with connection options
+        // Load TLS credentials (falls back to insecure if certs not available)
+        const credentials = loadClientCredentials();
+
+        // Create client with TLS/mTLS credentials
         // Note: Channels are managed internally by gRPC-JS clients
         this.client = new hmsProto.hms.analytics.AnalyticsService(
             address,
-            grpc.credentials.createInsecure(),
+            credentials,
             {
                 'grpc.max_concurrent_streams': 1000,
                 'grpc.max_receive_message_length': 10 * 1024 * 1024,

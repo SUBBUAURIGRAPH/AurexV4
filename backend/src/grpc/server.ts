@@ -9,6 +9,7 @@ import * as grpc from '@grpc/grpc-js';
 import * as protoLoader from '@grpc/proto-loader';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { generateSelfSignedCertificates, loadServerCredentials, verifyCertificates } from './tls-certificates.js';
 
 // Handle ES module __dirname and __filename
 const __filename = fileURLToPath(import.meta.url);
@@ -178,9 +179,15 @@ class AnalyticsServiceImpl {
 }
 
 /**
- * Start gRPC Server with HTTP/2
+ * Start gRPC Server with TLS/mTLS encryption
+ * Supports both encrypted (TLS) and plaintext connections
+ * mTLS enabled for service-to-service authentication
  */
 export function startGrpcServer(port: number = 50051): grpc.Server {
+    // Generate or load TLS certificates
+    generateSelfSignedCertificates();
+    verifyCertificates();
+
     const server = new grpc.Server({
         'grpc.max_concurrent_streams': 1000,
         'grpc.max_receive_message_length': 10 * 1024 * 1024,
@@ -197,13 +204,19 @@ export function startGrpcServer(port: number = 50051): grpc.Server {
         new AnalyticsServiceImpl() as any
     );
 
-    // Start server
-    server.bindAsync(`0.0.0.0:${port}`, grpc.ServerCredentials.createInsecure(), (err, port) => {
+    // Load TLS credentials (falls back to insecure if certs not available)
+    const credentials = loadServerCredentials();
+
+    // Start server with TLS/mTLS credentials
+    server.bindAsync(`0.0.0.0:${port}`, credentials, (err, boundPort) => {
         if (err) {
             console.error('Failed to start gRPC server:', err);
             process.exit(1);
         }
-        console.log(`gRPC Server listening on 0.0.0.0:${port} (HTTP/2)`);
+        const tlsStatus = credentials === grpc.ServerCredentials.createInsecure()
+            ? '(plaintext)'
+            : '(TLS/mTLS encrypted)';
+        console.log(`✓ gRPC Server listening on 0.0.0.0:${boundPort} ${tlsStatus}`);
         server.start();
     });
 
