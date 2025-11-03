@@ -12,6 +12,8 @@ import apiV1Routes from './api/v1/index.js';
 import { errorHandler, notFoundHandler } from './api/middleware/errorHandler.js';
 import authMiddleware from './api/middleware/auth.js';
 import { loggingMiddleware, errorLoggingMiddleware } from './api/middleware/logging.js';
+import metricsMiddleware from './api/middleware/metrics.js';
+import { getMetrics } from './utils/metrics.js';
 
 /**
  * Configure rate limiters for different endpoints
@@ -97,6 +99,11 @@ export function createApp(): Express {
   });
 
   // ============================================
+  // Metrics Collection Middleware
+  // ============================================
+  app.use(metricsMiddleware);
+
+  // ============================================
   // Health Check Endpoint
   // ============================================
   app.get('/health', (req: Request, res: Response) => {
@@ -106,6 +113,23 @@ export function createApp(): Express {
       timestamp: new Date().toISOString(),
       environment: config.NODE_ENV
     });
+  });
+
+  // ============================================
+  // Prometheus Metrics Endpoint
+  // ============================================
+  app.get('/metrics', async (req: Request, res: Response) => {
+    try {
+      res.set('Content-Type', 'text/plain; version=0.0.4');
+      const metrics = await getMetrics();
+      res.send(metrics);
+    } catch (error) {
+      res.status(500).json({
+        success: false,
+        message: 'Failed to retrieve metrics',
+        error: (error as any).message
+      });
+    }
   });
 
   // ============================================
