@@ -38,7 +38,9 @@ RUN apk add --no-cache \
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
-# Copy from builder
+# Copy from builder - compiled dist folder and node_modules
+COPY --from=builder /app/dist ./dist
+COPY --from=builder /app/backend/dist ./backend/dist
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 
@@ -57,7 +59,9 @@ EXPOSE 3001
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD curl -f http://localhost:3001/health || exit 1
+    CMD curl -f http://localhost:3000/health || exit 1
 
-# Start application - use the compiled JavaScript
-CMD ["node", "backend/dist/server.js"]
+# Start application - run the compiled backend server
+# Note: package.json has "type": "module" so we're using ES modules
+WORKDIR /app/backend
+CMD ["node", "dist/server.js"]

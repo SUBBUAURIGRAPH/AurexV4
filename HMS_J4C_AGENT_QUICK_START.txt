@@ -1,0 +1,61 @@
+# HMS J4C Agent Integration Guide
+
+## Quick Start
+
+### Installation
+npm install --legacy-peer-deps
+cd backend && npm install --legacy-peer-deps && cd ..
+
+### Running HMS Backend
+npm run dev:backend
+
+### Checking J4C Health
+npm run j4c:health
+
+### Running J4C Agent
+Option 1: npm run j4c:discover
+Option 2: npx ts-node j4c-hermes-adapter.ts
+Option 3: docker-compose -f docker-compose.hermes.yml up -d
+
+## J4C Files (Root Level)
+- j4c-hermes-adapter.ts (12KB) - Main HTTP adapter
+- j4c-hermes-agent-discovery.ts (13KB) - Agent discovery
+- j4c-hermes-skill-executor.ts (13KB) - Skill executor
+- j4c-hermes-integration.test.ts (10KB) - Tests
+- HERMES-J4C-INTEGRATION-GUIDE.md (853 lines) - Complete guide
+
+## Project Structure
+- backend/ - Express API server
+- web/ - Frontend
+- docker-compose.*.yml - Docker configs
+- deploy-*.sh - Deployment scripts
+- kubernetes/ - K8s configs
+
+## 14 Agents with 76+ Skills
+1. DLT Developer (5 skills)
+2. Trading Operations (7 skills)
+3. DevOps Engineer (8 skills)
+4. QA Engineer (7 skills)
+5. Project Manager (7 skills)
+6. Security & Compliance (7 skills)
+7. Data Engineer (4 skills)
+8. Frontend Developer (4 skills)
+9. SRE/Reliability (4 skills)
+10. Digital Marketing (11 skills)
+11. Employee Onboarding (8 skills)
+12. GNN Heuristic Agent (8 skills)
+
+## Key npm Scripts
+npm run dev:backend - Start backend
+npm run j4c:health - Check health
+npm run j4c:discover - Discover agents
+npm test - Run tests
+npm run build - Build everything
+npm run deploy - Deploy to production
+
+## Documentation
+See HERMES-J4C-INTEGRATION-GUIDE.md for complete integration documentation
+See README.md for project overview
+See context.md for project status
+
+Version: 1.0.0, Date: Nov 2 2025, Status: Production Ready

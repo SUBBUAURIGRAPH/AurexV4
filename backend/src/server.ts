@@ -7,6 +7,7 @@
 import createApp from './app.js';
 import { initializeDatabase, closeDatabase, healthCheck } from './config/database.js';
 import config, { validateConfig } from './config/env.js';
+import { startGrpcServer } from './grpc/server.js';
 
 /**
  * Start the server
@@ -35,7 +36,7 @@ async function startServer(): Promise<void> {
     const app = createApp();
 
     // ============================================
-    // Start HTTP Server
+    // Start HTTP/2 Server
     // ============================================
     const server = app.listen(config.PORT, config.HOST, () => {
       console.log(`
@@ -43,7 +44,7 @@ async function startServer(): Promise<void> {
 ║                   🎉 SERVER STARTED 🎉                    ║
 ╚════════════════════════════════════════════════════════════╝
 
-📌 Server Details:
+📌 HTTP/2 REST Server:
    • Host: ${config.HOST}
    • Port: ${config.PORT}
    • Environment: ${config.NODE_ENV}
@@ -54,7 +55,7 @@ async function startServer(): Promise<void> {
    • Database: ${config.DB_NAME}
    • Port: ${config.DB_PORT}
 
-📚 Available Endpoints:
+📚 REST API Endpoints:
    • GET    /health - Server health check
    • GET    ${config.API_PREFIX}/health - API health check
    • GET    ${config.API_PREFIX}/portfolio/summary - Portfolio summary
@@ -73,10 +74,31 @@ async function startServer(): Promise<void> {
     });
 
     // ============================================
+    // Start gRPC Server (HTTP/2 Multiplexing)
+    // ============================================
+    console.log('🚀 Starting gRPC server with HTTP/2 multiplexing...');
+    const grpcServer = startGrpcServer(
+      parseInt(process.env.GRPC_ANALYTICS_PORT || '50051')
+    );
+
+    // ============================================
     // Graceful Shutdown Handlers
     // ============================================
     const shutdown = async (signal: string) => {
       console.log(`\n📢 Received ${signal} signal, shutting down gracefully...`);
+
+      // Close gRPC server
+      try {
+        console.log('🛑 Closing gRPC server...');
+        await new Promise<void>((resolve) => {
+          grpcServer.tryShutdown(() => {
+            console.log('✅ gRPC server closed');
+            resolve();
+          });
+        });
+      } catch (err) {
+        console.error('⚠️  Error closing gRPC server:', err);
+      }
 
       // Stop accepting new connections
       server.close(async () => {
@@ -91,11 +113,11 @@ async function startServer(): Promise<void> {
         }
       });
 
-      // Force shutdown after 10 seconds
+      // Force shutdown after 15 seconds
       setTimeout(() => {
         console.error('❌ Forced shutdown - connections did not close gracefully');
         process.exit(1);
-      }, 10000);
+      }, 15000);
     };
 
     // Handle termination signals
@@ -134,9 +156,10 @@ async function startServer(): Promise<void> {
   }
 }
 
-// Start the server if this file is executed directly
-if (require.main === module) {
-  startServer();
-}
+// Start the server
+startServer().catch((err) => {
+  console.error('❌ Failed to start server:', err);
+  process.exit(1);
+});
 
 export default startServer;

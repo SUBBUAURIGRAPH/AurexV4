@@ -297,7 +297,7 @@ export interface StrategyMetrics {
   totalReturnPercentage: number;
   maxDrawdown: number;
   sharpeRatio: number;
-  sortino Ratio: number;
+  sortinoRatio: number;
   calmarRatio: number;
 }
 

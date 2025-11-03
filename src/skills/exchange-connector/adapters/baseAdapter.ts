@@ -253,19 +253,29 @@ export abstract class BaseExchangeAdapter {
 /**
  * Factory function for creating adapters
  */
-export function createExchangeAdapter(exchangeName: string): BaseExchangeAdapter | null {
-  const adapters: Record<string, new () => BaseExchangeAdapter> = {
-    binance: () => require('./binanceAdapter').BinanceAdapter,
-    kraken: () => require('./krakenAdapter').KrakenAdapter,
-    'coinbase-pro': () => require('./coinbaseAdapter').CoinbaseAdapter,
-  };
-
-  const AdapterClass = adapters[exchangeName.toLowerCase()]?.();
-  if (!AdapterClass) {
+export async function createExchangeAdapter(exchangeName: string): Promise<BaseExchangeAdapter | null> {
+  try {
+    switch (exchangeName.toLowerCase()) {
+      case 'binance': {
+        const { BinanceAdapter } = await import('./binanceAdapter');
+        return new BinanceAdapter();
+      }
+      case 'kraken': {
+        const { KrakenAdapter } = await import('./krakenAdapter');
+        return new KrakenAdapter();
+      }
+      case 'coinbase-pro':
+      case 'coinbase': {
+        const { CoinbaseAdapter } = await import('./coinbaseAdapter');
+        return new CoinbaseAdapter();
+      }
+      default:
+        return null;
+    }
+  } catch (error) {
+    console.error(`Failed to create adapter for ${exchangeName}:`, error);
     return null;
   }
-
-  return new AdapterClass(exchangeName);
 }
 
 export default BaseExchangeAdapter;

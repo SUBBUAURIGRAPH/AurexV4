@@ -13,6 +13,16 @@ build/
 plugin/dist/
 *.tgz
 
+# Compiled TypeScript
+**/*.d.ts
+**/*.d.ts.map
+**/*.js
+**/*.js.map
+!node_modules/**
+!plugin/node_modules/**
+!jest.config.js
+!webpack.config.js
+
 # Environment variables
 .env
 .env.local
@@ -48,3 +58,4 @@ coverage/
 *.key
 *.pem
 hermes-*.tar.gz
+hms-v2.2.0.tar.gz
