@@ -8,7 +8,14 @@
       "Bash(npx tsc:*)",
       "Bash(npx tsc)",
       "Bash(git add:*)",
-      "Bash(rm:*)"
+      "Bash(rm:*)",
+      "Bash(git push:*)",
+      "Bash(git log:*)",
+      "Bash(npm run docker:build:*)",
+      "Bash(awk '{print \"\"\"\"   \"\"\"\" $9 \"\"\"\" (\"\"\"\" $5 \"\"\"\")\"\"\"\"}' echo \"\" echo \"═══════════════════════════════════════════════════════════════\" echo \"\" echo \"NEXT STEP:\" echo \"   1. Wait for Docker build to complete\" echo \"   2. Run: bash /tmp/automated-deploy.sh\" echo \"   3. Monitor deployment progress\" echo \"   4. Verify endpoints when complete\" echo \"\" echo \"═══════════════════════════════════════════════════════════════\")",
+      "Bash(docker inspect:*)",
+      "Bash(bash:*)",
+      "Bash(tee:*)"
     ],
     "deny": [],
     "ask": []

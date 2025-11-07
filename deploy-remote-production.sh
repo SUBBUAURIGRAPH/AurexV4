@@ -88,11 +88,11 @@ check_local_prerequisites() {
     docker-compose --version || error "Docker Compose not installed"
 
     log "Checking SSH key..."
-    ssh-key-path="${HOME}/.ssh/id_rsa"
-    if [ -f "$ssh-key-path" ]; then
-        success "SSH key found at $ssh-key-path"
+    SSH_KEY_PATH="${HOME}/.ssh/id_rsa"
+    if [ -f "$SSH_KEY_PATH" ]; then
+        success "SSH key found at $SSH_KEY_PATH"
     else
-        error "SSH key not found at $ssh-key-path"
+        error "SSH key not found at $SSH_KEY_PATH"
     fi
 
     success "All local prerequisites verified"
@@ -142,7 +142,7 @@ check_working_tree() {
         warning "Current branch is $current_branch, not $REMOTE_GIT_BRANCH"
         read -p "Continue with branch $current_branch? (y/N) " -n 1 -r
         echo
-        if [[ ! $REPLY =[ [Yy]$ ]]; then
+        if [[ ! $REPLY =~ [Yy]$ ]]; then
             error "Deployment cancelled"
         fi
     fi
