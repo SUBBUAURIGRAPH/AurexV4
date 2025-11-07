@@ -30,14 +30,12 @@ scrape_configs:
       - source_labels: [__address__]
         target_label: instance
 
-  # PostgreSQL Metrics
+  # PostgreSQL Metrics (using postgres_exporter)
   - job_name: 'postgres'
     static_configs:
-      - targets: ['postgres:5432']
-    metric_path: '/metrics'
+      - targets: ['localhost:9187']
 
-  # Redis Metrics
+  # Redis Metrics (using redis_exporter)
   - job_name: 'redis'
     static_configs:
-      - targets: ['redis:6379']
-    metric_path: '/metrics'
+      - targets: ['localhost:9121']
