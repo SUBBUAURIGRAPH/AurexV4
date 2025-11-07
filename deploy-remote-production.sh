@@ -258,6 +258,11 @@ pull_latest_code() {
         git rev-parse --abbrev-ref HEAD
 EOSSH
 
+    # Copy docker-compose files to remote server
+    log "Copying docker-compose files to remote server..."
+    scp -P $REMOTE_PORT docker-compose.yml "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/" 2>/dev/null || true
+    scp -P $REMOTE_PORT docker-compose.yml "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/" 2>/dev/null || true
+
     success "Latest code pulled to remote server"
 }
 
@@ -269,7 +274,7 @@ cleanup_old_docker_containers() {
         set -e
 
         echo "Stopping and removing all HMS containers..."
-        docker-compose -f docker-compose-staging.yml down --remove-orphans 2>/dev/null || true
+        docker-compose -f docker-compose.yml down --remove-orphans 2>/dev/null || true
         docker-compose -f docker-compose.yml down --remove-orphans 2>/dev/null || true
 
         echo "Removing dangling images and volumes..."
@@ -304,7 +309,7 @@ deploy_with_docker_compose() {
             -f Dockerfile . || exit 1
 
         echo "Starting services with docker-compose..."
-        docker-compose -f docker-compose-staging.yml down --remove-orphans 2>/dev/null || true
+        docker-compose -f docker-compose.yml down --remove-orphans 2>/dev/null || true
 
         # Set environment variables for docker-compose
         export NODE_ENV=production
@@ -315,16 +320,16 @@ deploy_with_docker_compose() {
         export SSL_CERT=$SSL_CERT
 
         # Start containers
-        docker-compose -f docker-compose-staging.yml up -d
+        docker-compose -f docker-compose.yml up -d
 
         echo "Waiting 30 seconds for services to start..."
         sleep 30
 
         echo "Service status:"
-        docker-compose -f docker-compose-staging.yml ps
+        docker-compose -f docker-compose.yml ps
 
         echo "Container logs (last 50 lines):"
-        docker-compose -f docker-compose-staging.yml logs --tail=50
+        docker-compose -f docker-compose.yml logs --tail=50
 EOSSH
 
     success "Docker Compose deployment completed"
@@ -425,15 +430,15 @@ run_health_checks() {
         cd $REMOTE_DIR
 
         echo "Container status:"
-        docker-compose -f docker-compose-staging.yml ps
+        docker-compose -f docker-compose.yml ps
 
         echo ""
         echo "Checking database connectivity..."
-        docker-compose -f docker-compose-staging.yml exec -T postgres pg_isready -U postgres 2>/dev/null && echo "✓ PostgreSQL OK" || echo "✗ PostgreSQL FAILED"
+        docker-compose -f docker-compose.yml exec -T postgres pg_isready -U postgres 2>/dev/null && echo "✓ PostgreSQL OK" || echo "✗ PostgreSQL FAILED"
 
         echo ""
         echo "Checking Redis connectivity..."
-        docker-compose -f docker-compose-staging.yml exec -T redis redis-cli ping 2>/dev/null && echo "✓ Redis OK" || echo "✗ Redis FAILED"
+        docker-compose -f docker-compose.yml exec -T redis redis-cli ping 2>/dev/null && echo "✓ Redis OK" || echo "✗ Redis FAILED"
 
         echo ""
         echo "Checking Prometheus..."
@@ -498,8 +503,8 @@ SSH Access:
   cd $REMOTE_DIR
 
 Docker Management:
-  docker-compose -f docker-compose-staging.yml ps
-  docker-compose -f docker-compose-staging.yml logs -f
+  docker-compose -f docker-compose.yml ps
+  docker-compose -f docker-compose.yml logs -f
 
 Deployment Log:
   $LOG_FILE
@@ -528,12 +533,12 @@ rollback_deployment() {
         git reset --hard HEAD~1
 
         echo "Restarting services..."
-        docker-compose -f docker-compose-staging.yml down
-        docker-compose -f docker-compose-staging.yml up -d
+        docker-compose -f docker-compose.yml down
+        docker-compose -f docker-compose.yml up -d
 
         echo "Verifying rollback..."
         sleep 10
-        docker-compose -f docker-compose-staging.yml ps
+        docker-compose -f docker-compose.yml ps
 EOSSH
 
     success "Rollback completed"
@@ -587,12 +592,12 @@ main() {
                 git log -1 --oneline
                 echo ""
                 echo "Container status:"
-                docker-compose -f docker-compose-staging.yml ps
+                docker-compose -f docker-compose.yml ps
 EOSSH
             ;;
         logs)
             header "VIEWING DEPLOYMENT LOGS"
-            ssh -p $REMOTE_PORT "${REMOTE_USER}@${REMOTE_HOST}" "cd $REMOTE_DIR && docker-compose -f docker-compose-staging.yml logs -f --tail=100"
+            ssh -p $REMOTE_PORT "${REMOTE_USER}@${REMOTE_HOST}" "cd $REMOTE_DIR && docker-compose -f docker-compose.yml logs -f --tail=100"
             ;;
         *)
             echo "Usage: $0 [action]"
