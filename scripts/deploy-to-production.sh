@@ -214,7 +214,9 @@ step_remote_cleanup() {
         mkdir -p /opt/HMS/backups
 
         echo "Setting permissions..."
-        chmod -R 755 /opt/HMS
+        chmod -R 755 /opt/HMS 2>/dev/null || true
+        find /opt/HMS -type f 2>/dev/null | xargs chmod 644 2>/dev/null || true
+        find /opt/HMS -type d 2>/dev/null | xargs chmod 755 2>/dev/null || true
 
         echo ""
         echo "Stopping and removing all HMS containers..."
