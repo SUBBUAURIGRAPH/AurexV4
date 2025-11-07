@@ -258,10 +258,11 @@ pull_latest_code() {
         git rev-parse --abbrev-ref HEAD
 EOSSH
 
-    # Copy docker-compose files to remote server
-    log "Copying docker-compose files to remote server..."
+    # Copy docker-compose files and nginx configuration to remote server
+    log "Copying configuration files to remote server..."
     scp -P $REMOTE_PORT docker-compose.yml "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/" 2>/dev/null || true
-    scp -P $REMOTE_PORT docker-compose.yml "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/" 2>/dev/null || true
+    scp -rP $REMOTE_PORT nginx "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/" 2>/dev/null || true
+    scp -rP $REMOTE_PORT monitoring "${REMOTE_USER}@${REMOTE_HOST}:${REMOTE_DIR}/" 2>/dev/null || true
 
     success "Latest code pulled to remote server"
 }
