@@ -1,0 +1,64 @@
+name: JIRAAgent Auto-Update
+
+# Automatically update JIRA tickets when commits are pushed to main
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'backend/**'
+      - '**.py'
+      - '**.ts'
+      - '**.tsx'
+      - '**.java'
+
+  # Allow manual trigger
+  workflow_dispatch:
+    inputs:
+      since:
+        description: 'Start date for commit range (YYYY-MM-DD)'
+        required: false
+      until:
+        description: 'End date for commit range (YYYY-MM-DD)'
+        required: false
+
+jobs:
+  update-jira-tickets:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for git log
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install requests
+
+      - name: Run JIRAAgent
+        env:
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_EMAIL: subbu@aurigraph.io
+          JIRA_BASE_URL: https://aurigraphdlt.atlassian.net
+          GITHUB_REPO: Aurigraph-DLT-Corp/glowing-adventure
+        run: |
+          # Run JIRAAgent to update tickets from recent commits
+          if [ -n "${{ github.event.inputs.since }}" ]; then
+            python scripts/jira_agent_automation.py --since "${{ github.event.inputs.since }}" \
+              ${github.event.inputs.until:+--until "${{ github.event.inputs.until }}"}
+          else
+            # Default: last 24 hours
+            python scripts/jira_agent_automation.py
+          fi
+
+      - name: Summary
+        run: |
+          echo "✅ JIRAAgent completed successfully"
+          echo "📝 Updated JIRA tickets with commit links from recent commits"
