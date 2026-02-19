@@ -84,3 +84,33 @@ Use `gh run cancel <id>` for non-deploy runs when deployment is urgent.
 Located at: `glowing-adventure/docs/J4C_INSIGHTS_JOURNAL.md`
 27 insights (INS-001 to INS-027). Session #38 added INS-027 (^~ NGINX modifier).
 Search: `grep -n "INS-02[1-6]" glowing-adventure/docs/J4C_INSIGHTS_JOURNAL.md`
+
+## SOM Analytics Layer (J4C-SOM-001 — Feb 19, 2026)
+
+### Architecture
+- `j4c-api/app/services/som.py` — SOMService singleton: train(X, grid=10, lr=0.5, epochs=1000), get_cluster(), get_umatrix(), serialize()/load()
+- `j4c-api/app/services/som_features.py` — extract_insight_vector() + extract_sprint_vector() → 20-dim (16-dim PCA + 3-dim severity one-hot + 1-dim temporal)
+- `j4c-api/app/routers/som.py` — 4 endpoints under /api/v3/som/
+- `j4c-react/src/components/som/SOMGrid.tsx` — 10×10 CSS Grid, U-matrix heatmap (cyan→indigo→dark-purple)
+- `j4c-react/src/pages/SOMVisualization.tsx` — Train button + grid + legend + items list
+
+### Endpoints
+| Method | Path | Auth | Description |
+|--------|------|------|-------------|
+| POST | /api/v3/som/train | JWT | Train on insights+sprints; returns status+data_count |
+| GET | /api/v3/som/map | JWT | U-matrix grid (grid_size² cells with u_value+items) |
+| GET | /api/v3/som/clusters | JWT | All items with bmu_x/bmu_y/label/type/distance |
+| POST | /api/v3/som/predict | JWT | Embed text via ONNX → nearest cluster + top-3 items |
+
+### DB Tables
+- `som_models` (id, grid_size, input_dim, weights BYTEA, trained_at, data_count, status)
+- `som_cluster_assignments` (model_id FK, item_id, item_type, item_label, bmu_x, bmu_y, distance)
+- Full schema: `scripts/init-db.sql` (8 tables total — created Feb 19, 2026)
+
+### Tests
+- 26/26 PASS (19 SOM + 5 existing + 2 health) — `j4c-api/tests/test_som.py`
+- Commit: f204bdbc2
+
+### Key Insights
+- INS-028: SOM weights → PostgreSQL BYTEA via numpy.tobytes()/frombuffer() (store grid_size+input_dim alongside)
+- INS-029: minisom RuntimeWarning (sqrt near-zero) is harmless cosmetic warning — filter in pytest only
