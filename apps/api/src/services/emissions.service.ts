@@ -45,7 +45,7 @@ export async function createEmission(data: CreateEmissionData): Promise<Emission
       unit: data.unit,
       periodStart: new Date(data.periodStart),
       periodEnd: new Date(data.periodEnd),
-      metadata: data.metadata ?? undefined,
+      metadata: (data.metadata ?? undefined) as any,
     },
   });
 
