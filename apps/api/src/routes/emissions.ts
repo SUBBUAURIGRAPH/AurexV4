@@ -9,6 +9,7 @@ import { requireAuth, requireRole } from '../middleware/auth.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
 import { logger } from '../lib/logger.js';
 import * as emissionsService from '../services/emissions.service.js';
+import { exportEmissionsCsv } from '../services/export.service.js';
 
 export const emissionsRouter: IRouter = Router();
 
@@ -96,6 +97,42 @@ emissionsRouter.get('/', async (req, res, next) => {
     });
 
     res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /export — CSV export of emissions records (AV4-261)
+ * Query: scope, status, dateFrom, dateTo, includeSubsidiaries
+ * Must be declared before GET /:id to avoid being captured by the :id param.
+ */
+emissionsRouter.get('/export', async (req, res, next) => {
+  try {
+    const {
+      scope,
+      status,
+      dateFrom,
+      dateTo,
+      includeSubsidiaries,
+    } = req.query as Record<string, string | undefined>;
+
+    const { filename, csv } = await exportEmissionsCsv(req.orgId!, {
+      scope,
+      status,
+      dateFrom,
+      dateTo,
+      includeSubsidiaries: includeSubsidiaries === 'true',
+    });
+
+    logger.info(
+      { orgId: req.orgId, userId: req.user!.sub, filename },
+      'Emissions CSV export requested',
+    );
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.send(csv);
   } catch (err) {
     next(err);
   }
