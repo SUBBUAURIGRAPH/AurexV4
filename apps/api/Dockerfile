@@ -17,7 +17,9 @@ COPY tsconfig.base.json ./
 COPY apps/api/ apps/api/
 COPY packages/shared/ packages/shared/
 COPY packages/database/ packages/database/
-RUN pnpm --filter @aurex/api build
+RUN pnpm --filter @aurex/shared build && \
+    pnpm --filter @aurex/database build && \
+    pnpm --filter @aurex/api build
 # Deploy: flatten deps into api node_modules for production
 RUN pnpm --filter @aurex/api deploy /app/api-deploy --prod
 
