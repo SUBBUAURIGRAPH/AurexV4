@@ -26,9 +26,10 @@ model User {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  sessions   Session[]
-  authEvents AuthEvent[]
-  orgMembers OrgMember[]
+  sessions         Session[]
+  authEvents       AuthEvent[]
+  orgMembers       OrgMember[]
+  emissionsCreated EmissionsRecord[] @relation("emissionsCreator")
 
   @@index([email])
   @@index([role])
@@ -104,25 +105,61 @@ model OrgMember {
 
 // ─── Emissions Data (WBS 2.3, 2.4) ───
 
-model EmissionsRecord {
-  id          String        @id @default(uuid()) @db.Uuid
-  orgId       String        @map("org_id") @db.Uuid
-  scope       EmissionScope
-  category    String        @db.VarChar(100)
-  source      String        @db.VarChar(255)
-  value       Decimal       @db.Decimal(15, 4)
-  unit        String        @default("tCO2e") @db.VarChar(20)
-  periodStart DateTime      @map("period_start")
-  periodEnd   DateTime      @map("period_end")
-  metadata    Json?
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
+enum EmissionStatus {
+  DRAFT    @map("draft")
+  PENDING  @map("pending")
+  VERIFIED @map("verified")
+  REJECTED @map("rejected")
+}
 
-  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+model EmissionsRecord {
+  id          String         @id @default(uuid()) @db.Uuid
+  orgId       String         @map("org_id") @db.Uuid
+  scope       EmissionScope
+  category    String         @db.VarChar(100)
+  source      String         @db.VarChar(255)
+  value       Decimal        @db.Decimal(15, 4)
+  unit        String         @default("tCO2e") @db.VarChar(20)
+  periodStart DateTime       @map("period_start")
+  periodEnd   DateTime       @map("period_end")
+  status      EmissionStatus @default(DRAFT)
+  metadata    Json?
+  createdBy   String         @map("created_by") @db.Uuid
+  createdAt   DateTime       @default(now()) @map("created_at")
+  updatedAt   DateTime       @updatedAt @map("updated_at")
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation("emissionsCreator", fields: [createdBy], references: [id])
 
   @@index([orgId, scope])
+  @@index([orgId, status])
   @@index([periodStart, periodEnd])
   @@map("emissions_records")
+}
+
+model EmissionSource {
+  id       String        @id @default(uuid()) @db.Uuid
+  scope    EmissionScope
+  category String        @db.VarChar(100)
+  name     String        @db.VarChar(255)
+  isActive Boolean       @default(true) @map("is_active")
+
+  @@unique([scope, category, name])
+  @@map("emission_sources")
+}
+
+model EmissionFactor {
+  id         String        @id @default(uuid()) @db.Uuid
+  scope      EmissionScope
+  category   String        @db.VarChar(100)
+  source     String        @db.VarChar(255)
+  factor     Decimal       @db.Decimal(15, 8)
+  unit       String        @db.VarChar(50)
+  region     String?       @db.VarChar(100)
+  year       Int?
+  dataSource String?       @map("data_source") @db.VarChar(255)
+
+  @@map("emission_factors")
 }
 
 model EmissionsBaseline {

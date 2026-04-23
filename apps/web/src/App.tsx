@@ -19,6 +19,7 @@ import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { EmissionsPage } from './pages/dashboard/EmissionsPage';
+import { EmissionsDataEntry } from './pages/dashboard/emissions/EmissionsDataEntry';
 import { ReportsPage } from './pages/dashboard/ReportsPage';
 import { SettingsPage } from './pages/dashboard/SettingsPage';
 import { TeamsPage } from './pages/dashboard/TeamsPage';
@@ -27,6 +28,8 @@ import { CompliancePage } from './pages/dashboard/CompliancePage';
 import { AuditLogsPage } from './pages/dashboard/AuditLogsPage';
 import { BillingPage } from './pages/dashboard/BillingPage';
 import { SupportPage } from './pages/dashboard/SupportPage';
+import { UsersPage } from './pages/dashboard/admin/UsersPage';
+import { OrganizationPage } from './pages/dashboard/admin/OrganizationPage';
 import { RoleGuard } from './components/auth/RoleGuard';
 
 const queryClient = new QueryClient({
@@ -67,6 +70,7 @@ export function App() {
           <Route element={<DashboardLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/emissions" element={<EmissionsPage />} />
+            <Route path="/emissions/new" element={<EmissionsDataEntry />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/teams" element={<RoleGuard allowedRoles={['administrator', 'manager']}><TeamsPage /></RoleGuard>} />
             <Route path="/integrations" element={<RoleGuard allowedRoles={['administrator', 'manager', 'editor']}><IntegrationsPage /></RoleGuard>} />
@@ -74,6 +78,8 @@ export function App() {
             <Route path="/audit-logs" element={<RoleGuard allowedRoles={['administrator', 'manager']}><AuditLogsPage /></RoleGuard>} />
             <Route path="/billing" element={<RoleGuard allowedRoles={['administrator']}><BillingPage /></RoleGuard>} />
             <Route path="/support" element={<RoleGuard allowedRoles={['administrator', 'manager', 'editor', 'viewer']}><SupportPage /></RoleGuard>} />
+            <Route path="/admin/users" element={<RoleGuard allowedRoles={['administrator', 'super_admin', 'org_admin']}><UsersPage /></RoleGuard>} />
+            <Route path="/admin/organization" element={<RoleGuard allowedRoles={['administrator', 'super_admin', 'org_admin']}><OrganizationPage /></RoleGuard>} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Routes>

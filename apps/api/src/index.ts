@@ -7,6 +7,10 @@ import { rateLimiter } from './middleware/rate-limiter.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
+import { organizationRouter } from './routes/organizations.js';
+import { userRouter } from './routes/users.js';
+import { emissionsRouter } from './routes/emissions.js';
+import { referenceDataRouter } from './routes/reference-data.js';
 import { logger } from './lib/logger.js';
 
 const app: Express = express();
@@ -40,6 +44,10 @@ app.use(rateLimiter);
 // Routes
 app.use('/api/v1/health', healthRouter);
 app.use('/api/v1/auth', authRouter);
+app.use('/api/v1/organizations', organizationRouter);
+app.use('/api/v1/users', userRouter);
+app.use('/api/v1/emissions', emissionsRouter);
+app.use('/api/v1/reference-data', referenceDataRouter);
 
 // ADM-052: RFC 7807 error handler
 app.use(errorHandler);

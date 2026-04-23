@@ -1,67 +1,334 @@
-import { useState } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
 import { Card } from '../../components/ui/Card';
 import { Badge } from '../../components/ui/Badge';
 import { Button } from '../../components/ui/Button';
+import { Select } from '../../components/ui/Select';
+import { Tabs } from '../../components/ui/Tabs';
+import { Table, TableColumn } from '../../components/ui/Table';
+import { Pagination } from '../../components/ui/Pagination';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { useEmissions, useUpdateEmissionStatus, EmissionEntry } from '../../hooks/useEmissions';
+import { useToast } from '../../contexts/ToastContext';
+import { useAuth } from '../../contexts/AuthContext';
 
-type ScopeTab = '1' | '2' | '3';
+/* ─── Helpers ─── */
 
-const scopeData: Record<ScopeTab, { title: string; description: string; total: string; entries: Array<{ source: string; category: string; amount: string; unit: string; date: string; status: string }> }> = {
-  '1': {
-    title: 'Scope 1 - Direct Emissions',
-    description: 'Emissions from sources owned or controlled by your organization.',
-    total: '3,214 tCO2e',
-    entries: [
-      { source: 'Fleet Vehicles - Diesel', category: 'Mobile Combustion', amount: '1,245', unit: 'tCO2e', date: '2025-12-15', status: 'verified' },
-      { source: 'Natural Gas Boilers', category: 'Stationary Combustion', amount: '892', unit: 'tCO2e', date: '2025-12-14', status: 'verified' },
-      { source: 'Refrigerant Leakage (R-410A)', category: 'Fugitive Emissions', amount: '534', unit: 'tCO2e', date: '2025-12-12', status: 'pending' },
-      { source: 'Backup Generators - Diesel', category: 'Stationary Combustion', amount: '312', unit: 'tCO2e', date: '2025-12-10', status: 'verified' },
-      { source: 'Company Vehicles - Gasoline', category: 'Mobile Combustion', amount: '231', unit: 'tCO2e', date: '2025-12-08', status: 'verified' },
-    ],
-  },
-  '2': {
-    title: 'Scope 2 - Indirect Emissions',
-    description: 'Emissions from purchased electricity, steam, heating, and cooling.',
-    total: '5,891 tCO2e',
-    entries: [
-      { source: 'Grid Electricity - HQ', category: 'Purchased Electricity', amount: '2,847', unit: 'tCO2e', date: '2025-12-15', status: 'verified' },
-      { source: 'Grid Electricity - Data Center', category: 'Purchased Electricity', amount: '1,523', unit: 'tCO2e', date: '2025-12-15', status: 'verified' },
-      { source: 'District Heating', category: 'Purchased Heat', amount: '891', unit: 'tCO2e', date: '2025-12-14', status: 'pending' },
-      { source: 'Grid Electricity - Branch Offices', category: 'Purchased Electricity', amount: '432', unit: 'tCO2e', date: '2025-12-12', status: 'verified' },
-      { source: 'Purchased Steam', category: 'Purchased Steam', amount: '198', unit: 'tCO2e', date: '2025-12-10', status: 'draft' },
-    ],
-  },
-  '3': {
-    title: 'Scope 3 - Value Chain Emissions',
-    description: 'All other indirect emissions in your upstream and downstream value chain.',
-    total: '3,742 tCO2e',
-    entries: [
-      { source: 'Employee Commuting', category: 'Cat. 7 - Commuting', amount: '1,034', unit: 'tCO2e', date: '2025-12-15', status: 'estimated' },
-      { source: 'Business Air Travel', category: 'Cat. 6 - Business Travel', amount: '876', unit: 'tCO2e', date: '2025-12-14', status: 'verified' },
-      { source: 'Upstream Freight', category: 'Cat. 4 - Transport', amount: '723', unit: 'tCO2e', date: '2025-12-12', status: 'pending' },
-      { source: 'Purchased Goods - IT Equipment', category: 'Cat. 1 - Purchased Goods', amount: '645', unit: 'tCO2e', date: '2025-12-10', status: 'estimated' },
-      { source: 'Waste Disposal', category: 'Cat. 5 - Waste', amount: '464', unit: 'tCO2e', date: '2025-12-08', status: 'verified' },
-    ],
-  },
-};
+function formatPeriod(start: string, end: string): string {
+  try {
+    const s = new Date(start);
+    const e = new Date(end);
+    const fmt = (d: Date) =>
+      d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+    return `${fmt(s)} - ${fmt(e)}`;
+  } catch {
+    return `${start} - ${end}`;
+  }
+}
 
-const statusBadge = (status: string) => {
-  const map: Record<string, 'success' | 'warning' | 'info' | 'neutral'> = {
-    verified: 'success',
-    pending: 'warning',
-    draft: 'neutral',
-    estimated: 'info',
+function scopeLabel(scope: string): string {
+  const map: Record<string, string> = {
+    scope_1: 'Scope 1',
+    scope_2: 'Scope 2',
+    scope_3: 'Scope 3',
   };
-  return <Badge variant={map[status] || 'neutral'}>{status.charAt(0).toUpperCase() + status.slice(1)}</Badge>;
-};
+  return map[scope] || scope;
+}
+
+function scopeBadgeVariant(scope: string): 'info' | 'warning' | 'success' {
+  const map: Record<string, 'info' | 'warning' | 'success'> = {
+    scope_1: 'info',
+    scope_2: 'warning',
+    scope_3: 'success',
+  };
+  return map[scope] || 'info';
+}
+
+function statusBadgeVariant(status: string): 'neutral' | 'warning' | 'success' | 'error' {
+  const map: Record<string, 'neutral' | 'warning' | 'success' | 'error'> = {
+    draft: 'neutral',
+    pending: 'warning',
+    verified: 'success',
+    rejected: 'error',
+  };
+  return map[status] || 'neutral';
+}
+
+function categoryLabel(category: string): string {
+  return category
+    .split('_')
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(' ');
+}
+
+/* ─── Status filter options ─── */
+
+const STATUS_OPTIONS = [
+  { value: '', label: 'All Statuses' },
+  { value: 'draft', label: 'Draft' },
+  { value: 'pending', label: 'Pending' },
+  { value: 'verified', label: 'Verified' },
+  { value: 'rejected', label: 'Rejected' },
+];
+
+/* ─── Component ─── */
 
 export function EmissionsPage() {
-  const [activeScope, setActiveScope] = useState<ScopeTab>('1');
-  const data = scopeData[activeScope];
+  const navigate = useNavigate();
+  const toast = useToast();
+  const { user } = useAuth();
+  const isManagerOrAbove = user?.role === 'administrator' || user?.role === 'manager';
+
+  /* Filters */
+  const [scopeFilter, setScopeFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  /* API */
+  const { data: response, isLoading, isError, error } = useEmissions({
+    scope: scopeFilter || undefined,
+    status: statusFilter || undefined,
+    page,
+    pageSize,
+  });
+
+  const updateStatus = useUpdateEmissionStatus();
+
+  const emissions = response?.data ?? [];
+  const total = response?.total ?? 0;
+
+  /* Scope counts (from current page data — ideally API provides these) */
+  const scopeCounts = useMemo(() => {
+    const counts = { all: total, scope_1: 0, scope_2: 0, scope_3: 0 };
+    emissions.forEach((e) => {
+      if (e.scope === 'scope_1') counts.scope_1++;
+      else if (e.scope === 'scope_2') counts.scope_2++;
+      else if (e.scope === 'scope_3') counts.scope_3++;
+    });
+    return counts;
+  }, [emissions, total]);
+
+  const scopeTabs = useMemo(
+    () => [
+      { key: '', label: 'All', count: scopeCounts.all },
+      { key: 'scope_1', label: 'Scope 1', count: scopeCounts.scope_1 },
+      { key: 'scope_2', label: 'Scope 2', count: scopeCounts.scope_2 },
+      { key: 'scope_3', label: 'Scope 3', count: scopeCounts.scope_3 },
+    ],
+    [scopeCounts],
+  );
+
+  /* Selection */
+  const toggleSelect = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const toggleSelectAll = useCallback(() => {
+    setSelectedIds((prev) => {
+      if (prev.size === emissions.length && emissions.length > 0) {
+        return new Set();
+      }
+      return new Set(emissions.map((e) => e.id));
+    });
+  }, [emissions]);
+
+  /* Bulk actions */
+  const handleBulkStatus = useCallback(
+    async (status: string) => {
+      const ids = Array.from(selectedIds);
+      try {
+        await Promise.all(ids.map((id) => updateStatus.mutateAsync({ id, status })));
+        toast.success(`${ids.length} item(s) ${status === 'verified' ? 'approved' : 'rejected'} successfully`);
+        setSelectedIds(new Set());
+      } catch {
+        toast.error(`Failed to update status. Please try again.`);
+      }
+    },
+    [selectedIds, updateStatus, toast],
+  );
+
+  /* Single action */
+  const handleSingleStatus = useCallback(
+    async (id: string, status: string) => {
+      try {
+        await updateStatus.mutateAsync({ id, status });
+        toast.success(`Entry ${status === 'verified' ? 'approved' : 'rejected'} successfully`);
+      } catch {
+        toast.error('Failed to update status.');
+      }
+    },
+    [updateStatus, toast],
+  );
+
+  /* Reset page on filter change */
+  const handleScopeChange = useCallback((key: string) => {
+    setScopeFilter(key);
+    setPage(1);
+    setSelectedIds(new Set());
+  }, []);
+
+  const handleStatusChange = useCallback((val: string) => {
+    setStatusFilter(val);
+    setPage(1);
+    setSelectedIds(new Set());
+  }, []);
+
+  const handlePageSizeChange = useCallback((size: number) => {
+    setPageSize(size);
+    setPage(1);
+  }, []);
+
+  /* ─── Table Columns ─── */
+
+  const columns: TableColumn<EmissionEntry>[] = useMemo(() => {
+    const cols: TableColumn<EmissionEntry>[] = [
+      {
+        key: '_select',
+        label: '',
+        render: (_val, row) => (
+          <input
+            type="checkbox"
+            checked={selectedIds.has(row.id)}
+            onChange={() => toggleSelect(row.id)}
+            style={{ cursor: 'pointer', width: '1rem', height: '1rem', accentColor: '#1a5d3d' }}
+          />
+        ),
+      },
+      {
+        key: 'period',
+        label: 'Period',
+        render: (_val, row) => (
+          <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--text-secondary)', fontSize: '0.8125rem' }}>
+            {formatPeriod(row.period_start, row.period_end)}
+          </span>
+        ),
+      },
+      {
+        key: 'source',
+        label: 'Source',
+        render: (_val, row) => (
+          <div>
+            <div style={{ fontWeight: 600, color: 'var(--text-primary)' }}>{row.source}</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', marginTop: '0.125rem' }}>
+              {categoryLabel(row.category)}
+            </div>
+          </div>
+        ),
+      },
+      {
+        key: 'scope',
+        label: 'Scope',
+        render: (_val, row) => (
+          <Badge
+            variant={scopeBadgeVariant(row.scope)}
+            style={{ fontSize: '0.6875rem' }}
+          >
+            {scopeLabel(row.scope)}
+          </Badge>
+        ),
+      },
+      {
+        key: 'activity_value',
+        label: 'Activity Data',
+        render: (_val, row) => (
+          <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+            {Number(row.activity_value).toLocaleString()}{' '}
+            <span style={{ color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>{row.unit}</span>
+          </span>
+        ),
+      },
+      {
+        key: 'co2e',
+        label: 'CO2e',
+        render: (_val, row) => (
+          <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+            {Number(row.co2e).toLocaleString(undefined, { maximumFractionDigits: 2 })}{' '}
+            <span style={{ fontWeight: 400, color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>tCO2e</span>
+          </span>
+        ),
+      },
+      {
+        key: 'status',
+        label: 'Status',
+        render: (_val, row) => (
+          <Badge variant={statusBadgeVariant(row.status)}>
+            {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
+          </Badge>
+        ),
+      },
+      {
+        key: '_actions',
+        label: 'Actions',
+        render: (_val, row) => {
+          const canEdit = row.status === 'draft' || row.status === 'rejected';
+          return (
+            <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'nowrap' }}>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => navigate(`/emissions/${row.id}`)}
+                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+              >
+                View
+              </Button>
+              {canEdit && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => navigate(`/emissions/${row.id}/edit`)}
+                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                >
+                  Edit
+                </Button>
+              )}
+              {isManagerOrAbove && row.status === 'pending' && (
+                <>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleSingleStatus(row.id, 'verified')}
+                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: '#16a34a' }}
+                  >
+                    Approve
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => handleSingleStatus(row.id, 'rejected')}
+                    style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: '#dc2626' }}
+                  >
+                    Reject
+                  </Button>
+                </>
+              )}
+            </div>
+          );
+        },
+      },
+    ];
+    return cols;
+  }, [selectedIds, toggleSelect, navigate, isManagerOrAbove, handleSingleStatus]);
+
+  /* ─── Render ─── */
 
   return (
     <div style={{ maxWidth: '1200px' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '1.5rem',
+        flexWrap: 'wrap',
+        gap: '1rem',
+      }}>
         <div>
           <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
             Emissions Inventory
@@ -70,116 +337,142 @@ export function EmissionsPage() {
             Track and manage greenhouse gas emissions across all scopes.
           </p>
         </div>
-        <Button icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>}>
-          Add Entry
-        </Button>
-      </div>
-
-      {/* Scope Tabs */}
-      <div style={{
-        display: 'flex',
-        gap: '0.25rem',
-        padding: '0.25rem',
-        backgroundColor: 'var(--bg-card)',
-        border: '1px solid var(--border-primary)',
-        borderRadius: '0.625rem',
-        marginBottom: '1.5rem',
-        width: 'fit-content',
-      }}>
-        {(['1', '2', '3'] as ScopeTab[]).map((scope) => (
-          <button
-            key={scope}
-            onClick={() => setActiveScope(scope)}
-            style={{
-              padding: '0.5rem 1.25rem',
-              borderRadius: '0.5rem',
-              border: 'none',
-              cursor: 'pointer',
-              fontSize: '0.875rem',
-              fontWeight: 600,
-              fontFamily: 'inherit',
-              backgroundColor: activeScope === scope ? '#1a5d3d' : 'transparent',
-              color: activeScope === scope ? '#ffffff' : 'var(--text-secondary)',
-              transition: 'all 150ms',
-            }}
+        <Link to="/emissions/new" style={{ textDecoration: 'none' }}>
+          <Button
+            icon={
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+            }
           >
-            Scope {scope}
-          </button>
-        ))}
+            Add Entry
+          </Button>
+        </Link>
       </div>
 
-      {/* Scope Info */}
-      <Card padding="md" style={{ marginBottom: '1.5rem' }}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-          <div>
-            <h3 style={{ fontSize: '1.0625rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
-              {data.title}
-            </h3>
-            <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)' }}>{data.description}</p>
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 500, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Total</p>
-            <p style={{ fontSize: '1.5rem', fontWeight: 800, color: '#1a5d3d' }}>{data.total}</p>
-          </div>
+      {/* Filter bar */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '1rem', marginBottom: '0.25rem' }}>
+        <Tabs
+          tabs={scopeTabs}
+          activeTab={scopeFilter}
+          onTabChange={handleScopeChange}
+        />
+        <div style={{ minWidth: '180px', marginBottom: '1.5rem' }}>
+          <Select
+            value={statusFilter}
+            onChange={handleStatusChange}
+            options={STATUS_OPTIONS}
+          />
         </div>
-      </Card>
+      </div>
 
-      {/* Data Table */}
-      <Card padding="none">
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border-primary)' }}>
-                {['Source', 'Category', 'Amount', 'Date', 'Status'].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      textAlign: 'left',
-                      padding: '0.875rem 1.25rem',
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      color: 'var(--text-tertiary)',
-                      textTransform: 'uppercase',
-                      letterSpacing: '0.05em',
-                    }}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {data.entries.map((entry, i) => (
-                <tr
-                  key={i}
-                  style={{
-                    borderBottom: i < data.entries.length - 1 ? '1px solid var(--border-primary)' : 'none',
-                    transition: 'background 100ms',
-                  }}
-                  onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = 'var(--bg-hover)')}
-                  onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                >
-                  <td style={{ padding: '0.875rem 1.25rem', fontWeight: 500, color: 'var(--text-primary)' }}>
-                    {entry.source}
-                  </td>
-                  <td style={{ padding: '0.875rem 1.25rem', color: 'var(--text-secondary)' }}>
-                    {entry.category}
-                  </td>
-                  <td style={{ padding: '0.875rem 1.25rem', fontWeight: 600, color: 'var(--text-primary)', fontVariantNumeric: 'tabular-nums' }}>
-                    {entry.amount} <span style={{ fontWeight: 400, color: 'var(--text-tertiary)' }}>{entry.unit}</span>
-                  </td>
-                  <td style={{ padding: '0.875rem 1.25rem', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
-                    {entry.date}
-                  </td>
-                  <td style={{ padding: '0.875rem 1.25rem' }}>
-                    {statusBadge(entry.status)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Bulk actions bar */}
+      {selectedIds.size > 0 && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '1rem',
+          padding: '0.75rem 1.25rem',
+          marginBottom: '1rem',
+          backgroundColor: 'rgba(26, 93, 61, 0.06)',
+          border: '1px solid rgba(26, 93, 61, 0.15)',
+          borderRadius: '0.625rem',
+        }}>
+          <span style={{ fontSize: '0.875rem', fontWeight: 600, color: '#1a5d3d' }}>
+            {selectedIds.size} item{selectedIds.size > 1 ? 's' : ''} selected
+          </span>
+          {isManagerOrAbove && (
+            <>
+              <Button
+                size="sm"
+                variant="primary"
+                loading={updateStatus.isPending}
+                onClick={() => handleBulkStatus('verified')}
+              >
+                Approve Selected
+              </Button>
+              <Button
+                size="sm"
+                variant="danger"
+                loading={updateStatus.isPending}
+                onClick={() => handleBulkStatus('rejected')}
+              >
+                Reject Selected
+              </Button>
+            </>
+          )}
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => setSelectedIds(new Set())}
+          >
+            Clear
+          </Button>
         </div>
-      </Card>
+      )}
+
+      {/* Error state */}
+      {isError && (
+        <Card padding="md" style={{ marginBottom: '1rem' }}>
+          <div style={{ textAlign: 'center', color: '#dc2626', padding: '1rem' }}>
+            <p style={{ fontWeight: 600 }}>Failed to load emissions data</p>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)', marginTop: '0.25rem' }}>
+              {(error as Error)?.message || 'An unexpected error occurred. Please try again.'}
+            </p>
+          </div>
+        </Card>
+      )}
+
+      {/* Table */}
+      {!isError && (
+        <Card padding="none">
+          {!isLoading && emissions.length === 0 ? (
+            <EmptyState
+              title="No emissions recorded yet"
+              description="Start tracking your greenhouse gas emissions by adding your first entry."
+              action={{ label: 'Add Entry', onClick: () => navigate('/emissions/new') }}
+            />
+          ) : (
+            <>
+              {/* Select-all header checkbox */}
+              {!isLoading && emissions.length > 0 && (
+                <div style={{
+                  padding: '0.5rem 1.25rem',
+                  borderBottom: '1px solid var(--border-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                }}>
+                  <input
+                    type="checkbox"
+                    checked={selectedIds.size === emissions.length && emissions.length > 0}
+                    onChange={toggleSelectAll}
+                    style={{ cursor: 'pointer', width: '1rem', height: '1rem', accentColor: '#1a5d3d' }}
+                  />
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                    Select all on this page
+                  </span>
+                </div>
+              )}
+              <Table<EmissionEntry>
+                columns={columns}
+                data={emissions}
+                loading={isLoading}
+              />
+              {!isLoading && total > 0 && (
+                <Pagination
+                  page={page}
+                  pageSize={pageSize}
+                  total={total}
+                  onPageChange={setPage}
+                  onPageSizeChange={handlePageSizeChange}
+                />
+              )}
+            </>
+          )}
+        </Card>
+      )}
     </div>
   );
 }
