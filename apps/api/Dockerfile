@@ -18,18 +18,19 @@ COPY apps/api/ apps/api/
 COPY packages/shared/ packages/shared/
 COPY packages/database/ packages/database/
 RUN pnpm --filter @aurex/api build
+# Deploy: flatten deps into api node_modules for production
+RUN pnpm --filter @aurex/api deploy /app/api-deploy --prod
 
 # Production
 FROM node:20-slim AS production
-RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 
 # ADM-020: Non-root user
 RUN groupadd -r aurex && useradd -r -g aurex -s /bin/false aurex
 WORKDIR /app
 
+COPY --from=build /app/api-deploy/node_modules ./node_modules
+COPY --from=build /app/api-deploy/package.json ./
 COPY --from=build /app/apps/api/dist ./dist
-COPY --from=build /app/apps/api/package.json ./
-COPY --from=deps /app/node_modules ./node_modules
 
 USER aurex
 
