@@ -32,6 +32,9 @@ coverage/
 tests/security/reports/
 security-critical-issues.json
 
+# OWASP ZAP baseline scan output (AV4-295)
+reports/
+
 # Python
 __pycache__/
 *.pyc

@@ -64,8 +64,13 @@ app.use('/api/v1/imports', importRouter);
 // ADM-052: RFC 7807 error handler
 app.use(errorHandler);
 
-app.listen(PORT, '0.0.0.0', () => {
-  logger.info({ port: PORT, cors: CORS_ORIGINS }, 'AurexV4 API started');
-});
+// Skip binding the HTTP listener when running tests (supertest passes the app
+// instance directly — no port binding needed). This prevents EADDRINUSE when
+// multiple test files import the app, and avoids hanging the vitest process.
+if (process.env.NODE_ENV !== 'test') {
+  app.listen(PORT, '0.0.0.0', () => {
+    logger.info({ port: PORT, cors: CORS_ORIGINS }, 'AurexV4 API started');
+  });
+}
 
 export { app };
