@@ -1,0 +1,17 @@
+# Development-only overrides — DB + Redis only, apps run via pnpm dev
+version: "3.8"
+
+services:
+  aurex-db:
+    ports:
+      - "5432:5432"
+
+  aurex-redis:
+    ports:
+      - "6379:6379"
+
+  # Disable production containers in dev
+  aurex-api:
+    profiles: ["production"]
+  aurex-nginx:
+    profiles: ["production"]

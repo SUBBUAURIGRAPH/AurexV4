@@ -1,0 +1,43 @@
+{
+  "name": "aurexv4",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AurexV4 — Aurigraph Sustainability & Environmental Intelligence Platform",
+  "packageManager": "pnpm@8.15.0",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "test": "turbo run test",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,jsx,json,css,md}\"",
+    "db:migrate": "turbo run db:migrate --filter=@aurex/database",
+    "db:seed": "turbo run db:seed --filter=@aurex/database",
+    "db:studio": "turbo run db:studio --filter=@aurex/database",
+    "test:owasp:all": "turbo run test:owasp --filter=@aurex/security-tests",
+    "test:owasp:critical": "turbo run test:owasp:critical --filter=@aurex/security-tests",
+    "test:nginx:all": "turbo run test:nginx --filter=@aurex/infra-tests",
+    "test:nginx:ssl": "turbo run test:nginx:ssl --filter=@aurex/infra-tests",
+    "test:nginx:headers": "turbo run test:nginx:headers --filter=@aurex/infra-tests",
+    "test:nginx:routing": "turbo run test:nginx:routing --filter=@aurex/infra-tests",
+    "test:nginx:performance": "turbo run test:nginx:performance --filter=@aurex/infra-tests",
+    "test:security:all": "pnpm run test:owasp:all && pnpm run test:nginx:all",
+    "security:report": "node scripts/security/generate-report.js",
+    "deploy:pre-check": "node scripts/deploy/pre-deployment-gates.mjs",
+    "deploy:post-check": "node scripts/deploy/post-deployment-gates.mjs",
+    "clean": "turbo run clean && rm -rf node_modules"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^19.0.0",
+    "@commitlint/config-conventional": "^19.0.0",
+    "husky": "^9.0.0",
+    "prettier": "^3.2.0",
+    "turbo": "^2.3.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -1,0 +1,48 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+.next/
+*.tsbuildinfo
+
+# Turbo
+.turbo/
+
+# Environment & secrets — NEVER commit
+.env
+.env.local
+.env.production
+.env.*.local
+credentials.md
+.credentials-aurexv3-import/aurexv3-mirror/
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Test & coverage
+coverage/
+*.lcov
+tests/security/reports/
+security-critical-issues.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Docker
+docker-compose.override.yml
+
+# Logs
+*.log
+logs/
+
+# OS
+Thumbs.db

@@ -1,0 +1,90 @@
+/* AurexV3-derived brand theme */
+:root {
+  --aurex-primary-50: #f0f9f7;
+  --aurex-primary-100: #d4f0eb;
+  --aurex-primary-200: #a8e1d7;
+  --aurex-primary-300: #7cd2c3;
+  --aurex-primary-400: #50c3af;
+  --aurex-primary-500: #1a5d3d;
+  --aurex-primary-600: #155a38;
+  --aurex-primary-700: #0f4a2e;
+  --aurex-primary-800: #0a3a24;
+  --aurex-primary-900: #052a1a;
+
+  --aurex-secondary-500: #10b981;
+  --aurex-accent-500: #14b8a6;
+
+  --aurex-gray-50: #f9fafb;
+  --aurex-gray-100: #f3f4f6;
+  --aurex-gray-200: #e5e7eb;
+  --aurex-gray-300: #d1d5db;
+  --aurex-gray-400: #9ca3af;
+  --aurex-gray-500: #6b7280;
+  --aurex-gray-600: #4b5563;
+  --aurex-gray-700: #374151;
+  --aurex-gray-800: #1f2937;
+  --aurex-gray-900: #111827;
+
+  --aurex-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --aurex-text-sm: 0.875rem;
+  --aurex-text-base: 1rem;
+  --aurex-text-lg: 1.125rem;
+  --aurex-text-xl: 1.25rem;
+  --aurex-text-2xl: 1.5rem;
+
+  --aurex-radius-md: 0.5rem;
+  --aurex-radius-lg: 0.75rem;
+  --aurex-radius-full: 9999px;
+
+  --aurex-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --aurex-shadow-brand: 0 4px 12px rgba(26, 93, 61, 0.15);
+
+  --aurex-transition-fast: 150ms ease-in-out;
+  --aurex-transition-base: 300ms ease-in-out;
+}
+
+body {
+  font-family: var(--aurex-font-sans);
+  color: var(--aurex-gray-900);
+  background-color: #ffffff;
+}
+
+a {
+  color: var(--aurex-primary-500);
+  transition: color var(--aurex-transition-fast);
+}
+
+a:hover {
+  color: var(--aurex-primary-700);
+}
+
+.btn-primary,
+button[type='submit'] {
+  background-color: var(--aurex-primary-500);
+  color: #ffffff;
+  transition: all var(--aurex-transition-base);
+}
+
+.btn-primary:hover,
+button[type='submit']:hover {
+  background-color: var(--aurex-primary-600);
+  box-shadow: var(--aurex-shadow-brand);
+}
+
+.card,
+[class*='Card'] {
+  box-shadow: var(--aurex-shadow-md);
+  border-color: var(--aurex-gray-200);
+}
+
+h1 {
+  color: var(--aurex-primary-900);
+}
+
+h2 {
+  color: var(--aurex-primary-800);
+}
+
+h3 {
+  color: var(--aurex-primary-700);
+}

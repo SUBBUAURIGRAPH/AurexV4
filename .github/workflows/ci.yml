@@ -1,0 +1,110 @@
+# ADM-053: Continuous deployment workflow
+# ADM-056: OWASP testing after every build
+# ADM-057: nginx/HTTPS post-deployment validation
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-typecheck:
+    name: Lint & Typecheck
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+
+  test:
+    name: Unit & Integration Tests
+    runs-on: self-hosted
+    needs: [lint-typecheck]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: "**/coverage/"
+
+  build:
+    name: Build
+    runs-on: self-hosted
+    needs: [test]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build-artifacts
+          path: |
+            apps/api/dist/
+            apps/web/dist/
+
+  # ADM-056: OWASP Security Testing
+  owasp-security:
+    name: OWASP Security Tests
+    runs-on: self-hosted
+    needs: [build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test:owasp:all
+      - run: pnpm security:report
+      - uses: actions/upload-artifact@v4
+        with:
+          name: owasp-results
+          path: tests/security/reports/
+      - name: Fail on critical issues
+        run: |
+          if [ -f "security-critical-issues.json" ]; then
+            echo "Critical security issues found — failing build"
+            exit 1
+          fi
+
+  # ADM-055: Pre-deployment gates
+  deploy:
+    name: Deploy to Production
+    runs-on: self-hosted
+    needs: [build, owasp-security]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: build-artifacts
+      - name: Pre-deployment gates (ADM-055)
+        run: pnpm deploy:pre-check
+      - name: Deploy to server
+        run: ./scripts/deploy/deploy-to-remote.sh
+      - name: Post-deployment gates (ADM-055)
+        run: pnpm deploy:post-check
+      # ADM-057: nginx/HTTPS validation
+      - name: HTTPS validation
+        run: pnpm test:nginx:all

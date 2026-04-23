@@ -1,0 +1,630 @@
+{
+  "description": "Generated from WBS_AUREXV4_GREENFIELD.md by wbs_to_backlog.py — regenerate after WBS edits.",
+  "epics": [
+    {
+      "summary": "[WBS 0] Program governance & delivery",
+      "description": "Synthetic epic for section 0 of WBS (no explicit Epic row before first Story).",
+      "children": [
+        {
+          "summary": "[0.1] Delivery operating model",
+          "description": "**WBS:** 0.1\n\n11 quality gates, SPARC → deployment sequence (`CLAUDE.md`)",
+          "children": []
+        },
+        {
+          "summary": "[0.1.1] Define gate owners & evidence",
+          "description": "**WBS:** 0.1.1\n\nSign-off + evidence paths per gate",
+          "children": [
+            {
+              "summary": "[0.1.1.1] Gate checklist templates",
+              "description": "**WBS:** 0.1.1.1\n\nAlign with TICKET / deployment checklists"
+            }
+          ]
+        },
+        {
+          "summary": "[0.1.2] Branching & release cadence",
+          "description": "**WBS:** 0.1.2\n\nMonorepo `pnpm`/Turborepo (`CLAUDE.md`)",
+          "children": []
+        },
+        {
+          "summary": "[0.2] Backlog hygiene",
+          "description": "**WBS:** 0.2\n\nLabels: phase, component, regulation (CBAM/CSRD), risk",
+          "children": []
+        },
+        {
+          "summary": "[0.3] Stakeholder reporting",
+          "description": "**WBS:** 0.3\n\nRoadmap KPIs (`PRODUCT_ROADMAP_2026-2030.md`)",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[1.1] Monorepo bootstrap",
+      "description": "**WBS:** 1.1\n\n`apps/`, `packages/`, `infrastructure/`, `config/`, `tests/` layout",
+      "children": [
+        {
+          "summary": "[1.1.1] Workspace tooling",
+          "description": "**WBS:** 1.1.1\n\n`pnpm-workspace`, `turbo.json`, root scripts",
+          "children": [
+            {
+              "summary": "[1.1.1.1] Align `package.json` scripts with `CLAUDE.md` quick start",
+              "description": "**WBS:** 1.1.1.1\n\n`dev`, `build`, `test`, `lint`, `typecheck`"
+            },
+            {
+              "summary": "[1.1.1.2] Shared TS config",
+              "description": "**WBS:** 1.1.1.2\n\n`tsconfig.base.json`, package references"
+            }
+          ]
+        },
+        {
+          "summary": "[1.1.2] Local environment",
+          "description": "**WBS:** 1.1.2\n\n`.env.example`, secrets policy, no secrets in repo",
+          "children": [
+            {
+              "summary": "[1.1.2.1] Document env matrix",
+              "description": "**WBS:** 1.1.2.1\n\nAPI, web, DB, Redis, vault, email"
+            }
+          ]
+        },
+        {
+          "summary": "[1.1.3] Editor & hooks",
+          "description": "**WBS:** 1.1.3\n\n`.editorconfig`, Husky/commit conventions (`.commitlintrc`, `.husky`)",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[1.2] Package graph",
+      "description": "**WBS:** 1.2\n\n`@aurex/web`, `@aurex/api`, `@aurex/database`, `@aurex/shared`, domain packages",
+      "children": [
+        {
+          "summary": "[1.2.1] Internal package boundaries",
+          "description": "**WBS:** 1.2.1\n\nCarbon / water / biodiversity packages (`CLAUDE.md`)",
+          "children": []
+        },
+        {
+          "summary": "[1.2.2] Path aliases & build order",
+          "description": "**WBS:** 1.2.2\n\nTurborepo pipeline",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[2.1] PostgreSQL + Prisma",
+      "description": "**WBS:** 2.1\n\nMulti-tenant, migrations, studio (`CLAUDE.md`)",
+      "children": [
+        {
+          "summary": "[2.1.1] Schema governance",
+          "description": "**WBS:** 2.1.1\n\nNaming, indexes, RLS strategy (per master index)",
+          "children": []
+        },
+        {
+          "summary": "[2.1.2] Migrations & seed",
+          "description": "**WBS:** 2.1.2\n\n`pnpm db:migrate`, seed for dev/staging",
+          "children": []
+        },
+        {
+          "summary": "[2.1.3] Tenant isolation model",
+          "description": "**WBS:** 2.1.3\n\nSchema/strategy per architecture index",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[2.2] Blockchain data model",
+      "description": "**WBS:** 2.2\n\nSprint 1–2 spec: ACCT, settlements, transactions",
+      "children": [
+        {
+          "summary": "[2.2.1] Prisma models",
+          "description": "**WBS:** 2.2.1\n\n`BlockchainTransaction`, `LiabilitySettlement`, `CarbonCreditTransaction`, `ACCTBalance`, `BlockchainAddress`",
+          "children": [
+            {
+              "summary": "[2.2.1.1] FKs & indexes",
+              "description": "**WBS:** 2.2.1.1\n\nAs in implementation plan SQL sketches"
+            }
+          ]
+        },
+        {
+          "summary": "[2.2.2] Migration rollout",
+          "description": "**WBS:** 2.2.2\n\nZero-downtime strategy, backfill",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[2.3] Analytics & supplier extensions",
+      "description": "**WBS:** 2.3\n\nReduction initiatives, supplier analytics (`SPRINT_1-2_SPECIFICATION.md`)",
+      "children": [
+        {
+          "summary": "[Planning] Decompose epic into stories",
+          "description": "The WBS table had no child rows under this epic; split during backlog refinement.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[2.4] Emissions targets & baselines",
+      "description": "**WBS:** 2.4\n\nMirror proven breakdown (`docs/jira-tickets-emissions-targets-baselines.md`)",
+      "children": [
+        {
+          "summary": "[2.4.1] Schema: baselines, targets, progress",
+          "description": "**WBS:** 2.4.1\n\nEmissionsBaseline, EmissionsTarget, TargetProgress",
+          "children": []
+        },
+        {
+          "summary": "[2.4.2] Baseline API CRUD + RBAC",
+          "description": "**WBS:** 2.4.2\n\nZod, pagination, tests",
+          "children": []
+        },
+        {
+          "summary": "[2.4.3] Target API + SBTi validation",
+          "description": "**WBS:** 2.4.3\n\nPathways 1.5°C / WB2°C / 2°C",
+          "children": []
+        },
+        {
+          "summary": "[2.4.4] Baseline dashboard UI",
+          "description": "**WBS:** 2.4.4\n\nModals, charts, React Query",
+          "children": []
+        },
+        {
+          "summary": "[2.4.5] Target wizard UI",
+          "description": "**WBS:** 2.4.5\n\n4-step flow, live validation",
+          "children": []
+        },
+        {
+          "summary": "[2.4.6] Progress service",
+          "description": "**WBS:** 2.4.6\n\nTrajectory, variance, aggregation",
+          "children": []
+        },
+        {
+          "summary": "[2.4.7] Alerts engine + UI",
+          "description": "**WBS:** 2.4.7\n\nRules, severity, notification integration",
+          "children": []
+        },
+        {
+          "summary": "[2.4.8] Integration & E2E",
+          "description": "**WBS:** 2.4.8\n\nFull flow baseline → target → progress → alert",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[3.1] Fresh universal auth",
+      "description": "**WBS:** 3.1\n\n`FRESH_AUTH_ARCHITECTURE.md`, ADM-055/056",
+      "children": [
+        {
+          "summary": "[3.1.1] DB: users, sessions, roles, auth_events, MFA",
+          "description": "**WBS:** 3.1.1\n\nDevice fingerprinting",
+          "children": []
+        },
+        {
+          "summary": "[3.1.2] FastAPI auth service",
+          "description": "**WBS:** 3.1.2\n\nJWT RS256, rotation, blacklist, rate limits, lockout",
+          "children": []
+        },
+        {
+          "summary": "[3.1.3] Frontend AuthProvider",
+          "description": "**WBS:** 3.1.3\n\nhttpOnly cookies, refresh, idle logout",
+          "children": []
+        },
+        {
+          "summary": "[3.1.4] MFA",
+          "description": "**WBS:** 3.1.4\n\nTOTP, email verification, backup codes",
+          "children": []
+        },
+        {
+          "summary": "[3.1.5] RBAC enforcement",
+          "description": "**WBS:** 3.1.5\n\nMiddleware across Node + Python boundaries",
+          "children": []
+        },
+        {
+          "summary": "[3.1.6] Auth UX restoration",
+          "description": "**WBS:** 3.1.6\n\nADM-055 flows, error states, accessibility",
+          "children": []
+        },
+        {
+          "summary": "[3.1.7] Systematic guardrails",
+          "description": "**WBS:** 3.1.7\n\nADM-056: route guards, audit, abuse detection",
+          "children": []
+        },
+        {
+          "summary": "[3.1.8] Security test suite",
+          "description": "**WBS:** 3.1.8\n\nOWASP-oriented cases (`FRESH_AUTH_ARCHITECTURE.md`)",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[4.1] API core",
+      "description": "**WBS:** 4.1\n\nControllers, routes, validation, OpenAPI",
+      "children": [
+        {
+          "summary": "[4.1.1] Environment validation",
+          "description": "**WBS:** 4.1.1\n\nRe-enable strict startup post-`.env.production` (sprint spec)",
+          "children": []
+        },
+        {
+          "summary": "[4.1.2] Repository layer",
+          "description": "**WBS:** 4.1.2\n\nFix Scope3 factory, type-safe repositories",
+          "children": []
+        },
+        {
+          "summary": "[4.1.3] Trial / dashboard metrics",
+          "description": "**WBS:** 4.1.3\n\nCarbon assessments count, exports (TODOs in spec)",
+          "children": []
+        },
+        {
+          "summary": "[4.1.4] PDF reporting",
+          "description": "**WBS:** 4.1.4\n\nCarbon offsetting PDF path (`SPRINT_1-2_SPECIFICATION.md`)",
+          "children": []
+        },
+        {
+          "summary": "[4.1.5] Supplier data management",
+          "description": "**WBS:** 4.1.5\n\nModel + controller completion",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[4.2] Blockchain controllers",
+      "description": "**WBS:** 4.2\n\nACCT purchase/retire/transfer — unblock 501s",
+      "children": [
+        {
+          "summary": "[4.2.1] Web3 service integration",
+          "description": "**WBS:** 4.2.1\n\nContract interface, tx history",
+          "children": []
+        },
+        {
+          "summary": "[4.2.2] Settlement & credit flows",
+          "description": "**WBS:** 4.2.2\n\nEnd-to-end with Prisma models",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[5.1] Service boundaries",
+      "description": "**WBS:** 5.1\n\nShared auth, tracing, error format",
+      "children": [
+        {
+          "summary": "[5.1.1] Deployable image & config",
+          "description": "**WBS:** 5.1.1\n\nAlign with monorepo docker patterns",
+          "children": []
+        },
+        {
+          "summary": "[5.1.2] Contract tests vs Node API",
+          "description": "**WBS:** 5.1.2\n\nPrevent drift",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[6.1] Tenant web shell",
+      "description": "**WBS:** 6.1\n\nVite, routing, design system (`packages/ui`)",
+      "children": [
+        {
+          "summary": "[6.1.1] Tenant theming & i18n hooks",
+          "description": "**WBS:** 6.1.1\n\nRoadmap: supplier portal languages",
+          "children": []
+        },
+        {
+          "summary": "[6.1.2] Performance budgets",
+          "description": "**WBS:** 6.1.2\n\n<100 ms p95 alignment with org goals",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[6.2] Module UIs",
+      "description": "**WBS:** 6.2\n\nCarbonTrace, HydroPulse, SylvaGraph surfaces per roadmap",
+      "children": [
+        {
+          "summary": "[Planning] Decompose epic into stories",
+          "description": "The WBS table had no child rows under this epic; split during backlog refinement.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[6.3] CBAM & compliance UX",
+      "description": "**WBS:** 6.3\n\nRelease 1.1 UX (embedded emissions, certificates, dashboards)",
+      "children": [
+        {
+          "summary": "[Planning] Decompose epic into stories",
+          "description": "The WBS table had no child rows under this epic; split during backlog refinement.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[7.1] R1.1 CBAM “ready”",
+      "description": "**WBS:** 7.1\n\nCalculator, certificates, quarterly reporting, factors, classifier, alerts",
+      "children": [
+        {
+          "summary": "[7.1.1] EU emission factors dataset",
+          "description": "**WBS:** 7.1.1\n\n27 members, update pipeline",
+          "children": []
+        },
+        {
+          "summary": "[7.1.2] Product category classifier",
+          "description": "**WBS:** 7.1.2\n\nAluminum, cement, fertilizer, iron/steel, electricity, hydrogen",
+          "children": []
+        },
+        {
+          "summary": "[7.1.3] Compliance timeline & alerts",
+          "description": "**WBS:** 7.1.3\n\nNotifications integration",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[7.2] R1.2 CSRD templates",
+      "description": "**WBS:** 7.2\n\nMateriality wizard, ESRS E1–E5, S1–S4, G1, double materiality UI",
+      "children": [
+        {
+          "summary": "[Planning] Decompose epic into stories",
+          "description": "The WBS table had no child rows under this epic; split during backlog refinement.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[7.3] R1.3 AI estimation engine",
+      "description": "**WBS:** 7.3\n\nNAICS factors, spend-based, hybrid, confidence, quality dashboard",
+      "children": [
+        {
+          "summary": "[7.3.1] Model training pipeline",
+          "description": "**WBS:** 7.3.1\n\nEPA, Exiobase, DEFRA",
+          "children": []
+        },
+        {
+          "summary": "[7.3.2] Inference API",
+          "description": "**WBS:** 7.3.2\n\nReal-time + monitoring",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[7.4] R2.1 Scope 3 supplier portal",
+      "description": "**WBS:** 7.4\n\nToken links, campaigns, validation, scoring, bulk CSV/API",
+      "children": [
+        {
+          "summary": "[Planning] Decompose epic into stories",
+          "description": "The WBS table had no child rows under this epic; split during backlog refinement.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[8.1] Program: merge execution",
+      "description": "**WBS:** 8.1\n\n`MERGE_IMPLEMENTATION_PLAN.md` timeline",
+      "children": [
+        {
+          "summary": "[8.1.1] Feature parity checklist",
+          "description": "**WBS:** 8.1.1\n\nCritical V3 routes",
+          "children": []
+        },
+        {
+          "summary": "[8.1.2] Data migration",
+          "description": "**WBS:** 8.1.2\n\nZero-loss validation, rollback",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[8.2] BRSR module port",
+      "description": "**WBS:** 8.2\n\nModels `BRSRReport`, indicators, PDF/Excel",
+      "children": [
+        {
+          "summary": "[Planning] Decompose epic into stories",
+          "description": "The WBS table had no child rows under this epic; split during backlog refinement.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[8.3] Carbon marketplace / offsetting parity",
+      "description": "**WBS:** 8.3\n\nWeeks 5–8 scope in merge plan",
+      "children": [
+        {
+          "summary": "[Planning] Decompose epic into stories",
+          "description": "The WBS table had no child rows under this epic; split during backlog refinement.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[8.4] Cutover & adoption",
+      "description": "**WBS:** 8.4\n\n<4 h downtime, 95% migration in 30 days KPIs",
+      "children": [
+        {
+          "summary": "[Planning] Decompose epic into stories",
+          "description": "The WBS table had no child rows under this epic; split during backlog refinement.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[9.1] Email platform",
+      "description": "**WBS:** 9.1\n\nInvestigation + SendGrid migration docs",
+      "children": [
+        {
+          "summary": "[9.1.1] Transactional templates",
+          "description": "**WBS:** 9.1.1\n\nAuth, alerts, supplier campaigns",
+          "children": []
+        },
+        {
+          "summary": "[9.1.2] Suppression & compliance",
+          "description": "**WBS:** 9.1.2\n\nBounce handling, unsubscribe where required",
+          "children": []
+        },
+        {
+          "summary": "[9.1.3] Load & failure tests",
+          "description": "**WBS:** 9.1.3\n\nProvider failover",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[10.1] API reliability program",
+      "description": "**WBS:** 10.1\n\n`PERMANENT_API_SOLUTION_REPORT.md` themes",
+      "children": [
+        {
+          "summary": "[10.1.1] Idempotency & rate limits",
+          "description": "**WBS:** 10.1.1\n\nExternal partners",
+          "children": []
+        },
+        {
+          "summary": "[10.1.2] Versioning & deprecation",
+          "description": "**WBS:** 10.1.2\n\n`/api/v1` consistency",
+          "children": []
+        },
+        {
+          "summary": "[10.1.3] Runbooks",
+          "description": "**WBS:** 10.1.3\n\nIncident response for API tier",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[11.1] Container platform",
+      "description": "**WBS:** 11.1\n\nDocker, K8s manifests (`infrastructure/`)",
+      "children": [
+        {
+          "summary": "[11.1.1] Secrets: Vault / OpenBao",
+          "description": "**WBS:** 11.1.1\n\nPer master index “production ready”",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[11.2] Observability",
+      "description": "**WBS:** 11.2\n\nPrometheus, Grafana, Loki, OpenTelemetry",
+      "children": [
+        {
+          "summary": "[Planning] Decompose epic into stories",
+          "description": "The WBS table had no child rows under this epic; split during backlog refinement.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[11.3] CI/CD",
+      "description": "**WBS:** 11.3\n\nGitHub Actions: test, SAST, DAST, deploy, rollback",
+      "children": [
+        {
+          "summary": "[11.3.1] Reinstate env validation in pipeline",
+          "description": "**WBS:** 11.3.1\n\nLink to API epic 4.1.1",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[11.4] Wave 3 deployment",
+      "description": "**WBS:** 11.4\n\n`deploy.wave3.yaml`, `WAVE3_COMPLETION_REPORT.md` patterns",
+      "children": [
+        {
+          "summary": "[11.4.1] Environment-specific values",
+          "description": "**WBS:** 11.4.1\n\ndev/staging/prod matrix",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[11.5] Auto-scaling, LB, Redis DR",
+      "description": "**WBS:** 11.5\n\nDocs: `CONTAINER_AUTO_SCALING.md`, `LOAD_BALANCING_CONFIGURATION.md`, `REDIS_FAILOVER_CONFIGURATION.md` (create stories per doc)",
+      "children": [
+        {
+          "summary": "[Planning] Decompose epic into stories",
+          "description": "The WBS table had no child rows under this epic; split during backlog refinement.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[12.1] TDD mandate",
+      "description": "**WBS:** 12.1\n\nRED → GREEN → REFACTOR; coverage ≥92% target",
+      "children": [
+        {
+          "summary": "[Planning] Decompose epic into stories",
+          "description": "The WBS table had no child rows under this epic; split during backlog refinement.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[12.2] Static analysis",
+      "description": "**WBS:** 12.2\n\nESLint, TS, Sonar (`sonar-project.properties`)",
+      "children": [
+        {
+          "summary": "[Planning] Decompose epic into stories",
+          "description": "The WBS table had no child rows under this epic; split during backlog refinement.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[12.3] Dynamic & performance",
+      "description": "**WBS:** 12.3\n\nk6/load, memory; p95 <100 ms",
+      "children": [
+        {
+          "summary": "[Planning] Decompose epic into stories",
+          "description": "The WBS table had no child rows under this epic; split during backlog refinement.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[12.4] Security",
+      "description": "**WBS:** 12.4\n\nSAST/DAST, OWASP, dependency scanning",
+      "children": [
+        {
+          "summary": "[Planning] Decompose epic into stories",
+          "description": "The WBS table had no child rows under this epic; split during backlog refinement.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[12.5] E2E & compliance suites",
+      "description": "**WBS:** 12.5\n\nPlaywright, `e2e-compliance-test.js`, security tests in repo",
+      "children": [
+        {
+          "summary": "[Planning] Decompose epic into stories",
+          "description": "The WBS table had no child rows under this epic; split during backlog refinement.",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[13.1] Living documentation",
+      "description": "**WBS:** 13.1\n\n`LIVING_DOCUMENTATION.md`, master index categories",
+      "children": [
+        {
+          "summary": "[13.1.1] Architecture & ADR set",
+          "description": "**WBS:** 13.1.1\n\n`docs/architecture`, `docs/adr`",
+          "children": []
+        },
+        {
+          "summary": "[13.1.2] API docs",
+          "description": "**WBS:** 13.1.2\n\nOpenAPI publish pipeline",
+          "children": []
+        },
+        {
+          "summary": "[13.1.3] Runbooks & audits",
+          "description": "**WBS:** 13.1.3\n\n`docs/runbooks`, `docs/audits`",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[13.2] Developer onboarding",
+      "description": "**WBS:** 13.2\n\n`DEVELOPER_ONBOARDING_GUIDE.md` → tasks for day-1/ week-1",
+      "children": [
+        {
+          "summary": "[Planning] Decompose epic into stories",
+          "description": "The WBS table had no child rows under this epic; split during backlog refinement.",
+          "children": []
+        }
+      ]
+    }
+  ]
+}

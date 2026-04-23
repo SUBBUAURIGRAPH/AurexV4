@@ -1,0 +1,1 @@
+project = AV4 AND key >= AV4-6 AND key <= AV4-123 AND issuetype in (Story, Task, Feature)

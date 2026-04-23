@@ -1,0 +1,14 @@
+{
+  "name": "@aurex/security-tests",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test:owasp": "vitest run --config vitest.config.ts",
+    "test:owasp:critical": "vitest run --config vitest.config.ts --grep 'critical'",
+    "test:owasp:injection": "vitest run --config vitest.config.ts --grep 'injection'",
+    "test:owasp:auth": "vitest run --config vitest.config.ts --grep 'authentication'"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.0"
+  }
+}

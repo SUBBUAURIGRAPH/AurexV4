@@ -1,0 +1,28 @@
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  color-scheme: light dark;
+}
+
+body {
+  font-family: var(--aurex-font-sans, 'Inter', system-ui, sans-serif);
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+[data-theme='dark'] body {
+  background: #0f172a;
+  color: #e2e8f0;
+}
+
+[data-theme='light'] body {
+  background: #ffffff;
+  color: #1e293b;
+}

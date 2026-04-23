@@ -1,0 +1,84 @@
+/* AurexV3-derived admin design tokens */
+:root {
+  --admin-primary-50: #eff6ff;
+  --admin-primary-100: #dbeafe;
+  --admin-primary-200: #bfdbfe;
+  --admin-primary-300: #93c5fd;
+  --admin-primary-400: #60a5fa;
+  --admin-primary-500: #3b82f6;
+  --admin-primary-600: #2563eb;
+  --admin-primary-700: #1d4ed8;
+  --admin-primary-800: #1e40af;
+  --admin-primary-900: #1e3a8a;
+
+  --admin-gray-50: #f9fafb;
+  --admin-gray-100: #f3f4f6;
+  --admin-gray-200: #e5e7eb;
+  --admin-gray-300: #d1d5db;
+  --admin-gray-400: #9ca3af;
+  --admin-gray-500: #6b7280;
+  --admin-gray-600: #4b5563;
+  --admin-gray-700: #374151;
+  --admin-gray-800: #1f2937;
+  --admin-gray-900: #111827;
+
+  --admin-success-500: #22c55e;
+  --admin-warning-500: #f59e0b;
+  --admin-error-500: #ef4444;
+  --admin-info-500: #3b82f6;
+
+  --admin-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+  --admin-font-mono: 'SF Mono', Monaco, 'Cascadia Code', 'Roboto Mono', Consolas, 'Courier New', monospace;
+
+  --admin-text-xs: 0.75rem;
+  --admin-text-sm: 0.875rem;
+  --admin-text-base: 1rem;
+  --admin-text-lg: 1.125rem;
+  --admin-text-xl: 1.25rem;
+  --admin-text-2xl: 1.5rem;
+  --admin-text-3xl: 1.875rem;
+
+  --admin-space-1: 0.25rem;
+  --admin-space-2: 0.5rem;
+  --admin-space-3: 0.75rem;
+  --admin-space-4: 1rem;
+  --admin-space-6: 1.5rem;
+  --admin-space-8: 2rem;
+
+  --admin-radius-sm: 0.25rem;
+  --admin-radius-md: 0.5rem;
+  --admin-radius-lg: 0.75rem;
+  --admin-radius-xl: 1rem;
+
+  --admin-shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px -1px rgba(0, 0, 0, 0.1);
+  --admin-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --admin-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+
+  --admin-bg-primary: #ffffff;
+  --admin-bg-secondary: var(--admin-gray-50);
+  --admin-bg-tertiary: var(--admin-gray-100);
+  --admin-text-primary: var(--admin-gray-900);
+  --admin-text-secondary: var(--admin-gray-700);
+  --admin-text-tertiary: var(--admin-gray-500);
+  --admin-border-primary: var(--admin-gray-200);
+  --admin-border-secondary: var(--admin-gray-300);
+}
+
+.dark {
+  --admin-bg-primary: #0f172a;
+  --admin-bg-secondary: #1e293b;
+  --admin-bg-tertiary: #334155;
+  --admin-text-primary: #f9fafb;
+  --admin-text-secondary: #e5e7eb;
+  --admin-text-tertiary: #9ca3af;
+  --admin-border-primary: #374151;
+  --admin-border-secondary: #4b5563;
+}
+
+html[data-theme='dark'] {
+  color-scheme: dark;
+}
+
+html[data-theme='light'] {
+  color-scheme: light;
+}

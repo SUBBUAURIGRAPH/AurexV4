@@ -1,0 +1,17 @@
+{
+  "name": "@aurigraph/aurex-theme-kit",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Reusable AurexV3 theme tokens, styles, and React ThemeProvider.",
+  "main": "src/index.ts",
+  "types": "src/index.ts",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.0"
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "@aurex/infra-tests",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "test:nginx": "vitest run --config vitest.config.ts",
+    "test:nginx:ssl": "vitest run --config vitest.config.ts --grep 'SSL'",
+    "test:nginx:headers": "vitest run --config vitest.config.ts --grep 'headers'",
+    "test:nginx:routing": "vitest run --config vitest.config.ts --grep 'routing'",
+    "test:nginx:performance": "vitest run --config vitest.config.ts --grep 'performance'"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.0"
+  }
+}
