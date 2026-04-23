@@ -30,8 +30,8 @@ RUN pnpm --filter @aurex/api deploy /app/api-deploy --prod
 RUN cp -r /app/packages/shared/dist /app/api-deploy/node_modules/@aurex/shared/dist 2>/dev/null || true && \
     cp -r /app/packages/database/dist /app/api-deploy/node_modules/@aurex/database/dist 2>/dev/null || true && \
     cp -r /app/packages/database/prisma /app/api-deploy/node_modules/@aurex/database/prisma 2>/dev/null || true
-# Generate Prisma client in deploy target (prisma is now a prod dep)
-RUN cd /app/api-deploy && node_modules/.bin/prisma generate --schema=node_modules/@aurex/database/prisma/schema.prisma
+# Generate Prisma client targeting deploy output
+RUN npx prisma generate --schema=/app/api-deploy/node_modules/@aurex/database/prisma/schema.prisma
 
 # Production
 FROM node:20-slim AS production
