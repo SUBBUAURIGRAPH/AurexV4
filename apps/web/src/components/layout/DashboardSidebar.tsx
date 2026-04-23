@@ -32,6 +32,7 @@ const navItems: NavItem[] = [
       { label: 'Scope 1 - Direct', path: '/emissions?scope=1' },
       { label: 'Scope 2 - Indirect', path: '/emissions?scope=2' },
       { label: 'Scope 3 - Value Chain', path: '/emissions?scope=3' },
+      { label: 'Bulk Upload', path: '/emissions/import' },
       { label: 'Baselines', path: '/emissions/baselines' },
       { label: 'Targets', path: '/emissions/targets' },
     ],

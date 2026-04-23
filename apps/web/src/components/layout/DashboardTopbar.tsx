@@ -8,6 +8,7 @@ import { useNotifications, useMarkRead, useMarkAllRead } from '../../hooks/useNo
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
   '/emissions': 'Emissions Tracking',
+  '/emissions/import': 'Bulk Upload',
   '/reports': 'Reports',
   '/teams': 'Teams and Access',
   '/integrations': 'Integrations',

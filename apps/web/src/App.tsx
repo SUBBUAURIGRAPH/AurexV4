@@ -36,6 +36,7 @@ import { UsersPage } from './pages/dashboard/admin/UsersPage';
 import { OrganizationPage } from './pages/dashboard/admin/OrganizationPage';
 import { OrganizationsPage } from './pages/dashboard/admin/OrganizationsPage';
 import { ApprovalsPage } from './pages/dashboard/ApprovalsPage';
+import { BulkUploadPage } from './pages/dashboard/emissions/BulkUploadPage';
 import { RoleGuard } from './components/auth/RoleGuard';
 
 const queryClient = new QueryClient({
@@ -77,6 +78,7 @@ export function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/emissions" element={<EmissionsPage />} />
             <Route path="/emissions/new" element={<EmissionsDataEntry />} />
+            <Route path="/emissions/import" element={<BulkUploadPage />} />
             <Route path="/emissions/baselines" element={<BaselinesPage />} />
             <Route path="/emissions/targets" element={<TargetsPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
