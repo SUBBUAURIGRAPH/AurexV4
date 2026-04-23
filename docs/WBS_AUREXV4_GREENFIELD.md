@@ -6,6 +6,31 @@
 
 ---
 
+## Session log
+
+### 2026-04-23 — Sprint 2 completion + org hierarchy + deploy/ESLint cleanup
+
+10 commits shipped to `main` and deployed to `aurex.in`:
+
+- `db971c4` feat(sprint-2): analytics, baselines, targets, reports + auth/health polish — full Sprint 2 backend + frontend surface (analytics aggregations, baselines CRUD, targets with SBTi pathways + progress, async report generation).
+- `69b2931` chore: migrate ESLint to v9 flat config, add schema smoke tests, fix pre-deploy gates — unblocks `pnpm lint` and `pnpm deploy:pre-check` (ADM-055 gates 1-4).
+- `49c3428` chore: add .dockerignore to exclude node_modules from build context — shrinks build context, speeds CI.
+- `8652d27` chore(deploy): align deploy-to-remote.sh with actual aurex.in layout — deploy script now matches host paths (ADM-043) and NGINX/web layout on the remote.
+- `0d1a74a` fix: emissions entry not persisting + auth events silently dropped — fixes the Sprint 1 emissions write path and auth event logging.
+- `01b5531` fix(sidebar): dropdown invisible — escape overflow clipping via portal — DashboardSidebar dropdowns now render via portal to bypass `overflow: hidden`.
+- `5e23c9a` feat(orgs): parent/subsidiary hierarchy + optional rollup in analytics and reports — org hierarchy model, `parentOrgId` FK, subsidiary rollup in analytics + report generation.
+- `03e696f` feat(ui): include-subsidiaries toggle on Analytics + Report Builder — UI controls surface the rollup flag.
+- `9c6008d` fix(users): POST /users endpoint was missing — Add User returned 404 — closes the S1.2 gap; Add User flow on the frontend now works end-to-end.
+- `c489ac1` fix(auth): requireRole now case-insensitive — RBAC middleware no longer rejects mixed-case role claims from JWT.
+
+Sprint status after this session:
+
+- **Sprint 1 (S1)**: shipped. S1.1, S1.2, S1.7, S1.8, S1.10 annotated in `WBS_FRONTEND_PORTAL_SPRINTS.md`.
+- **Sprint 2 (S2)**: shipped. Entire epic annotated in `WBS_FRONTEND_PORTAL_SPRINTS.md`.
+- **ADM**: ADM-058 appended to personal ADM log.
+
+---
+
 ## 0. Program governance & delivery
 
 | WBS | Type | Name | Notes (from docs) |

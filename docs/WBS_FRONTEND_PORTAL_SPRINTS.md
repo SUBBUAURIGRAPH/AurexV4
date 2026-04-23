@@ -12,11 +12,13 @@
 | --- | --- | --- | --- |
 | S1 | Epic | Foundation & Core Data | API CRUD, org/user mgmt, emissions entry |
 | S1.1 | Story | Organization CRUD API | POST/GET/PATCH /organizations, member mgmt |
+| | | **Status: Shipped (commit 5e23c9a)** | Core API shipped in earlier sprint; parent/subsidiary hierarchy extension landed 2026-04-23 |
 | S1.1.1 | Task | Organization routes + service | routes/organizations.ts, services/organization.service.ts |
 | S1.1.2 | Task | Org member endpoints | GET/POST/PATCH/DELETE /organizations/:id/members |
 | S1.1.3 | Task | Org Zod schemas | packages/shared/src/schemas/organization.ts |
 | S1.1.4 | Task | Org API tests | tests/unit/api/organizations.test.ts (6 cases) |
 | S1.2 | Story | User Management API | GET/PATCH/DELETE /users with pagination + RBAC |
+| | | **Status: Shipped (commit 9c6008d)** | POST /users (Add User) gap closed 2026-04-23 |
 | S1.2.1 | Task | User routes + service | routes/users.ts, services/user.service.ts |
 | S1.2.2 | Task | User filter/search/pagination | query params: search, role, isActive, page, pageSize |
 | S1.2.3 | Task | User API tests | tests/unit/api/users.test.ts (4 cases) |
@@ -45,10 +47,12 @@
 | S1.6.8 | Task | EmptyState component | Icon + message + CTA |
 | S1.6.9 | Task | Component tests | tests/unit/components/{Table,Modal}.test.tsx |
 | S1.7 | Story | Frontend: Users page | Admin user management table |
+| | | **Status: Shipped (commit 9c6008d)** | Users page + Add User flow live on aurex.in |
 | S1.7.1 | Task | UsersPage with table | Search, filter, paginate, CRUD |
 | S1.7.2 | Task | UserForm dialog | Create/edit user with role selector |
 | S1.7.3 | Task | UserForm tests | tests/unit/components/UserForm.test.tsx |
 | S1.8 | Story | Frontend: Organization page | Org profile + member list + invite |
+| | | **Status: Shipped (commit 5e23c9a)** | Org page preexisting; parent/subsidiary UI added 2026-04-23 |
 | S1.8.1 | Task | OrganizationPage | Org details form + member table |
 | S1.8.2 | Task | OrgForm + invite form | Create/edit org, invite by email |
 | S1.9 | Story | Frontend: Emissions data entry | Scope→Category→Source→Factor cascading form |
@@ -57,6 +61,7 @@
 | S1.9.3 | Task | EmissionsDataEntry page | Full entry page at /emissions/new |
 | S1.9.4 | Task | ScopeDataEntry tests | tests/unit/components/ScopeDataEntry.test.tsx |
 | S1.10 | Story | Route + sidebar updates | New routes + nav items in DashboardSidebar |
+| | | **Status: Shipped (commit 01b5531, db971c4)** | Sprint 2 route additions plus sidebar dropdown portal fix |
 
 ---
 
@@ -65,6 +70,7 @@
 | WBS | Type | Name | Notes |
 | --- | --- | --- | --- |
 | S2 | Epic | Analytics & Reporting | Charts, baselines, targets, reports |
+| | | **Status: Shipped (commits db971c4, 5e23c9a, 03e696f)** | Entire Sprint 2 landed 2026-04-23: base delivery (db971c4), org rollup across analytics + reports (5e23c9a), include-subsidiaries UI toggle (03e696f) |
 | S2.1 | Story | Analytics API | Aggregation endpoints for dashboard |
 | S2.1.1 | Task | Analytics routes + service | 6 endpoints: summary, trend, breakdown, top-sources, by-category, yoy |
 | S2.1.2 | Task | Efficient SQL aggregation | GROUP BY scope/category/month, avoid N+1 |
