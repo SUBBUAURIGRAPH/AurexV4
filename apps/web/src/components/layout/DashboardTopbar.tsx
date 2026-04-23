@@ -9,6 +9,7 @@ const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
   '/emissions': 'Emissions Tracking',
   '/emissions/import': 'Bulk Upload',
+  '/frameworks': 'ESG Frameworks',
   '/reports': 'Reports',
   '/teams': 'Teams and Access',
   '/integrations': 'Integrations',

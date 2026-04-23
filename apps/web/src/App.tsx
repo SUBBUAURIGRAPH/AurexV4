@@ -38,6 +38,8 @@ import { OrganizationsPage } from './pages/dashboard/admin/OrganizationsPage';
 import { ApprovalsPage } from './pages/dashboard/ApprovalsPage';
 import { BulkUploadPage } from './pages/dashboard/emissions/BulkUploadPage';
 import { OnboardingPage } from './pages/dashboard/OnboardingPage';
+import { FrameworksHubPage } from './pages/dashboard/frameworks/FrameworksHubPage';
+import { FrameworkDetailPage } from './pages/dashboard/frameworks/FrameworkDetailPage';
 import { RoleGuard } from './components/auth/RoleGuard';
 
 const queryClient = new QueryClient({
@@ -96,6 +98,8 @@ export function App() {
             <Route path="/admin/organizations" element={<RoleGuard allowedRoles={['administrator', 'super_admin', 'org_admin']}><OrganizationsPage /></RoleGuard>} />
             <Route path="/approvals" element={<ApprovalsPage />} />
             <Route path="/onboarding" element={<OnboardingPage />} />
+            <Route path="/frameworks" element={<FrameworksHubPage />} />
+            <Route path="/frameworks/:id" element={<FrameworkDetailPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Routes>
