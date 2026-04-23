@@ -49,65 +49,82 @@ export interface YoYPoint {
 
 /* ============================================
    Hooks — query params are camelCase (dateFrom/dateTo),
-   matching the backend route handlers.
+   matching the backend route handlers. An optional
+   `includeSubsidiaries` flag rolls child org data into the
+   caller's org view.
    ============================================ */
 
-export function useAnalyticsSummary(dateFrom?: string, dateTo?: string) {
+export function useAnalyticsSummary(dateFrom?: string, dateTo?: string, includeSubsidiaries = false) {
   return useQuery<{ data: AnalyticsSummary }>({
-    queryKey: ['analytics', 'summary', dateFrom, dateTo],
+    queryKey: ['analytics', 'summary', dateFrom, dateTo, includeSubsidiaries],
     queryFn: () =>
       api.get<{ data: AnalyticsSummary }>('/analytics/summary', {
         dateFrom,
         dateTo,
+        includeSubsidiaries: includeSubsidiaries || undefined,
       }),
   });
 }
 
 // Backend always returns trailing 12 months; `months` kept for query-key stability.
-export function useAnalyticsTrend(months?: number) {
+export function useAnalyticsTrend(months?: number, includeSubsidiaries = false) {
   return useQuery<{ data: TrendPoint[] }>({
-    queryKey: ['analytics', 'trend', months],
-    queryFn: () => api.get<{ data: TrendPoint[] }>('/analytics/trend'),
-  });
-}
-
-export function useAnalyticsBreakdown(dateFrom?: string, dateTo?: string) {
-  return useQuery<{ data: ScopeBreakdown[] }>({
-    queryKey: ['analytics', 'breakdown', dateFrom, dateTo],
+    queryKey: ['analytics', 'trend', months, includeSubsidiaries],
     queryFn: () =>
-      api.get<{ data: ScopeBreakdown[] }>('/analytics/breakdown', {
-        dateFrom,
-        dateTo,
+      api.get<{ data: TrendPoint[] }>('/analytics/trend', {
+        includeSubsidiaries: includeSubsidiaries || undefined,
       }),
   });
 }
 
-export function useAnalyticsTopSources(limit?: number, dateFrom?: string, dateTo?: string) {
+export function useAnalyticsBreakdown(dateFrom?: string, dateTo?: string, includeSubsidiaries = false) {
+  return useQuery<{ data: ScopeBreakdown[] }>({
+    queryKey: ['analytics', 'breakdown', dateFrom, dateTo, includeSubsidiaries],
+    queryFn: () =>
+      api.get<{ data: ScopeBreakdown[] }>('/analytics/breakdown', {
+        dateFrom,
+        dateTo,
+        includeSubsidiaries: includeSubsidiaries || undefined,
+      }),
+  });
+}
+
+export function useAnalyticsTopSources(
+  limit?: number,
+  dateFrom?: string,
+  dateTo?: string,
+  includeSubsidiaries = false,
+) {
   return useQuery<{ data: TopSource[] }>({
-    queryKey: ['analytics', 'top-sources', limit, dateFrom, dateTo],
+    queryKey: ['analytics', 'top-sources', limit, dateFrom, dateTo, includeSubsidiaries],
     queryFn: () =>
       api.get<{ data: TopSource[] }>('/analytics/top-sources', {
         limit,
         dateFrom,
         dateTo,
+        includeSubsidiaries: includeSubsidiaries || undefined,
       }),
   });
 }
 
-export function useAnalyticsByCategory(dateFrom?: string, dateTo?: string) {
+export function useAnalyticsByCategory(dateFrom?: string, dateTo?: string, includeSubsidiaries = false) {
   return useQuery<{ data: CategoryBreakdown[] }>({
-    queryKey: ['analytics', 'by-category', dateFrom, dateTo],
+    queryKey: ['analytics', 'by-category', dateFrom, dateTo, includeSubsidiaries],
     queryFn: () =>
       api.get<{ data: CategoryBreakdown[] }>('/analytics/by-category', {
         dateFrom,
         dateTo,
+        includeSubsidiaries: includeSubsidiaries || undefined,
       }),
   });
 }
 
-export function useAnalyticsYoY() {
+export function useAnalyticsYoY(includeSubsidiaries = false) {
   return useQuery<{ data: YoYPoint[] }>({
-    queryKey: ['analytics', 'yoy'],
-    queryFn: () => api.get<{ data: YoYPoint[] }>('/analytics/yoy-comparison'),
+    queryKey: ['analytics', 'yoy', includeSubsidiaries],
+    queryFn: () =>
+      api.get<{ data: YoYPoint[] }>('/analytics/yoy-comparison', {
+        includeSubsidiaries: includeSubsidiaries || undefined,
+      }),
   });
 }

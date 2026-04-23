@@ -36,6 +36,7 @@ export interface GenerateReportData {
   type: ReportType;
   year: number;
   scopes: Scope[];
+  includeSubsidiaries?: boolean;
 }
 
 /* ============================================

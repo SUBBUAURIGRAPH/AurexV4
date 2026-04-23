@@ -23,6 +23,7 @@ function formatValue(val: number | undefined): string {
 
 export function AnalyticsPage() {
   const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: '', to: '' });
+  const [includeSubs, setIncludeSubs] = useState(false);
 
   const dateFrom = dateRange.from || undefined;
   const dateTo = dateRange.to || undefined;
@@ -36,12 +37,12 @@ export function AnalyticsPage() {
     return Math.max(diff, 3);
   }, [dateFrom, dateTo]);
 
-  const { data: summaryData, isLoading: summaryLoading } = useAnalyticsSummary(dateFrom, dateTo);
-  const { data: trendData, isLoading: trendLoading } = useAnalyticsTrend(trendMonths);
-  const { data: breakdownData, isLoading: breakdownLoading } = useAnalyticsBreakdown(dateFrom, dateTo);
-  const { data: topSourcesData, isLoading: topSourcesLoading } = useAnalyticsTopSources(10, dateFrom, dateTo);
-  const { data: categoryData, isLoading: categoryLoading } = useAnalyticsByCategory(dateFrom, dateTo);
-  const { data: yoyData, isLoading: yoyLoading } = useAnalyticsYoY();
+  const { data: summaryData, isLoading: summaryLoading } = useAnalyticsSummary(dateFrom, dateTo, includeSubs);
+  const { data: trendData, isLoading: trendLoading } = useAnalyticsTrend(trendMonths, includeSubs);
+  const { data: breakdownData, isLoading: breakdownLoading } = useAnalyticsBreakdown(dateFrom, dateTo, includeSubs);
+  const { data: topSourcesData, isLoading: topSourcesLoading } = useAnalyticsTopSources(10, dateFrom, dateTo, includeSubs);
+  const { data: categoryData, isLoading: categoryLoading } = useAnalyticsByCategory(dateFrom, dateTo, includeSubs);
+  const { data: yoyData, isLoading: yoyLoading } = useAnalyticsYoY(includeSubs);
 
   const summary = summaryData?.data;
   const trend = trendData?.data ?? [];
@@ -76,7 +77,28 @@ export function AnalyticsPage() {
             Comprehensive view of your organization's carbon footprint.
           </p>
         </div>
-        <DateRangePicker value={dateRange} onChange={setDateRange} />
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end' }}>
+          <DateRangePicker value={dateRange} onChange={setDateRange} />
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              fontSize: '0.8125rem',
+              color: 'var(--text-secondary)',
+              cursor: 'pointer',
+              userSelect: 'none',
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={includeSubs}
+              onChange={(e) => setIncludeSubs(e.target.checked)}
+              style={{ width: '1rem', height: '1rem', accentColor: '#1a5d3d', cursor: 'pointer' }}
+            />
+            Include subsidiaries
+          </label>
+        </div>
       </div>
 
       {/* Row 1: Stat Cards */}

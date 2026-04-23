@@ -50,6 +50,7 @@ export function ReportBuilderPage() {
     SCOPE_2: true,
     SCOPE_3: false,
   });
+  const [includeSubs, setIncludeSubs] = useState(false);
 
   /* ----- Generation tracking ----- */
   const [generatedId, setGeneratedId] = useState('');
@@ -72,6 +73,7 @@ export function ReportBuilderPage() {
         type,
         year: parseInt(year, 10),
         scopes: selectedScopes,
+        includeSubsidiaries: includeSubs,
       });
 
       const id = result?.data?.id ?? '';
@@ -223,6 +225,17 @@ export function ReportBuilderPage() {
               ))}
             </div>
           </div>
+
+          {/* Subsidiaries rollup */}
+          <label style={checkboxStyle}>
+            <input
+              type="checkbox"
+              checked={includeSubs}
+              onChange={(e) => setIncludeSubs(e.target.checked)}
+              style={inputCheckboxStyle}
+            />
+            Include subsidiaries (roll up emissions, baselines, and targets from child orgs)
+          </label>
 
           {/* Submit */}
           <div style={{ display: 'flex', gap: '0.75rem', paddingTop: '0.5rem' }}>
