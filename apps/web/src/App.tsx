@@ -40,6 +40,7 @@ import { BulkUploadPage } from './pages/dashboard/emissions/BulkUploadPage';
 import { OnboardingPage } from './pages/dashboard/OnboardingPage';
 import { FrameworksHubPage } from './pages/dashboard/frameworks/FrameworksHubPage';
 import { FrameworkDetailPage } from './pages/dashboard/frameworks/FrameworkDetailPage';
+import { BRSRBuilderPage } from './pages/dashboard/brsr/BRSRBuilderPage';
 import { RoleGuard } from './components/auth/RoleGuard';
 
 const queryClient = new QueryClient({
@@ -100,6 +101,7 @@ export function App() {
             <Route path="/onboarding" element={<OnboardingPage />} />
             <Route path="/frameworks" element={<FrameworksHubPage />} />
             <Route path="/frameworks/:id" element={<FrameworkDetailPage />} />
+            <Route path="/brsr" element={<BRSRBuilderPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Routes>
