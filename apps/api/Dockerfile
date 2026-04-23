@@ -1,5 +1,6 @@
 # ADM-020: Non-root user, resource-conscious build
 FROM node:20-slim AS base
+RUN apt-get update -qq && apt-get install -y -qq openssl >/dev/null 2>&1 && rm -rf /var/lib/apt/lists/*
 RUN corepack enable && corepack prepare pnpm@9.15.4 --activate
 WORKDIR /app
 
@@ -17,17 +18,19 @@ COPY tsconfig.base.json ./
 COPY apps/api/ apps/api/
 COPY packages/shared/ packages/shared/
 COPY packages/database/ packages/database/
-# Generate Prisma client before building
+# Generate Prisma client
 RUN cd packages/database && npx prisma generate
+# Build all workspace packages
 RUN pnpm --filter @aurex/shared build && \
     pnpm --filter @aurex/database build && \
     pnpm --filter @aurex/api build
 # Deploy: flatten deps into api node_modules for production
 RUN pnpm --filter @aurex/api deploy /app/api-deploy --prod
-# Copy built workspace package dist + prisma client into deploy
+# Copy built workspace package dist into deploy
 RUN cp -r /app/packages/shared/dist /app/api-deploy/node_modules/@aurex/shared/dist 2>/dev/null || true && \
-    cp -r /app/packages/database/dist /app/api-deploy/node_modules/@aurex/database/dist 2>/dev/null || true && \
-    cp -r /app/node_modules/.prisma /app/api-deploy/node_modules/.prisma 2>/dev/null || true
+    cp -r /app/packages/database/dist /app/api-deploy/node_modules/@aurex/database/dist 2>/dev/null || true
+# Re-generate Prisma client inside deploy target
+RUN cd /app/api-deploy && npx prisma generate --schema=node_modules/@aurex/database/prisma/schema.prisma
 
 # Production
 FROM node:20-slim AS production
