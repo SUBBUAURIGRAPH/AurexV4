@@ -31,8 +31,10 @@ describe('[headers] Security Headers', () => {
   test('HSTS header with long max-age', async () => {
     const res = await fetch(FRONTEND_URL);
     const hsts = res.headers.get('strict-transport-security');
-    expect(hsts).toContain('max-age=31536000');
+    // ADM-054: 2-year HSTS with preload (meets browser preload list criteria)
+    expect(hsts).toContain('max-age=63072000');
     expect(hsts).toContain('includeSubDomains');
+    expect(hsts).toContain('preload');
   });
 
   test('Content-Security-Policy present', async () => {
