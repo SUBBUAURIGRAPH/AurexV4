@@ -64,7 +64,7 @@ export async function login(
     },
   });
 
-  const payload: TokenPayload = { sub: user.id, email: user.email, role: user.role };
+  const payload: TokenPayload = { sub: user.id, email: user.email, role: user.role as TokenPayload['role'] };
   const accessToken = signAccessToken(payload);
   const refreshToken = signRefreshToken(payload);
 
