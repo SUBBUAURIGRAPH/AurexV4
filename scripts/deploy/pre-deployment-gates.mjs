@@ -6,6 +6,7 @@
  */
 
 import { execSync } from 'child_process';
+import fs from 'node:fs';
 
 const TARGET = process.env.DEPLOY_TARGET ?? 'https://aurex.in';
 const API_TARGET = process.env.API_TARGET ?? 'https://api.aurex.in';
@@ -31,11 +32,9 @@ console.log('=== ADM-055: Pre-Deployment Gates ===\n');
 // Gate 1: Infrastructure
 console.log('[Gate 1] Infrastructure Readiness');
 gate('Build artifacts exist (API)', () => {
-  const fs = await import('fs');
   if (!fs.existsSync('apps/api/dist')) throw new Error('apps/api/dist missing — run pnpm build');
 });
 gate('Build artifacts exist (Web)', () => {
-  const fs = await import('fs');
   if (!fs.existsSync('apps/web/dist')) throw new Error('apps/web/dist missing — run pnpm build');
 });
 
@@ -57,12 +56,30 @@ gate('Tests passing', () => {
 // Gate 4: Security
 console.log('\n[Gate 4] Security Posture');
 gate('No hardcoded secrets', () => {
-  try {
-    const out = exec('grep -r "AKIA\\|sk-\\|password.*=.*[\"\\x27]" apps/ packages/ --include="*.ts" --include="*.tsx" -l 2>/dev/null');
-    if (out) throw new Error(`Potential secrets in: ${out}`);
-  } catch (e) {
-    if (e.status !== 1) throw e; // grep returns 1 when no matches = good
+  // Scan .ts/.tsx in apps/ and packages/ for AWS keys, OpenAI-style keys,
+  // and literal password/secret assignments. Shelling out is fragile because
+  // the pattern contains both quote styles, so we walk the tree in Node.
+  const patterns = [
+    /AKIA[0-9A-Z]{16}/,
+    /sk-[A-Za-z0-9]{20,}/,
+    /(?:password|secret|api[_-]?key)\s*[:=]\s*["'][^"']{4,}["']/i,
+  ];
+  const hits = [];
+  const walk = (dir) => {
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === 'node_modules' || entry.name === 'dist' || entry.name.startsWith('.')) continue;
+      const full = `${dir}/${entry.name}`;
+      if (entry.isDirectory()) walk(full);
+      else if (/\.tsx?$/.test(entry.name)) {
+        const body = fs.readFileSync(full, 'utf-8');
+        if (patterns.some((re) => re.test(body))) hits.push(full);
+      }
+    }
+  };
+  for (const root of ['apps', 'packages']) {
+    if (fs.existsSync(root)) walk(root);
   }
+  if (hits.length) throw new Error(`Potential secrets in: ${hits.join(', ')}`);
 });
 gate('.env not committed', () => {
   const tracked = exec('git ls-files .env .env.local .env.production 2>/dev/null || true');

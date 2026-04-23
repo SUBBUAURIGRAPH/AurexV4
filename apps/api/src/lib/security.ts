@@ -32,7 +32,7 @@ export function isValidURL(url: string): boolean {
 const SQL_INJECTION_PATTERNS = [
   /(\b(SELECT|INSERT|UPDATE|DELETE|DROP|UNION|ALTER|CREATE|EXEC)\b)/i,
   /(--|;|\/\*|\*\/)/,
-  /('|\"|\\)/,
+  /('|"|\\)/,
 ];
 
 export function containsSQLInjection(input: string): boolean {
