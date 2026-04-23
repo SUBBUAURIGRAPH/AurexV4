@@ -23,7 +23,7 @@ export const updateEmissionSchema = z.object({
 });
 
 export const updateEmissionStatusSchema = z.object({
-  status: z.enum(['VERIFIED', 'REJECTED']),
+  status: z.enum(['PENDING', 'VERIFIED', 'REJECTED']),
 });
 
 export const bulkStatusSchema = z.object({
