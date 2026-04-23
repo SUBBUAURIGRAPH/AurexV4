@@ -15,13 +15,15 @@ export interface OrgResult {
   name: string;
   slug: string;
   isActive: boolean;
+  parentOrgId: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
 
 export async function createOrg(
   userId: string,
-  data: { name: string; slug?: string },
+  userRole: string,
+  data: { name: string; slug?: string; parentOrgId?: string | null },
 ): Promise<OrgResult> {
   const slug = data.slug ?? slugify(data.name);
 
@@ -30,10 +32,40 @@ export async function createOrg(
     throw new AppError(409, 'Conflict', 'Organization slug already exists');
   }
 
+  const upperRole = userRole.toUpperCase();
+  const parentOrgId = data.parentOrgId ?? null;
+
+  // Authorization: super_admin can create anything; others must be ORG_ADMIN of the parent.
+  if (parentOrgId) {
+    const parent = await prisma.organization.findUnique({ where: { id: parentOrgId } });
+    if (!parent) {
+      throw new AppError(400, 'Bad Request', 'Parent organization does not exist');
+    }
+    if (upperRole !== 'SUPER_ADMIN') {
+      const adminOfParent = await prisma.orgMember.findFirst({
+        where: { orgId: parentOrgId, userId, role: 'ORG_ADMIN', isActive: true },
+      });
+      if (!adminOfParent) {
+        throw new AppError(
+          403,
+          'Forbidden',
+          'You must be an admin of the parent organization to add a subsidiary',
+        );
+      }
+    }
+  } else if (upperRole !== 'SUPER_ADMIN') {
+    throw new AppError(
+      403,
+      'Forbidden',
+      'Only super_admin can create top-level organizations',
+    );
+  }
+
   const org = await prisma.organization.create({
     data: {
       name: data.name,
       slug,
+      parentOrgId,
       members: {
         create: {
           userId,
@@ -43,8 +75,88 @@ export async function createOrg(
     },
   });
 
-  logger.info({ orgId: org.id, userId }, 'Organization created');
+  logger.info({ orgId: org.id, parentOrgId, userId }, 'Organization created');
   return org;
+}
+
+/**
+ * List organizations visible to the caller.
+ * - super_admin sees everything
+ * - others see the orgs they're a member of, plus (optionally) their subsidiaries
+ */
+export async function listOrgs(
+  userId: string,
+  userRole: string,
+  opts: { includeSubsidiaries?: boolean } = {},
+): Promise<OrgResult[]> {
+  const upperRole = userRole.toUpperCase();
+
+  if (upperRole === 'SUPER_ADMIN') {
+    return prisma.organization.findMany({ orderBy: [{ parentOrgId: 'asc' }, { name: 'asc' }] });
+  }
+
+  const memberships = await prisma.orgMember.findMany({
+    where: { userId, isActive: true },
+    select: { orgId: true },
+  });
+  const memberOrgIds = memberships.map((m) => m.orgId);
+  if (memberOrgIds.length === 0) return [];
+
+  const ids = opts.includeSubsidiaries
+    ? await collectDescendantOrgIds(memberOrgIds)
+    : memberOrgIds;
+
+  return prisma.organization.findMany({
+    where: { id: { in: ids } },
+    orderBy: [{ parentOrgId: 'asc' }, { name: 'asc' }],
+  });
+}
+
+export interface OrgTreeNode extends OrgResult {
+  children: OrgTreeNode[];
+}
+
+/**
+ * Build a forest of orgs the caller can see. Roots are orgs whose parent
+ * is not in the visible set (or null).
+ */
+export async function getOrgTree(
+  userId: string,
+  userRole: string,
+): Promise<OrgTreeNode[]> {
+  // Include subsidiaries so the tree is complete under each membership.
+  const orgs = await listOrgs(userId, userRole, { includeSubsidiaries: true });
+  const byId = new Map<string, OrgTreeNode>(
+    orgs.map((o) => [o.id, { ...o, children: [] }]),
+  );
+
+  const roots: OrgTreeNode[] = [];
+  for (const org of byId.values()) {
+    if (org.parentOrgId && byId.has(org.parentOrgId)) {
+      byId.get(org.parentOrgId)!.children.push(org);
+    } else {
+      roots.push(org);
+    }
+  }
+  return roots;
+}
+
+/**
+ * Recursive descendants via PostgreSQL CTE. Returns orgIds reachable
+ * down the hierarchy from any of the given roots (inclusive of roots).
+ */
+export async function collectDescendantOrgIds(roots: string[]): Promise<string[]> {
+  if (roots.length === 0) return [];
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    WITH RECURSIVE tree AS (
+      SELECT id FROM organizations WHERE id = ANY(${roots}::uuid[])
+      UNION
+      SELECT o.id FROM organizations o
+      INNER JOIN tree t ON o.parent_org_id = t.id
+    )
+    SELECT id FROM tree
+  `;
+  return rows.map((r) => r.id);
 }
 
 export async function getOrgById(orgId: string, userId: string): Promise<OrgResult> {
@@ -66,7 +178,7 @@ export async function getOrgById(orgId: string, userId: string): Promise<OrgResu
 
 export async function updateOrg(
   orgId: string,
-  data: { name?: string; slug?: string; isActive?: boolean },
+  data: { name?: string; slug?: string; isActive?: boolean; parentOrgId?: string | null },
 ): Promise<OrgResult> {
   const org = await prisma.organization.findUnique({ where: { id: orgId } });
   if (!org) {
@@ -77,6 +189,17 @@ export async function updateOrg(
     const existing = await prisma.organization.findUnique({ where: { slug: data.slug } });
     if (existing) {
       throw new AppError(409, 'Conflict', 'Organization slug already exists');
+    }
+  }
+
+  // Reject parent changes that would create a cycle (can't reparent under a descendant).
+  if (data.parentOrgId) {
+    if (data.parentOrgId === orgId) {
+      throw new AppError(400, 'Bad Request', 'Organization cannot be its own parent');
+    }
+    const descendants = await collectDescendantOrgIds([orgId]);
+    if (descendants.includes(data.parentOrgId)) {
+      throw new AppError(400, 'Bad Request', 'Cannot reparent under a descendant organization');
     }
   }
 

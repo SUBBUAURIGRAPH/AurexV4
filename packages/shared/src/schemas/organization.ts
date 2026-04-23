@@ -8,6 +8,7 @@ export const createOrgSchema = z.object({
     .max(100)
     .regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens')
     .optional(),
+  parentOrgId: z.string().uuid().nullish(),
 });
 
 export const updateOrgSchema = z.object({
@@ -19,6 +20,7 @@ export const updateOrgSchema = z.object({
     .regex(/^[a-z0-9-]+$/, 'Slug must contain only lowercase letters, numbers, and hyphens')
     .optional(),
   isActive: z.boolean().optional(),
+  parentOrgId: z.string().uuid().nullish(),
 });
 
 export const addMemberSchema = z.object({

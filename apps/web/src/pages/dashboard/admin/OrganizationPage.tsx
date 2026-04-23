@@ -328,7 +328,7 @@ export function OrganizationPage() {
             </div>
             <div>
               <div style={sectionLabel}>Created</div>
-              <div style={sectionValue}>{formatDate(org.created_at)}</div>
+              <div style={sectionValue}>{formatDate(org.createdAt ?? org.created_at ?? '')}</div>
             </div>
           </div>
         ) : null}

@@ -9,8 +9,23 @@ export interface Organization {
   id: string;
   name: string;
   slug: string;
-  created_at: string;
-  updated_at: string;
+  isActive?: boolean;
+  parentOrgId?: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  // Legacy snake_case echoes kept for compatibility with older callers.
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface OrganizationTreeNode extends Organization {
+  children: OrganizationTreeNode[];
+}
+
+export interface CreateOrganizationInput {
+  name: string;
+  slug?: string;
+  parentOrgId?: string | null;
 }
 
 export interface OrgMember {
@@ -89,6 +104,39 @@ export function useCreateOrg() {
       api.post<Organization>('/organizations', data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['organization'] });
+    },
+  });
+}
+
+/* ============================================
+   Multi-org (parent / subsidiary) hooks
+   ============================================ */
+
+export function useOrganizationsList(includeSubsidiaries = true) {
+  return useQuery<{ data: Organization[] }>({
+    queryKey: ['organizations-list', includeSubsidiaries],
+    queryFn: () =>
+      api.get<{ data: Organization[] }>('/organizations', {
+        includeSubsidiaries,
+      }),
+  });
+}
+
+export function useOrganizationTree() {
+  return useQuery<{ data: OrganizationTreeNode[] }>({
+    queryKey: ['organizations-tree'],
+    queryFn: () => api.get<{ data: OrganizationTreeNode[] }>('/organizations/tree'),
+  });
+}
+
+export function useCreateOrganization() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data: CreateOrganizationInput) =>
+      api.post<{ data: Organization }>('/organizations', data),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['organizations-list'] });
+      qc.invalidateQueries({ queryKey: ['organizations-tree'] });
     },
   });
 }

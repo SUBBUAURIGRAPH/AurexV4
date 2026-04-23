@@ -27,8 +27,11 @@ async function assertOrgAccess(userId: string, userRole: string, orgId: string):
 }
 
 /**
- * POST / — Create organization
- * Any authenticated user can create an org. Creator becomes ORG_ADMIN.
+ * POST / — Create organization (top-level or subsidiary).
+ * Authorization:
+ *   - No parentOrgId: super_admin only.
+ *   - With parentOrgId: super_admin OR an ORG_ADMIN of the parent org.
+ * The creator is automatically added as ORG_ADMIN of the new org.
  */
 organizationRouter.post('/', requireAuth, async (req, res, next) => {
   try {
@@ -37,8 +40,35 @@ organizationRouter.post('/', requireAuth, async (req, res, next) => {
       throw new AppError(400, 'Bad Request', parsed.error.errors[0]?.message ?? 'Invalid input');
     }
 
-    const org = await orgService.createOrg(req.user!.sub, parsed.data);
+    const org = await orgService.createOrg(req.user!.sub, req.user!.role, parsed.data);
     res.status(201).json({ data: org });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET / — List organizations visible to the caller.
+ * Query: ?includeSubsidiaries=true to expand membership to descendants.
+ */
+organizationRouter.get('/', requireAuth, async (req, res, next) => {
+  try {
+    const includeSubsidiaries = String(req.query.includeSubsidiaries ?? '').toLowerCase() === 'true';
+    const orgs = await orgService.listOrgs(req.user!.sub, req.user!.role, { includeSubsidiaries });
+    res.json({ data: orgs });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /tree — Hierarchical forest of visible orgs.
+ * Must be declared before GET /:id so Express does not match it as an ID.
+ */
+organizationRouter.get('/tree', requireAuth, async (req, res, next) => {
+  try {
+    const tree = await orgService.getOrgTree(req.user!.sub, req.user!.role);
+    res.json({ data: tree });
   } catch (err) {
     next(err);
   }

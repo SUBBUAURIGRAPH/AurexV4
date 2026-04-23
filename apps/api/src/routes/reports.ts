@@ -26,6 +26,7 @@ reportRouter.post(
         type: data.type,
         year: data.year,
         scopes: data.scopes,
+        includeSubsidiaries: data.includeSubsidiaries,
       });
 
       logger.info(

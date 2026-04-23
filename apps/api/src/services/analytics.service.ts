@@ -1,10 +1,12 @@
 import { prisma } from '@aurex/database';
+import { collectDescendantOrgIds } from './organization.service.js';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-export interface DateRange {
+export interface ScopedOptions {
   dateFrom?: string;
   dateTo?: string;
+  includeSubsidiaries?: boolean;
 }
 
 export interface SummaryResult {
@@ -63,17 +65,24 @@ function toNumber(val: unknown): number {
   return Number(val);
 }
 
+/**
+ * Expand a single orgId into `[orgId, ...descendants]` when includeSubsidiaries
+ * is set, otherwise just `[orgId]`. Used as the `orgId: { in: ids }` filter.
+ */
+async function resolveScope(orgId: string, includeSubsidiaries?: boolean): Promise<string[]> {
+  if (!includeSubsidiaries) return [orgId];
+  return collectDescendantOrgIds([orgId]);
+}
+
 // ─── Summary ─────────────────────────────────────────────────────────────────
 
-export async function getSummary(
-  orgId: string,
-  dateFrom?: string,
-  dateTo?: string,
-): Promise<SummaryResult> {
+export async function getSummary(orgId: string, opts: ScopedOptions = {}): Promise<SummaryResult> {
+  const { dateFrom, dateTo, includeSubsidiaries } = opts;
+  const orgIds = await resolveScope(orgId, includeSubsidiaries);
   const periodFilter = buildDateFilter(dateFrom, dateTo);
 
   const where = {
-    orgId,
+    orgId: { in: orgIds },
     status: 'VERIFIED' as const,
     ...(periodFilter ? { periodStart: periodFilter } : {}),
   };
@@ -94,7 +103,6 @@ export async function getSummary(
   const scope3 = scopeMap['SCOPE_3'] ?? 0;
   const total = scope1 + scope2 + scope3;
 
-  // Calculate change percent vs previous period of equal length
   let changePercent: number | null = null;
   if (dateFrom && dateTo) {
     const from = new Date(dateFrom);
@@ -105,7 +113,7 @@ export async function getSummary(
 
     const prevAgg = await prisma.emissionsRecord.aggregate({
       where: {
-        orgId,
+        orgId: { in: orgIds },
         status: 'VERIFIED',
         periodStart: { gte: prevFrom, lte: prevTo },
       },
@@ -118,35 +126,29 @@ export async function getSummary(
     }
   }
 
-  return {
-    total,
-    scope1,
-    scope2,
-    scope3,
-    changePercent,
-  };
+  return { total, scope1, scope2, scope3, changePercent };
 }
 
 // ─── Trend ───────────────────────────────────────────────────────────────────
 
-export async function getTrend(orgId: string, months = 12): Promise<TrendPoint[]> {
+export async function getTrend(
+  orgId: string,
+  months = 12,
+  opts: { includeSubsidiaries?: boolean } = {},
+): Promise<TrendPoint[]> {
+  const orgIds = await resolveScope(orgId, opts.includeSubsidiaries);
   const now = new Date();
   const startDate = new Date(now.getFullYear(), now.getMonth() - months + 1, 1);
 
   const records = await prisma.emissionsRecord.findMany({
     where: {
-      orgId,
+      orgId: { in: orgIds },
       status: 'VERIFIED',
       periodStart: { gte: startDate },
     },
-    select: {
-      scope: true,
-      value: true,
-      periodStart: true,
-    },
+    select: { scope: true, value: true, periodStart: true },
   });
 
-  // Build month buckets
   const buckets = new Map<string, { scope1: number; scope2: number; scope3: number }>();
   for (let i = 0; i < months; i++) {
     const d = new Date(now.getFullYear(), now.getMonth() - months + 1 + i, 1);
@@ -182,17 +184,15 @@ export async function getTrend(orgId: string, months = 12): Promise<TrendPoint[]
 
 // ─── Breakdown ───────────────────────────────────────────────────────────────
 
-export async function getBreakdown(
-  orgId: string,
-  dateFrom?: string,
-  dateTo?: string,
-): Promise<BreakdownItem[]> {
+export async function getBreakdown(orgId: string, opts: ScopedOptions = {}): Promise<BreakdownItem[]> {
+  const { dateFrom, dateTo, includeSubsidiaries } = opts;
+  const orgIds = await resolveScope(orgId, includeSubsidiaries);
   const periodFilter = buildDateFilter(dateFrom, dateTo);
 
   const aggregations = await prisma.emissionsRecord.groupBy({
     by: ['scope'],
     where: {
-      orgId,
+      orgId: { in: orgIds },
       status: 'VERIFIED',
       ...(periodFilter ? { periodStart: periodFilter } : {}),
     },
@@ -221,15 +221,16 @@ export async function getBreakdown(
 export async function getTopSources(
   orgId: string,
   limit = 10,
-  dateFrom?: string,
-  dateTo?: string,
+  opts: ScopedOptions = {},
 ): Promise<TopSourceItem[]> {
+  const { dateFrom, dateTo, includeSubsidiaries } = opts;
+  const orgIds = await resolveScope(orgId, includeSubsidiaries);
   const periodFilter = buildDateFilter(dateFrom, dateTo);
 
   const aggregations = await prisma.emissionsRecord.groupBy({
     by: ['source', 'category'],
     where: {
-      orgId,
+      orgId: { in: orgIds },
       status: 'VERIFIED',
       ...(periodFilter ? { periodStart: periodFilter } : {}),
     },
@@ -247,24 +248,21 @@ export async function getTopSources(
 
 // ─── By Category ─────────────────────────────────────────────────────────────
 
-export async function getByCategory(
-  orgId: string,
-  dateFrom?: string,
-  dateTo?: string,
-): Promise<CategoryItem[]> {
+export async function getByCategory(orgId: string, opts: ScopedOptions = {}): Promise<CategoryItem[]> {
+  const { dateFrom, dateTo, includeSubsidiaries } = opts;
+  const orgIds = await resolveScope(orgId, includeSubsidiaries);
   const periodFilter = buildDateFilter(dateFrom, dateTo);
 
   const aggregations = await prisma.emissionsRecord.groupBy({
     by: ['category', 'scope'],
     where: {
-      orgId,
+      orgId: { in: orgIds },
       status: 'VERIFIED',
       ...(periodFilter ? { periodStart: periodFilter } : {}),
     },
     _sum: { value: true },
   });
 
-  // Pivot: group by category, split by scope
   const categoryMap = new Map<string, { scope1: number; scope2: number; scope3: number }>();
 
   for (const row of aggregations) {
@@ -295,7 +293,11 @@ export async function getByCategory(
 
 // ─── Year-over-Year Comparison ───────────────────────────────────────────────
 
-export async function getYoYComparison(orgId: string): Promise<YoYPoint[]> {
+export async function getYoYComparison(
+  orgId: string,
+  opts: { includeSubsidiaries?: boolean } = {},
+): Promise<YoYPoint[]> {
+  const orgIds = await resolveScope(orgId, opts.includeSubsidiaries);
   const now = new Date();
   const currentYear = now.getFullYear();
   const previousYear = currentYear - 1;
@@ -305,17 +307,13 @@ export async function getYoYComparison(orgId: string): Promise<YoYPoint[]> {
 
   const records = await prisma.emissionsRecord.findMany({
     where: {
-      orgId,
+      orgId: { in: orgIds },
       status: 'VERIFIED',
       periodStart: { gte: startOfPrev, lte: endOfCurrent },
     },
-    select: {
-      value: true,
-      periodStart: true,
-    },
+    select: { value: true, periodStart: true },
   });
 
-  // Build month buckets for both years
   const currentBuckets = new Map<number, number>();
   const prevBuckets = new Map<number, number>();
   for (let m = 0; m < 12; m++) {

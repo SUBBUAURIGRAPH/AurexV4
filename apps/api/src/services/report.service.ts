@@ -1,6 +1,7 @@
 import { prisma } from '@aurex/database';
 import { logger } from '../lib/logger.js';
 import { AppError } from '../middleware/error-handler.js';
+import { collectDescendantOrgIds } from './organization.service.js';
 
 export interface GenerateReportData {
   orgId: string;
@@ -8,6 +9,7 @@ export interface GenerateReportData {
   type: string;
   year: number;
   scopes: string[];
+  includeSubsidiaries?: boolean;
 }
 
 export async function generateReport(data: GenerateReportData) {
@@ -20,6 +22,7 @@ export async function generateReport(data: GenerateReportData) {
       parameters: {
         year: data.year,
         scopes: data.scopes,
+        includeSubsidiaries: data.includeSubsidiaries ?? false,
       },
       createdBy: data.createdBy,
     },
@@ -27,7 +30,13 @@ export async function generateReport(data: GenerateReportData) {
 
   // For now, generate synchronously
   try {
-    const reportData = await buildReportData(data.orgId, data.type, data.year, data.scopes);
+    const reportData = await buildReportData(
+      data.orgId,
+      data.type,
+      data.year,
+      data.scopes,
+      data.includeSubsidiaries,
+    );
 
     const completed = await (prisma as any).report.update({
       where: { id: report.id },
@@ -55,14 +64,17 @@ async function buildReportData(
   type: string,
   year: number,
   scopes: string[],
+  includeSubsidiaries?: boolean,
 ) {
   // Pull aggregated emissions data for the specified year and scopes
   const periodStart = new Date(`${year}-01-01T00:00:00Z`);
   const periodEnd = new Date(`${year + 1}-01-01T00:00:00Z`);
 
+  const orgIds = includeSubsidiaries ? await collectDescendantOrgIds([orgId]) : [orgId];
+
   const emissions = await prisma.emissionsRecord.findMany({
     where: {
-      orgId,
+      orgId: { in: orgIds },
       scope: { in: scopes as any },
       status: 'VERIFIED',
       periodStart: { gte: periodStart },
@@ -93,7 +105,7 @@ async function buildReportData(
   // Pull baselines for context
   const baselines = await prisma.emissionsBaseline.findMany({
     where: {
-      orgId,
+      orgId: { in: orgIds },
       scope: { in: scopes as any },
       isActive: true,
     },
@@ -102,7 +114,7 @@ async function buildReportData(
   // Pull targets for context
   const targets = await prisma.emissionsTarget.findMany({
     where: {
-      orgId,
+      orgId: { in: orgIds },
       scope: { in: scopes as any },
     },
     include: {
