@@ -278,6 +278,7 @@ model ImportJob {
 
 model AuditLog {
   id         String   @id @default(uuid()) @db.Uuid
+  orgId      String?  @map("org_id") @db.Uuid
   userId     String?  @map("user_id") @db.Uuid
   action     String   @db.VarChar(100)
   resource   String   @db.VarChar(100)
@@ -287,6 +288,7 @@ model AuditLog {
   ipAddress  String?  @map("ip_address") @db.VarChar(45)
   createdAt  DateTime @default(now()) @map("created_at")
 
+  @@index([orgId])
   @@index([userId])
   @@index([resource, resourceId])
   @@index([createdAt])

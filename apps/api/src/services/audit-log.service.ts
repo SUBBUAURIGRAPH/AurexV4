@@ -21,6 +21,7 @@ export interface AuditLogEntry {
 }
 
 export interface RecordAuditParams {
+  orgId?: string | null;
   userId: string | null;
   action: string;
   resource: string;
@@ -38,6 +39,7 @@ export async function recordAudit(params: RecordAuditParams): Promise<void> {
   try {
     await prisma.auditLog.create({
       data: {
+        orgId: params.orgId ?? null,
         userId: params.userId,
         action: params.action,
         resource: params.resource,
@@ -58,6 +60,7 @@ export async function recordAudit(params: RecordAuditParams): Promise<void> {
 }
 
 export interface ListAuditParams {
+  orgId?: string;
   userId?: string;
   action?: string;
   resource?: string;
@@ -74,6 +77,7 @@ export interface ListAuditParams {
  */
 export function buildAuditWhere(params: ListAuditParams): Record<string, unknown> {
   const where: Record<string, unknown> = {};
+  if (params.orgId) where.orgId = params.orgId;
   if (params.userId) where.userId = params.userId;
   if (params.action) where.action = params.action;
   if (params.resource) where.resource = params.resource;

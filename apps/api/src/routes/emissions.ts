@@ -11,6 +11,7 @@ import { requireOrgRole } from '../middleware/org-role.js';
 import { logger } from '../lib/logger.js';
 import * as emissionsService from '../services/emissions.service.js';
 import { exportEmissionsCsv } from '../services/export.service.js';
+import { recordAudit } from '../services/audit-log.service.js';
 
 /**
  * Workflow transition table (AV4-301).
@@ -221,6 +222,18 @@ emissionsRouter.patch('/:id/status', async (req, res, next) => {
           req.orgId!,
           status,
         );
+
+        // Write an audit trail entry for the transition (best-effort; never throws).
+        await recordAudit({
+          orgId: req.orgId!,
+          userId: req.user!.sub,
+          action: `emission.status.${toStatus.toLowerCase()}`,
+          resource: 'emissions_record',
+          resourceId: id,
+          oldValue: { status: fromStatus },
+          newValue: { status: toStatus, orgRole: req.orgRole ?? null },
+          ipAddress: req.ip,
+        });
 
         logger.info(
           {

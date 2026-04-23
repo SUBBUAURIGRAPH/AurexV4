@@ -155,6 +155,7 @@ describe('recordAudit', () => {
 
     expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
       data: {
+        orgId: null,
         userId: 'u1',
         action: 'emissions.create',
         resource: 'EmissionsRecord',
@@ -164,6 +165,24 @@ describe('recordAudit', () => {
         ipAddress: '10.0.0.1',
       },
     });
+  });
+
+  it('propagates orgId when provided', async () => {
+    mockPrisma.auditLog.create.mockResolvedValue({});
+
+    await recordAudit({
+      orgId: 'o1',
+      userId: 'u1',
+      action: 'emission.status.verified',
+      resource: 'emissions_record',
+      resourceId: 'e1',
+    });
+
+    expect(mockPrisma.auditLog.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ orgId: 'o1' }),
+      }),
+    );
   });
 
   it('swallows DB errors without throwing', async () => {
