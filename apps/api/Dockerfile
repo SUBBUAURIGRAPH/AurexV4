@@ -26,16 +26,12 @@ RUN pnpm --filter @aurex/shared build && \
     pnpm --filter @aurex/api build
 # Deploy: flatten deps into api node_modules for production
 RUN pnpm --filter @aurex/api deploy /app/api-deploy --prod
-# Copy built workspace package dist into deploy
+# Copy built workspace dist into deploy
 RUN cp -r /app/packages/shared/dist /app/api-deploy/node_modules/@aurex/shared/dist 2>/dev/null || true && \
-    cp -r /app/packages/database/dist /app/api-deploy/node_modules/@aurex/database/dist 2>/dev/null || true
-# Copy generated Prisma client to the exact location the deploy expects
-RUN PRISMA_SRC=$(find /app/node_modules/.pnpm -path '*/@prisma/client/node_modules/.prisma' -type d | head -1) && \
-    PRISMA_DST=$(find /app/api-deploy/node_modules/.pnpm -path '*/@prisma/client' -type d | head -1) && \
-    if [ -n "$PRISMA_SRC" ] && [ -n "$PRISMA_DST" ]; then \
-      mkdir -p "$PRISMA_DST/node_modules/.prisma" && \
-      cp -r "$PRISMA_SRC/client" "$PRISMA_DST/node_modules/.prisma/client"; \
-    fi
+    cp -r /app/packages/database/dist /app/api-deploy/node_modules/@aurex/database/dist 2>/dev/null || true && \
+    cp -r /app/packages/database/prisma /app/api-deploy/node_modules/@aurex/database/prisma 2>/dev/null || true
+# Generate Prisma client in deploy target (prisma is now a prod dep)
+RUN cd /app/api-deploy && node_modules/.bin/prisma generate --schema=node_modules/@aurex/database/prisma/schema.prisma
 
 # Production
 FROM node:20-slim AS production
