@@ -45,5 +45,9 @@ export {
   generateReportSchema,
   type GenerateReportInput,
 } from './schemas/reports.js';
+export {
+  listAuditLogsQuerySchema,
+  type ListAuditLogsQuery,
+} from './schemas/audit.js';
 export { type ProblemDetail, type PaginatedResponse, type ApiResponse } from './types/api.js';
 export { ROLES, type Role, type Permission } from './types/rbac.js';

@@ -1,50 +1,252 @@
+import { useState } from 'react';
+import { useAuditLogs, type AuditLogEntry } from '../../hooks/useAuditLogs';
 import { Card } from '../../components/ui/Card';
-import { Badge } from '../../components/ui/Badge';
+import { Input } from '../../components/ui/Input';
+import { Table } from '../../components/ui/Table';
+import type { TableColumn } from '../../components/ui/Table';
+import { Pagination } from '../../components/ui/Pagination';
+import { EmptyState } from '../../components/ui/EmptyState';
 
-const auditRows = [
-  { actor: 'nina.rao@aurex.in', action: 'Updated Scope 2 factors', target: 'Emission Model', time: '2026-04-23 08:42 UTC', result: 'success' },
-  { actor: 'arjun.patel@aurex.in', action: 'Submitted Q1 disclosure pack', target: 'CSRD Workflow', time: '2026-04-23 07:18 UTC', result: 'success' },
-  { actor: 'system', action: 'Failed sync retry exhausted', target: 'ServiceNow Connector', time: '2026-04-23 06:55 UTC', result: 'warning' },
-  { actor: 'mia.chen@aurex.in', action: 'Changed role from Viewer to Editor', target: 'Team: Procurement', time: '2026-04-22 19:32 UTC', result: 'info' },
-];
+function formatTimestamp(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  // Match the ISO-ish look of the previous scaffold (YYYY-MM-DD HH:mm UTC)
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(
+    d.getUTCDate(),
+  )} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
+}
 
 export function AuditLogsPage() {
+  const [actionFilter, setActionFilter] = useState('');
+  const [resourceFilter, setResourceFilter] = useState('');
+  const [userIdFilter, setUserIdFilter] = useState('');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(20);
+
+  const { data, isLoading, isError } = useAuditLogs({
+    action: actionFilter || undefined,
+    resource: resourceFilter || undefined,
+    userId: userIdFilter || undefined,
+    dateFrom: dateFrom ? new Date(dateFrom).toISOString() : undefined,
+    dateTo: dateTo ? new Date(dateTo).toISOString() : undefined,
+    page,
+    pageSize,
+  });
+
+  const rows = data?.data ?? [];
+  const total = data?.pagination.total ?? 0;
+
+  const columns: TableColumn<AuditLogEntry>[] = [
+    {
+      key: 'createdAt',
+      label: 'Timestamp',
+      render: (_v, row) => (
+        <span
+          style={{
+            color: 'var(--text-secondary)',
+            fontSize: '0.8125rem',
+            fontVariantNumeric: 'tabular-nums',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {formatTimestamp(row.createdAt)}
+        </span>
+      ),
+    },
+    {
+      key: 'userEmail',
+      label: 'User',
+      render: (_v, row) => (
+        <div>
+          <div style={{ fontWeight: 500, color: 'var(--text-primary)' }}>
+            {row.userEmail ?? (row.userId ? row.userId : 'system')}
+          </div>
+          {row.userEmail && row.userId ? (
+            <div
+              style={{
+                fontSize: '0.75rem',
+                color: 'var(--text-tertiary)',
+                marginTop: '0.125rem',
+                fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+              }}
+            >
+              {row.userId.slice(0, 8)}…
+            </div>
+          ) : null}
+        </div>
+      ),
+    },
+    {
+      key: 'action',
+      label: 'Action',
+      render: (_v, row) => (
+        <code
+          style={{
+            fontSize: '0.8125rem',
+            color: 'var(--text-primary)',
+            fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+          }}
+        >
+          {row.action}
+        </code>
+      ),
+    },
+    {
+      key: 'resource',
+      label: 'Resource',
+      render: (_v, row) => (
+        <span style={{ color: 'var(--text-secondary)' }}>{row.resource}</span>
+      ),
+    },
+    {
+      key: 'resourceId',
+      label: 'Resource ID',
+      render: (_v, row) =>
+        row.resourceId ? (
+          <span
+            style={{
+              fontSize: '0.75rem',
+              color: 'var(--text-tertiary)',
+              fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+            }}
+          >
+            {row.resourceId.slice(0, 8)}…
+          </span>
+        ) : (
+          <span style={{ color: 'var(--text-tertiary)' }}>—</span>
+        ),
+    },
+    {
+      key: 'ipAddress',
+      label: 'IP',
+      render: (_v, row) => (
+        <span
+          style={{
+            fontSize: '0.8125rem',
+            color: 'var(--text-tertiary)',
+            fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+          }}
+        >
+          {row.ipAddress ?? '—'}
+        </span>
+      ),
+    },
+  ];
+
   return (
-    <div style={{ maxWidth: '1200px' }}>
+    <div style={{ padding: '1.5rem', maxWidth: '1280px', margin: '0 auto' }}>
       <div style={{ marginBottom: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>Audit Logs</h2>
-        <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)' }}>Immutable trace of key platform and governance actions.</p>
+        <h1
+          style={{
+            fontSize: '1.5rem',
+            fontWeight: 700,
+            color: 'var(--text-primary)',
+            margin: 0,
+          }}
+        >
+          Audit Logs
+        </h1>
+        <p
+          style={{
+            fontSize: '0.875rem',
+            color: 'var(--text-tertiary)',
+            marginTop: '0.25rem',
+          }}
+        >
+          Immutable trace of platform and governance actions.
+        </p>
       </div>
 
-      <Card padding="none">
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border-primary)' }}>
-                {['Actor', 'Action', 'Target', 'Timestamp', 'Result'].map((h) => (
-                  <th key={h} style={{ textAlign: 'left', padding: '0.875rem 1rem', fontSize: '0.75rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {auditRows.map((row, i) => (
-                <tr key={`${row.actor}-${row.time}`} style={{ borderBottom: i < auditRows.length - 1 ? '1px solid var(--border-primary)' : 'none' }}>
-                  <td style={{ padding: '0.875rem 1rem', color: 'var(--text-primary)', fontWeight: 500 }}>{row.actor}</td>
-                  <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{row.action}</td>
-                  <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{row.target}</td>
-                  <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)', fontVariantNumeric: 'tabular-nums' }}>{row.time}</td>
-                  <td style={{ padding: '0.875rem 1rem' }}>
-                    <Badge variant={row.result === 'success' ? 'success' : row.result === 'warning' ? 'warning' : 'info'}>
-                      {row.result}
-                    </Badge>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Filter bar */}
+      <Card padding="sm" style={{ marginBottom: '1rem' }}>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+            gap: '0.75rem',
+          }}
+        >
+          <Input
+            label="Action"
+            value={actionFilter}
+            onChange={(e) => {
+              setActionFilter(e.target.value);
+              setPage(1);
+            }}
+            placeholder="e.g. user.update"
+          />
+          <Input
+            label="Resource"
+            value={resourceFilter}
+            onChange={(e) => {
+              setResourceFilter(e.target.value);
+              setPage(1);
+            }}
+            placeholder="e.g. User"
+          />
+          <Input
+            label="User ID"
+            value={userIdFilter}
+            onChange={(e) => {
+              setUserIdFilter(e.target.value);
+              setPage(1);
+            }}
+            placeholder="uuid"
+          />
+          <Input
+            label="From"
+            type="date"
+            value={dateFrom}
+            onChange={(e) => {
+              setDateFrom(e.target.value);
+              setPage(1);
+            }}
+          />
+          <Input
+            label="To"
+            type="date"
+            value={dateTo}
+            onChange={(e) => {
+              setDateTo(e.target.value);
+              setPage(1);
+            }}
+          />
         </div>
+      </Card>
+
+      {/* Table */}
+      <Card padding="none">
+        {isError ? (
+          <EmptyState
+            title="Failed to load audit logs"
+            description="An error occurred while fetching audit entries. Please try again."
+            action={{ label: 'Retry', onClick: () => window.location.reload() }}
+          />
+        ) : !isLoading && rows.length === 0 ? (
+          <EmptyState
+            title="No audit entries found"
+            description="Try adjusting your filters or widen the date range."
+          />
+        ) : (
+          <>
+            <Table columns={columns} data={rows} loading={isLoading} />
+            {total > 0 && (
+              <Pagination
+                page={page}
+                pageSize={pageSize}
+                total={total}
+                onPageChange={setPage}
+                onPageSizeChange={(size) => {
+                  setPageSize(size);
+                  setPage(1);
+                }}
+              />
+            )}
+          </>
+        )}
       </Card>
     </div>
   );
