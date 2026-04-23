@@ -17,17 +17,21 @@ COPY tsconfig.base.json ./
 COPY apps/api/ apps/api/
 COPY packages/shared/ packages/shared/
 COPY packages/database/ packages/database/
+# Generate Prisma client before building
+RUN cd packages/database && npx prisma generate
 RUN pnpm --filter @aurex/shared build && \
     pnpm --filter @aurex/database build && \
     pnpm --filter @aurex/api build
 # Deploy: flatten deps into api node_modules for production
 RUN pnpm --filter @aurex/api deploy /app/api-deploy --prod
-# Copy built workspace package dist into deploy node_modules
+# Copy built workspace package dist + prisma client into deploy
 RUN cp -r /app/packages/shared/dist /app/api-deploy/node_modules/@aurex/shared/dist 2>/dev/null || true && \
-    cp -r /app/packages/database/dist /app/api-deploy/node_modules/@aurex/database/dist 2>/dev/null || true
+    cp -r /app/packages/database/dist /app/api-deploy/node_modules/@aurex/database/dist 2>/dev/null || true && \
+    cp -r /app/node_modules/.prisma /app/api-deploy/node_modules/.prisma 2>/dev/null || true
 
 # Production
 FROM node:20-slim AS production
+RUN apt-get update -qq && apt-get install -y -qq openssl >/dev/null 2>&1 && rm -rf /var/lib/apt/lists/*
 
 # ADM-020: Non-root user
 RUN groupadd -r aurex && useradd -r -g aurex -s /bin/false aurex
