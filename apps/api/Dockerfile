@@ -18,8 +18,8 @@ COPY tsconfig.base.json ./
 COPY apps/api/ apps/api/
 COPY packages/shared/ packages/shared/
 COPY packages/database/ packages/database/
-# Generate Prisma client
-RUN cd packages/database && npx prisma generate
+# Generate Prisma client in the build context
+RUN cd packages/database && npx --no-install prisma generate
 # Build all workspace packages
 RUN pnpm --filter @aurex/shared build && \
     pnpm --filter @aurex/database build && \
@@ -28,10 +28,13 @@ RUN pnpm --filter @aurex/shared build && \
 RUN pnpm --filter @aurex/api deploy /app/api-deploy --prod
 # Copy built workspace dist into deploy
 RUN cp -r /app/packages/shared/dist /app/api-deploy/node_modules/@aurex/shared/dist 2>/dev/null || true && \
-    cp -r /app/packages/database/dist /app/api-deploy/node_modules/@aurex/database/dist 2>/dev/null || true && \
-    cp -r /app/packages/database/prisma /app/api-deploy/node_modules/@aurex/database/prisma 2>/dev/null || true
-# Generate Prisma client targeting deploy output (use pinned prisma from build deps)
-RUN cd /app/packages/database && npx --no-install prisma generate --schema=/app/api-deploy/node_modules/@aurex/database/prisma/schema.prisma
+    cp -r /app/packages/database/dist /app/api-deploy/node_modules/@aurex/database/dist 2>/dev/null || true
+# Copy generated Prisma client from build to ALL .prisma locations in deploy
+RUN BUILD_PRISMA=$(find /app/node_modules/.pnpm -path '*/.prisma/client/index.js' | head -1 | xargs dirname) && \
+    for target in $(find /app/api-deploy/node_modules/.pnpm -path '*/.prisma/client' -type d); do \
+      rm -rf "$target"/* && cp -r "$BUILD_PRISMA"/* "$target"/; \
+    done && \
+    echo "Prisma client copied from $BUILD_PRISMA to deploy"
 
 # Production
 FROM node:20-slim AS production
