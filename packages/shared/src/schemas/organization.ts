@@ -25,11 +25,11 @@ export const updateOrgSchema = z.object({
 
 export const addMemberSchema = z.object({
   email: z.string().email().max(254),
-  role: z.enum(['super_admin', 'org_admin', 'manager', 'analyst', 'viewer']).default('viewer'),
+  role: z.enum(['super_admin', 'org_admin', 'manager', 'analyst', 'viewer', 'maker', 'checker', 'approver', 'auditor']).default('viewer'),
 });
 
 export const updateMemberSchema = z.object({
-  role: z.enum(['super_admin', 'org_admin', 'manager', 'analyst', 'viewer']),
+  role: z.enum(['super_admin', 'org_admin', 'manager', 'analyst', 'viewer', 'maker', 'checker', 'approver', 'auditor']),
 });
 
 export type CreateOrgInput = z.infer<typeof createOrgSchema>;

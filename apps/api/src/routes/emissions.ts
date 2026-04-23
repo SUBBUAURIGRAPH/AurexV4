@@ -7,9 +7,23 @@ import {
 } from '@aurex/shared';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
+import { requireOrgRole } from '../middleware/org-role.js';
 import { logger } from '../lib/logger.js';
 import * as emissionsService from '../services/emissions.service.js';
 import { exportEmissionsCsv } from '../services/export.service.js';
+
+/**
+ * Workflow transition table (AV4-301).
+ * Keys are `${FROM}->${TO}` using uppercase enum names.
+ * Values list the OrgMember roles permitted to perform the transition.
+ */
+const TRANSITION_ROLES: Record<string, string[]> = {
+  'DRAFT->PENDING': ['MAKER', 'CHECKER', 'APPROVER', 'ORG_ADMIN', 'SUPER_ADMIN'],
+  'PENDING->VERIFIED': ['APPROVER', 'ORG_ADMIN', 'SUPER_ADMIN'],
+  // any -> REJECTED handled explicitly below
+};
+
+const REJECT_ROLES = ['AUDITOR', 'APPROVER', 'ORG_ADMIN', 'SUPER_ADMIN'];
 
 export const emissionsRouter: IRouter = Router();
 
@@ -153,33 +167,80 @@ emissionsRouter.get('/:id', async (req, res, next) => {
 });
 
 /**
- * PATCH /:id/status — Change status (approve/reject)
- * Manager+ role required. Must be before PATCH /:id to avoid route conflict.
+ * PATCH /:id/status — Change status (workflow transition)
+ *
+ * AV4-301: gated by the org-scoped role (OrgMember.role) based on a
+ * current-status → target-status transition table. Reads the record's
+ * current status before applying the change:
+ *   DRAFT   -> PENDING   : MAKER, CHECKER, APPROVER, ORG_ADMIN, SUPER_ADMIN
+ *   PENDING -> VERIFIED  : APPROVER, ORG_ADMIN, SUPER_ADMIN
+ *   any     -> REJECTED  : AUDITOR, APPROVER, ORG_ADMIN, SUPER_ADMIN
+ *   everything else      : 400 Invalid status transition
+ *
+ * Must be registered before PATCH /:id to avoid route conflict.
  */
-emissionsRouter.patch(
-  '/:id/status',
-  requireRole('manager', 'org_admin', 'super_admin'),
-  async (req, res, next) => {
-    try {
-      const id = req.params.id as string;
-      const { status } = updateEmissionStatusSchema.parse(req.body);
+emissionsRouter.patch('/:id/status', async (req, res, next) => {
+  try {
+    const id = req.params.id as string;
+    const { status } = updateEmissionStatusSchema.parse(req.body);
 
-      const updated = await emissionsService.updateEmissionStatus(
-        id,
-        req.orgId!,
-        status,
-      );
+    // Load current record first so we know the FROM status (404 if missing).
+    const current = await emissionsService.getEmissionById(id, req.orgId!);
+    const fromStatus = String(current.status).toUpperCase();
+    const toStatus = status.toUpperCase();
 
-      logger.info(
-        { recordId: id, status, changedBy: req.user!.sub },
-        'Emission status changed via API',
-      );
-      res.json({ data: updated });
-    } catch (err) {
-      next(err);
+    // Resolve which org roles may perform this transition.
+    let allowedRoles: string[] | undefined;
+    if (toStatus === 'REJECTED') {
+      allowedRoles = REJECT_ROLES;
+    } else {
+      allowedRoles = TRANSITION_ROLES[`${fromStatus}->${toStatus}`];
     }
-  },
-);
+
+    if (!allowedRoles) {
+      res.status(400).json({
+        type: 'https://aurex.in/errors/bad-request',
+        title: 'Bad Request',
+        status: 400,
+        detail: 'Invalid status transition',
+      });
+      return;
+    }
+
+    // Apply the role gate using the shared middleware, and only mutate the
+    // record if the gate calls next().
+    const gate = requireOrgRole(...allowedRoles);
+    gate(req, res, async (err?: unknown) => {
+      if (err) {
+        next(err);
+        return;
+      }
+      try {
+        const updated = await emissionsService.updateEmissionStatus(
+          id,
+          req.orgId!,
+          status,
+        );
+
+        logger.info(
+          {
+            recordId: id,
+            from: fromStatus,
+            to: toStatus,
+            changedBy: req.user!.sub,
+            orgRole: req.orgRole,
+          },
+          'Emission status changed via API',
+        );
+        res.json({ data: updated });
+      } catch (inner) {
+        next(inner);
+      }
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 /**
  * PATCH /:id — Update emission record

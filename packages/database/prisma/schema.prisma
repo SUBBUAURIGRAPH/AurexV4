@@ -269,6 +269,10 @@ enum Role {
   MANAGER     @map("manager")
   ANALYST     @map("analyst")
   VIEWER      @map("viewer")
+  MAKER       @map("maker")
+  CHECKER     @map("checker")
+  APPROVER    @map("approver")
+  AUDITOR     @map("auditor")
 }
 
 enum AuthEventType {

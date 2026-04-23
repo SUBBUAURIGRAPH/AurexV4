@@ -3,18 +3,18 @@ import { z } from 'zod';
 export const createUserSchema = z.object({
   name: z.string().min(1).max(200),
   email: z.string().email().max(254),
-  role: z.enum(['super_admin', 'org_admin', 'manager', 'analyst', 'viewer']),
+  role: z.enum(['super_admin', 'org_admin', 'manager', 'analyst', 'viewer', 'maker', 'checker', 'approver', 'auditor']),
 });
 
 export const updateUserSchema = z.object({
   name: z.string().min(1).max(200).optional(),
-  role: z.enum(['super_admin', 'org_admin', 'manager', 'analyst', 'viewer']).optional(),
+  role: z.enum(['super_admin', 'org_admin', 'manager', 'analyst', 'viewer', 'maker', 'checker', 'approver', 'auditor']).optional(),
   isActive: z.boolean().optional(),
 });
 
 export const listUsersQuerySchema = z.object({
   search: z.string().max(200).optional(),
-  role: z.enum(['super_admin', 'org_admin', 'manager', 'analyst', 'viewer']).optional(),
+  role: z.enum(['super_admin', 'org_admin', 'manager', 'analyst', 'viewer', 'maker', 'checker', 'approver', 'auditor']).optional(),
   isActive: z
     .string()
     .transform((v) => v === 'true')
