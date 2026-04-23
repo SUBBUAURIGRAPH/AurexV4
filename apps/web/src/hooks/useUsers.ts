@@ -29,6 +29,13 @@ export interface CreateUserData {
   role: string;
 }
 
+// POST /users returns { data: User & { temporaryPassword? } }. The temp
+// password is only present when a NEW account was created; if the email
+// already existed and we just linked them to the org, it's omitted.
+export interface CreatedUserResponse {
+  data: User & { temporaryPassword?: string };
+}
+
 export interface UpdateUserData {
   id: string;
   name?: string;
@@ -67,7 +74,7 @@ export function useCreateUser() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: CreateUserData) =>
-      api.post<User>('/users', data),
+      api.post<CreatedUserResponse>('/users', data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['users'] });
     },

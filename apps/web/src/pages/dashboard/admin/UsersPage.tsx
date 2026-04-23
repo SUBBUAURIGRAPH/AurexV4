@@ -87,6 +87,13 @@ export function UsersPage() {
   const [editingUser, setEditingUser] = useState<User | null>(null);
   const [form, setForm] = useState<UserFormState>(INITIAL_FORM);
 
+  // Shown after a new user is created so the admin can share the one-time
+  // temporary password. Cleared when dismissed.
+  const [newUserCredentials, setNewUserCredentials] = useState<{
+    email: string;
+    temporaryPassword: string;
+  } | null>(null);
+
   // Data
   const { data, isLoading, isError } = useUsers({
     search: search || undefined,
@@ -140,8 +147,18 @@ export function UsersPage() {
           email: form.email,
           role: form.role,
         };
-        await createUser.mutateAsync(payload);
-        toast.success('User created successfully');
+        const result = await createUser.mutateAsync(payload);
+        const created = result?.data;
+        if (created?.temporaryPassword) {
+          // Show the credentials modal; admin is responsible for sharing them.
+          setNewUserCredentials({
+            email: created.email,
+            temporaryPassword: created.temporaryPassword,
+          });
+          toast.success('User created — share the temporary password');
+        } else {
+          toast.success('User linked to this organization');
+        }
       }
       closeModal();
     } catch (err: any) {
@@ -324,6 +341,71 @@ export function UsersPage() {
           </>
         )}
       </Card>
+
+      {/* One-time temp password modal */}
+      <Modal
+        isOpen={!!newUserCredentials}
+        onClose={() => setNewUserCredentials(null)}
+        title="User created — share credentials"
+        size="sm"
+        footer={
+          <Button variant="primary" onClick={() => setNewUserCredentials(null)}>
+            Done
+          </Button>
+        }
+      >
+        {newUserCredentials ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.5, margin: 0 }}>
+              This temporary password will not be shown again. Share it with the user through a secure channel.
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>EMAIL</span>
+              <code
+                style={{
+                  padding: '0.5rem 0.625rem',
+                  fontSize: '0.875rem',
+                  backgroundColor: 'var(--bg-input)',
+                  border: '1px solid var(--border-primary)',
+                  borderRadius: '0.375rem',
+                  fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                }}
+              >
+                {newUserCredentials.email}
+              </code>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)', fontWeight: 600 }}>
+                TEMPORARY PASSWORD
+              </span>
+              <code
+                style={{
+                  padding: '0.5rem 0.625rem',
+                  fontSize: '0.875rem',
+                  backgroundColor: 'var(--bg-input)',
+                  border: '1px solid var(--border-primary)',
+                  borderRadius: '0.375rem',
+                  fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                  wordBreak: 'break-all',
+                }}
+              >
+                {newUserCredentials.temporaryPassword}
+              </code>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(newUserCredentials.temporaryPassword);
+                  toast.success('Password copied to clipboard');
+                }}
+                style={{ alignSelf: 'flex-start' }}
+              >
+                Copy password
+              </Button>
+            </div>
+          </div>
+        ) : null}
+      </Modal>
 
       {/* Add / Edit Modal */}
       <Modal

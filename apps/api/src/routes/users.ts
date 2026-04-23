@@ -1,11 +1,46 @@
 import { Router, type IRouter } from 'express';
-import { listUsersQuerySchema, updateUserSchema } from '@aurex/shared';
+import { createUserSchema, listUsersQuerySchema, updateUserSchema } from '@aurex/shared';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
 import { logger } from '../lib/logger.js';
 import * as userService from '../services/user.service.js';
 
 export const userRouter: IRouter = Router();
+
+/**
+ * POST / — Create a user and add them to the caller's org (admin only).
+ * Generates a one-time temporary password returned in the response so the
+ * admin can share it with the new user; password should be rotated on first
+ * login. If the email already exists, the user is linked to this org instead
+ * of being recreated.
+ */
+userRouter.post(
+  '/',
+  requireAuth,
+  requireOrgScope,
+  requireRole('org_admin', 'super_admin'),
+  async (req, res, next) => {
+    try {
+      const data = createUserSchema.parse(req.body);
+
+      const result = await userService.createUserForOrg({
+        orgId: req.orgId!,
+        email: data.email,
+        name: data.name,
+        role: data.role,
+        callerRole: req.user!.role,
+      });
+
+      logger.info(
+        { userId: result.id, orgId: req.orgId, invitedBy: req.user!.sub },
+        'User added via admin API',
+      );
+      res.status(201).json({ data: result });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
 /**
  * GET / — List users in the caller's org

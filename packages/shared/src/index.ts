@@ -20,8 +20,10 @@ export {
   type BulkStatusInput,
 } from './schemas/emissions.js';
 export {
+  createUserSchema,
   updateUserSchema,
   listUsersQuerySchema,
+  type CreateUserInput,
   type UpdateUserInput,
   type ListUsersQuery,
 } from './schemas/user.js';
