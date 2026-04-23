@@ -1,0 +1,806 @@
+{
+  "description": "AurexV4 Frontend Portal Sprints",
+  "epics": [
+    {
+      "summary": "[S1] Foundation & Core Data",
+      "description": "API CRUD, org/user mgmt, emissions entry",
+      "children": [
+        {
+          "summary": "[S1.1] Organization CRUD API",
+          "description": "POST/GET/PATCH /organizations, member mgmt",
+          "children": [
+            {
+              "summary": "[S1.1.1] Organization routes + service",
+              "description": "routes/organizations.ts, services/organization.service.ts"
+            },
+            {
+              "summary": "[S1.1.2] Org member endpoints",
+              "description": "GET/POST/PATCH/DELETE /organizations/:id/members"
+            },
+            {
+              "summary": "[S1.1.3] Org Zod schemas",
+              "description": "packages/shared/src/schemas/organization.ts"
+            },
+            {
+              "summary": "[S1.1.4] Org API tests",
+              "description": "tests/unit/api/organizations.test.ts (6 cases)"
+            }
+          ]
+        },
+        {
+          "summary": "[S1.2] User Management API",
+          "description": "GET/PATCH/DELETE /users with pagination + RBAC",
+          "children": [
+            {
+              "summary": "[S1.2.1] User routes + service",
+              "description": "routes/users.ts, services/user.service.ts"
+            },
+            {
+              "summary": "[S1.2.2] User filter/search/pagination",
+              "description": "query params: search, role, isActive, page, pageSize"
+            },
+            {
+              "summary": "[S1.2.3] User API tests",
+              "description": "tests/unit/api/users.test.ts (4 cases)"
+            }
+          ]
+        },
+        {
+          "summary": "[S1.3] Emissions CRUD API",
+          "description": "Full emissions lifecycle with status workflow",
+          "children": [
+            {
+              "summary": "[S1.3.1] Emissions routes + service",
+              "description": "routes/emissions.ts, services/emissions.service.ts"
+            },
+            {
+              "summary": "[S1.3.2] Emissions status workflow",
+              "description": "DRAFT\u2192PENDING\u2192VERIFIED/REJECTED, bulk-status"
+            },
+            {
+              "summary": "[S1.3.3] Prisma schema: status + createdBy",
+              "description": "Add status enum, createdBy FK to EmissionsRecord"
+            },
+            {
+              "summary": "[S1.3.4] Emission sources + factors ref data",
+              "description": "GET /emission-sources, GET /emission-factors"
+            },
+            {
+              "summary": "[S1.3.5] Prisma schema: EmissionSource + EmissionFactor",
+              "description": "New models for reference data"
+            },
+            {
+              "summary": "[S1.3.6] Emissions API tests",
+              "description": "tests/unit/api/emissions.test.ts (8 cases)"
+            }
+          ]
+        },
+        {
+          "summary": "[S1.4] Org-scope middleware",
+          "description": "Extract orgId from JWT, scope all queries",
+          "children": [
+            {
+              "summary": "[S1.4.1] Org-scope middleware",
+              "description": "middleware/org-scope.ts"
+            }
+          ]
+        },
+        {
+          "summary": "[S1.5] Frontend: API client + hooks",
+          "description": "Centralized fetch wrapper, React Query hooks",
+          "children": [
+            {
+              "summary": "[S1.5.1] API client (src/lib/api.ts)",
+              "description": "Auth header injection, token refresh, error normalization"
+            },
+            {
+              "summary": "[S1.5.2] useEmissions hook",
+              "description": "CRUD + filter + pagination"
+            },
+            {
+              "summary": "[S1.5.3] useUsers hook",
+              "description": "CRUD + search + filter"
+            },
+            {
+              "summary": "[S1.5.4] useOrganization hook",
+              "description": "Org + members"
+            }
+          ]
+        },
+        {
+          "summary": "[S1.6] Frontend: UI components batch 1",
+          "description": "Modal, Select, Table, Pagination, SearchInput, Toast, Tabs, EmptyState",
+          "children": [
+            {
+              "summary": "[S1.6.1] Modal component",
+              "description": "Overlay, close, focus trap"
+            },
+            {
+              "summary": "[S1.6.2] Select component",
+              "description": "Dropdown with search"
+            },
+            {
+              "summary": "[S1.6.3] Table component",
+              "description": "Sortable columns, pagination controls"
+            },
+            {
+              "summary": "[S1.6.4] Pagination component",
+              "description": "Page nav, page size selector"
+            },
+            {
+              "summary": "[S1.6.5] SearchInput component",
+              "description": "Debounced search"
+            },
+            {
+              "summary": "[S1.6.6] Toast component",
+              "description": "Success/error/info notifications"
+            },
+            {
+              "summary": "[S1.6.7] Tabs component",
+              "description": "Extract from EmissionsPage inline"
+            },
+            {
+              "summary": "[S1.6.8] EmptyState component",
+              "description": "Icon + message + CTA"
+            },
+            {
+              "summary": "[S1.6.9] Component tests",
+              "description": "tests/unit/components/{Table,Modal}.test.tsx"
+            }
+          ]
+        },
+        {
+          "summary": "[S1.7] Frontend: Users page",
+          "description": "Admin user management table",
+          "children": [
+            {
+              "summary": "[S1.7.1] UsersPage with table",
+              "description": "Search, filter, paginate, CRUD"
+            },
+            {
+              "summary": "[S1.7.2] UserForm dialog",
+              "description": "Create/edit user with role selector"
+            },
+            {
+              "summary": "[S1.7.3] UserForm tests",
+              "description": "tests/unit/components/UserForm.test.tsx"
+            }
+          ]
+        },
+        {
+          "summary": "[S1.8] Frontend: Organization page",
+          "description": "Org profile + member list + invite",
+          "children": [
+            {
+              "summary": "[S1.8.1] OrganizationPage",
+              "description": "Org details form + member table"
+            },
+            {
+              "summary": "[S1.8.2] OrgForm + invite form",
+              "description": "Create/edit org, invite by email"
+            }
+          ]
+        },
+        {
+          "summary": "[S1.9] Frontend: Emissions data entry",
+          "description": "Scope\u2192Category\u2192Source\u2192Factor cascading form",
+          "children": [
+            {
+              "summary": "[S1.9.1] ScopeDataEntry form",
+              "description": "Cascading dropdowns, auto-calc CO2e"
+            },
+            {
+              "summary": "[S1.9.2] EmissionsPage wired to API",
+              "description": "Replace hardcoded data with React Query"
+            },
+            {
+              "summary": "[S1.9.3] EmissionsDataEntry page",
+              "description": "Full entry page at /emissions/new"
+            },
+            {
+              "summary": "[S1.9.4] ScopeDataEntry tests",
+              "description": "tests/unit/components/ScopeDataEntry.test.tsx"
+            }
+          ]
+        },
+        {
+          "summary": "[S1.10] Route + sidebar updates",
+          "description": "New routes + nav items in DashboardSidebar",
+          "children": []
+        }
+      ]
+    },
+    {
+      "summary": "[S2] Analytics & Reporting",
+      "description": "Charts, baselines, targets, reports",
+      "children": [
+        {
+          "summary": "[S2.1] Analytics API",
+          "description": "Aggregation endpoints for dashboard",
+          "children": [
+            {
+              "summary": "[S2.1.1] Analytics routes + service",
+              "description": "6 endpoints: summary, trend, breakdown, top-sources, by-category, yoy"
+            },
+            {
+              "summary": "[S2.1.2] Efficient SQL aggregation",
+              "description": "GROUP BY scope/category/month, avoid N+1"
+            },
+            {
+              "summary": "[S2.1.3] Analytics API tests",
+              "description": "tests/unit/api/analytics.test.ts"
+            }
+          ]
+        },
+        {
+          "summary": "[S2.2] Baselines CRUD API",
+          "description": "POST/GET/PATCH/DELETE /baselines",
+          "children": [
+            {
+              "summary": "[S2.2.1] Baseline routes + service",
+              "description": "Full CRUD with org scoping"
+            },
+            {
+              "summary": "[S2.2.2] Baseline API tests",
+              "description": "tests/unit/api/baselines.test.ts"
+            }
+          ]
+        },
+        {
+          "summary": "[S2.3] Targets CRUD + progress API",
+          "description": "Targets with SBTi pathway, approval, progress",
+          "children": [
+            {
+              "summary": "[S2.3.1] Target routes + service",
+              "description": "CRUD + approve + progress"
+            },
+            {
+              "summary": "[S2.3.2] Target progress calculation",
+              "description": "actual vs projected vs target trajectory"
+            },
+            {
+              "summary": "[S2.3.3] Target API tests",
+              "description": "tests/unit/api/targets.test.ts"
+            }
+          ]
+        },
+        {
+          "summary": "[S2.4] Reports API",
+          "description": "Async generation with status polling",
+          "children": [
+            {
+              "summary": "[S2.4.1] Report routes + service",
+              "description": "Generate, status, download, list"
+            },
+            {
+              "summary": "[S2.4.2] Prisma schema: Report model",
+              "description": "id, type, status, parameters, filePath"
+            },
+            {
+              "summary": "[S2.4.3] PDF generation utility",
+              "description": "lib/pdf-generator.ts"
+            }
+          ]
+        },
+        {
+          "summary": "[S2.5] Frontend: Recharts integration",
+          "description": "Install recharts, build 6 chart components",
+          "children": [
+            {
+              "summary": "[S2.5.1] EmissionsTrendChart (area)",
+              "description": "Monthly emissions over 12 months"
+            },
+            {
+              "summary": "[S2.5.2] ScopeBreakdownChart (pie)",
+              "description": "Scope 1/2/3 distribution"
+            },
+            {
+              "summary": "[S2.5.3] TopSourcesChart (bar)",
+              "description": "Top 10 emission sources"
+            },
+            {
+              "summary": "[S2.5.4] YoYComparisonChart (line)",
+              "description": "Year-over-year comparison"
+            },
+            {
+              "summary": "[S2.5.5] TargetProgressChart (composed)",
+              "description": "Actual vs projected vs target"
+            },
+            {
+              "summary": "[S2.5.6] CategoryStackedBar",
+              "description": "Stacked bar by category"
+            },
+            {
+              "summary": "[S2.5.7] Chart component tests",
+              "description": "tests/unit/components/charts.test.tsx"
+            }
+          ]
+        },
+        {
+          "summary": "[S2.6] Frontend: Dashboard with live data",
+          "description": "Replace hardcoded stats with API",
+          "children": [
+            {
+              "summary": "[S2.6.1] DashboardPage wired to analytics API",
+              "description": "Stat cards + charts from /analytics/*"
+            },
+            {
+              "summary": "[S2.6.2] useAnalytics hooks",
+              "description": "summary, trend, breakdown, topSources"
+            }
+          ]
+        },
+        {
+          "summary": "[S2.7] Frontend: Baselines page",
+          "description": "Baseline CRUD UI",
+          "children": [
+            {
+              "summary": "[S2.7.1] BaselinesPage + BaselineForm",
+              "description": "List + create/edit form"
+            }
+          ]
+        },
+        {
+          "summary": "[S2.8] Frontend: Targets wizard",
+          "description": "4-step target creation",
+          "children": [
+            {
+              "summary": "[S2.8.1] TargetsPage + TargetWizard",
+              "description": "List + 4-step stepper wizard"
+            },
+            {
+              "summary": "[S2.8.2] Stepper + DateRangePicker UI components",
+              "description": "Multi-step stepper, date range picker"
+            },
+            {
+              "summary": "[S2.8.3] TargetWizard tests",
+              "description": "tests/unit/components/TargetWizard.test.tsx"
+            }
+          ]
+        },
+        {
+          "summary": "[S2.9] Frontend: Analytics page",
+          "description": "Full analytics dashboard",
+          "children": [
+            {
+              "summary": "[S2.9.1] AnalyticsPage",
+              "description": "Date range, all 6 chart types"
+            }
+          ]
+        },
+        {
+          "summary": "[S2.10] Frontend: Report builder",
+          "description": "Report config + generation + download",
+          "children": [
+            {
+              "summary": "[S2.10.1] ReportBuilderPage",
+              "description": "Type selector, params, generate, poll, download"
+            }
+          ]
+        },
+        {
+          "summary": "[S2.11] Integration tests",
+          "description": "Target creation full flow",
+          "children": [
+            {
+              "summary": "[S2.11.1] Target creation workflow test",
+              "description": "tests/integration/workflows/target-creation.test.ts"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "summary": "[S3] Compliance & Workflows",
+      "description": "ESG frameworks, BRSR, approvals, onboarding, audit",
+      "children": [
+        {
+          "summary": "[S3.1] ESG Frameworks API",
+          "description": "Framework + principle + indicator endpoints",
+          "children": [
+            {
+              "summary": "[S3.1.1] Framework routes + service",
+              "description": "GET /frameworks, /:id, /:id/indicators, /:id/progress"
+            },
+            {
+              "summary": "[S3.1.2] Prisma: ESGFramework, Principle, Indicator models",
+              "description": "Framework hierarchy + indicator values"
+            },
+            {
+              "summary": "[S3.1.3] Seed 7 frameworks with principles",
+              "description": "BRSR, GRI, SBTi, CDP, TCFD, SASB, CSRD"
+            },
+            {
+              "summary": "[S3.1.4] Framework API tests",
+              "description": "tests/unit/api/frameworks.test.ts"
+            }
+          ]
+        },
+        {
+          "summary": "[S3.2] BRSR Indicators API",
+          "description": "BRSR-specific indicator CRUD + submit + PDF",
+          "children": [
+            {
+              "summary": "[S3.2.1] BRSR routes + service",
+              "description": "Principles, indicator update, evidence upload, submit, PDF"
+            },
+            {
+              "summary": "[S3.2.2] BRSR API tests",
+              "description": "tests/unit/api/brsr.test.ts"
+            }
+          ]
+        },
+        {
+          "summary": "[S3.3] Approval Workflow API",
+          "description": "Generic approval system",
+          "children": [
+            {
+              "summary": "[S3.3.1] Approval routes + service",
+              "description": "List, counts, approve, reject with comments"
+            },
+            {
+              "summary": "[S3.3.2] Prisma: Approval model",
+              "description": "Type, resourceId, status, comment, requestedBy, reviewedBy"
+            },
+            {
+              "summary": "[S3.3.3] Approval API tests",
+              "description": "tests/unit/api/approvals.test.ts"
+            }
+          ]
+        },
+        {
+          "summary": "[S3.4] Audit Log API",
+          "description": "Query + export audit trail",
+          "children": [
+            {
+              "summary": "[S3.4.1] Audit log routes + service",
+              "description": "List, detail, CSV export"
+            },
+            {
+              "summary": "[S3.4.2] Audit middleware",
+              "description": "Auto-log all mutations to AuditLog"
+            },
+            {
+              "summary": "[S3.4.3] Audit API tests",
+              "description": "tests/unit/api/audit-logs.test.ts"
+            }
+          ]
+        },
+        {
+          "summary": "[S3.5] Onboarding API",
+          "description": "5-step progress tracking",
+          "children": [
+            {
+              "summary": "[S3.5.1] Onboarding routes + service",
+              "description": "Status, complete step, complete all"
+            },
+            {
+              "summary": "[S3.5.2] Prisma: OnboardingProgress model",
+              "description": "userId, step, completedAt"
+            },
+            {
+              "summary": "[S3.5.3] Onboarding API tests",
+              "description": "tests/unit/api/onboarding.test.ts"
+            }
+          ]
+        },
+        {
+          "summary": "[S3.6] Frontend: Frameworks hub",
+          "description": "Framework cards with progress rings",
+          "children": [
+            {
+              "summary": "[S3.6.1] FrameworksHubPage",
+              "description": "7 framework cards with completion %"
+            },
+            {
+              "summary": "[S3.6.2] FrameworkDetailPage",
+              "description": "Single framework with principles/indicators"
+            },
+            {
+              "summary": "[S3.6.3] FrameworkCard + Accordion components",
+              "description": "Card with progress ring, collapsible principles"
+            }
+          ]
+        },
+        {
+          "summary": "[S3.7] Frontend: BRSR builder",
+          "description": "9-principle report builder",
+          "children": [
+            {
+              "summary": "[S3.7.1] BRSRBuilderPage",
+              "description": "Principle tabs, indicator forms, evidence upload"
+            },
+            {
+              "summary": "[S3.7.2] IndicatorField component",
+              "description": "Renders correct input per data type"
+            },
+            {
+              "summary": "[S3.7.3] FileUpload + TextArea components",
+              "description": "Drag-drop upload, multi-line text"
+            },
+            {
+              "summary": "[S3.7.4] BRSR builder tests",
+              "description": "tests/unit/components/BRSRBuilder.test.tsx"
+            }
+          ]
+        },
+        {
+          "summary": "[S3.8] Frontend: Approvals inbox",
+          "description": "Tabbed approval management",
+          "children": [
+            {
+              "summary": "[S3.8.1] ApprovalsPage",
+              "description": "Tabs with count badges, approve/reject"
+            },
+            {
+              "summary": "[S3.8.2] ConfirmDialog component",
+              "description": "Approve/reject with comment"
+            },
+            {
+              "summary": "[S3.8.3] Approvals tests",
+              "description": "tests/unit/components/Approvals.test.tsx"
+            }
+          ]
+        },
+        {
+          "summary": "[S3.9] Frontend: Onboarding wizard",
+          "description": "5-step guided setup",
+          "children": [
+            {
+              "summary": "[S3.9.1] OnboardingWizard page",
+              "description": "Org setup, frameworks, baseline, invite, complete"
+            },
+            {
+              "summary": "[S3.9.2] Onboarding wizard tests",
+              "description": "tests/unit/components/OnboardingWizard.test.tsx"
+            }
+          ]
+        },
+        {
+          "summary": "[S3.10] Frontend: Audit log viewer",
+          "description": "Timeline + diff viewer",
+          "children": [
+            {
+              "summary": "[S3.10.1] AuditLogPage",
+              "description": "Filterable timeline, JSON diff viewer"
+            },
+            {
+              "summary": "[S3.10.2] Timeline + DiffViewer + FilterBar components",
+              "description": "Vertical timeline, old/new diff, filter bar"
+            }
+          ]
+        },
+        {
+          "summary": "[S3.11] E2E + integration tests",
+          "description": "Auth flows, BRSR submission, approval flow",
+          "children": [
+            {
+              "summary": "[S3.11.1] E2E auth tests",
+              "description": "tests/e2e/auth.spec.ts"
+            },
+            {
+              "summary": "[S3.11.2] BRSR submission workflow test",
+              "description": "tests/integration/workflows/brsr-submission.test.ts"
+            },
+            {
+              "summary": "[S3.11.3] Approval flow test",
+              "description": "tests/integration/workflows/approval-flow.test.ts"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "summary": "[S4] Advanced Features & Polish",
+      "description": "Bulk upload, export, notifications, suppliers, marketplace, settings",
+      "children": [
+        {
+          "summary": "[S4.1] Bulk Upload API",
+          "description": "CSV upload, validate, import",
+          "children": [
+            {
+              "summary": "[S4.1.1] Bulk upload routes + service",
+              "description": "Upload, validate, import, status, template"
+            },
+            {
+              "summary": "[S4.1.2] CSV parser utility",
+              "description": "lib/csv-parser.ts with validation"
+            },
+            {
+              "summary": "[S4.1.3] Prisma: ImportJob model",
+              "description": "Tracking import progress"
+            },
+            {
+              "summary": "[S4.1.4] Bulk upload API tests",
+              "description": "tests/unit/api/bulk-upload.test.ts"
+            },
+            {
+              "summary": "[S4.1.5] CSV parser tests",
+              "description": "tests/unit/services/csv-parser.test.ts"
+            }
+          ]
+        },
+        {
+          "summary": "[S4.2] Export API",
+          "description": "CSV/PDF export for emissions, audit, analytics",
+          "children": [
+            {
+              "summary": "[S4.2.1] Export routes + service",
+              "description": "POST /export/{emissions,audit-logs,analytics}"
+            },
+            {
+              "summary": "[S4.2.2] Export API tests",
+              "description": "tests/unit/api/export.test.ts"
+            }
+          ]
+        },
+        {
+          "summary": "[S4.3] Notifications API",
+          "description": "CRUD + preferences",
+          "children": [
+            {
+              "summary": "[S4.3.1] Notification routes + service",
+              "description": "List, unread count, mark read, preferences"
+            },
+            {
+              "summary": "[S4.3.2] Prisma: Notification + NotificationPreference models",
+              "description": ""
+            },
+            {
+              "summary": "[S4.3.3] Notification API tests",
+              "description": "tests/unit/api/notifications.test.ts"
+            }
+          ]
+        },
+        {
+          "summary": "[S4.4] Supplier Portal API",
+          "description": "Supplier mgmt + data collection",
+          "children": [
+            {
+              "summary": "[S4.4.1] Supplier routes + service",
+              "description": "CRUD suppliers, send data requests"
+            },
+            {
+              "summary": "[S4.4.2] Supplier portal routes",
+              "description": "Supplier-facing: list requests, submit data"
+            },
+            {
+              "summary": "[S4.4.3] Prisma: Supplier + SupplierDataRequest models",
+              "description": ""
+            },
+            {
+              "summary": "[S4.4.4] Supplier API tests",
+              "description": "tests/unit/api/suppliers.test.ts"
+            }
+          ]
+        },
+        {
+          "summary": "[S4.5] Security API enhancements",
+          "description": "Password change, MFA, sessions",
+          "children": [
+            {
+              "summary": "[S4.5.1] Password change + MFA endpoints",
+              "description": "POST /auth/change-password, mfa/enable, mfa/verify, mfa/disable"
+            },
+            {
+              "summary": "[S4.5.2] Session management endpoints",
+              "description": "GET/DELETE /auth/sessions"
+            },
+            {
+              "summary": "[S4.5.3] Security API tests",
+              "description": "tests/unit/api/security.test.ts"
+            }
+          ]
+        },
+        {
+          "summary": "[S4.6] Frontend: Bulk upload wizard",
+          "description": "Multi-step CSV import",
+          "children": [
+            {
+              "summary": "[S4.6.1] BulkUploadPage",
+              "description": "Dropzone \u2192 preview \u2192 validate \u2192 dedup \u2192 import \u2192 summary"
+            },
+            {
+              "summary": "[S4.6.2] Dropzone + DataPreviewTable components",
+              "description": "File drop, validation markers"
+            },
+            {
+              "summary": "[S4.6.3] Bulk upload tests",
+              "description": "tests/unit/components/BulkUpload.test.tsx"
+            }
+          ]
+        },
+        {
+          "summary": "[S4.7] Frontend: Notifications",
+          "description": "Bell icon + dropdown + full page",
+          "children": [
+            {
+              "summary": "[S4.7.1] NotificationBell + NotificationDropdown",
+              "description": "Topbar bell with unread badge, dropdown list"
+            },
+            {
+              "summary": "[S4.7.2] NotificationsPage",
+              "description": "Full notification list with mark-all-read"
+            },
+            {
+              "summary": "[S4.7.3] Notification tests",
+              "description": "tests/unit/components/NotificationBell.test.tsx"
+            }
+          ]
+        },
+        {
+          "summary": "[S4.8] Frontend: Supplier portal",
+          "description": "Supplier management + simplified entry",
+          "children": [
+            {
+              "summary": "[S4.8.1] SuppliersPage",
+              "description": "Supplier list, add, send data request"
+            },
+            {
+              "summary": "[S4.8.2] SupplierPortalPage",
+              "description": "Simplified supplier data entry"
+            }
+          ]
+        },
+        {
+          "summary": "[S4.9] Frontend: Carbon marketplace",
+          "description": "Offset project browsing (placeholder)",
+          "children": [
+            {
+              "summary": "[S4.9.1] MarketplacePage",
+              "description": "Project cards with filters"
+            }
+          ]
+        },
+        {
+          "summary": "[S4.10] Frontend: Settings completion",
+          "description": "Profile, security, notifications tabs",
+          "children": [
+            {
+              "summary": "[S4.10.1] Settings tab refactor",
+              "description": "ProfileTab, OrgTab, SecurityTab, NotificationsTab"
+            },
+            {
+              "summary": "[S4.10.2] PasswordChangeForm + MFASetup + SessionList",
+              "description": "Security components"
+            },
+            {
+              "summary": "[S4.10.3] ExportMenu component",
+              "description": "CSV/PDF/Excel dropdown"
+            },
+            {
+              "summary": "[S4.10.4] Settings tests",
+              "description": "tests/unit/components/PasswordChangeForm.test.tsx"
+            }
+          ]
+        },
+        {
+          "summary": "[S4.11] E2E + performance + OWASP tests",
+          "description": "Full suite",
+          "children": [
+            {
+              "summary": "[S4.11.1] E2E emissions tests",
+              "description": "tests/e2e/emissions.spec.ts"
+            },
+            {
+              "summary": "[S4.11.2] E2E reports tests",
+              "description": "tests/e2e/reports.spec.ts"
+            },
+            {
+              "summary": "[S4.11.3] E2E admin tests",
+              "description": "tests/e2e/admin.spec.ts"
+            },
+            {
+              "summary": "[S4.11.4] OWASP bulk upload tests",
+              "description": "tests/security/owasp-bulk-upload.test.ts"
+            },
+            {
+              "summary": "[S4.11.5] Performance tests",
+              "description": "tests/performance/emissions-load.test.ts"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
