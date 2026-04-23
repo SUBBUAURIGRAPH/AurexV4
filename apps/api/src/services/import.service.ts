@@ -92,7 +92,7 @@ export function parseCsvLine(line: string): string[] {
  */
 export function parseCsv(csv: string): { header: string[]; rows: string[][] } {
   // Strip UTF-8 BOM if present, normalise newlines.
-  const cleaned = csv.replace(/^﻿/, '').replace(/\r\n/g, '\n');
+  const cleaned = csv.replace(/^\uFEFF/, '').replace(/\r\n/g, '\n');
   const lines = cleaned.split('\n').filter((l) => l.length > 0);
 
   if (lines.length === 0) {
