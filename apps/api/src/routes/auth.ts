@@ -101,12 +101,42 @@ authRouter.post('/logout', requireAuth, async (req, res, next) => {
   }
 });
 
-authRouter.get('/me', requireAuth, (req, res) => {
-  res.json({
-    data: {
-      id: req.user!.sub,
-      email: req.user!.email,
-      role: req.user!.role,
-    },
-  });
+authRouter.get('/me', requireAuth, async (req, res, next) => {
+  try {
+    const user = await authService.getCurrentUser(req.user!.sub);
+    res.json({ data: user });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.patch('/me', requireAuth, async (req, res, next) => {
+  try {
+    const { name, email } = req.body as { name?: string; email?: string };
+    const payload: { name?: string; email?: string } = {};
+
+    if (name !== undefined) {
+      const sanitizedName = sanitizeInput(name, 200);
+      if (!sanitizedName) {
+        throw new AppError(400, 'Bad Request', 'Name cannot be empty');
+      }
+      payload.name = sanitizedName;
+    }
+
+    if (email !== undefined) {
+      if (!isValidEmail(email)) {
+        throw new AppError(400, 'Bad Request', 'Invalid email format');
+      }
+      payload.email = sanitizeInput(email, 254);
+    }
+
+    if (!payload.name && !payload.email) {
+      throw new AppError(400, 'Bad Request', 'No profile fields provided');
+    }
+
+    const updated = await authService.updateCurrentUser(req.user!.sub, payload);
+    res.json({ data: updated });
+  } catch (err) {
+    next(err);
+  }
 });

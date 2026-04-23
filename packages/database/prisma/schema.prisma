@@ -30,6 +30,7 @@ model User {
   authEvents       AuthEvent[]
   orgMembers       OrgMember[]
   emissionsCreated EmissionsRecord[] @relation("emissionsCreator")
+  reportsCreated   Report[]          @relation("reportsCreator")
 
   @@index([email])
   @@index([role])
@@ -83,6 +84,7 @@ model Organization {
   emissionsRecords EmissionsRecord[]
   baselines        EmissionsBaseline[]
   targets          EmissionsTarget[]
+  reports          Report[]
 
   @@map("organizations")
 }
@@ -213,6 +215,26 @@ model TargetProgress {
 
   @@unique([targetId, year])
   @@map("target_progress")
+}
+
+// ─── Reports (AAT-2) ───
+
+model Report {
+  id         String   @id @default(uuid()) @db.Uuid
+  orgId      String   @map("org_id") @db.Uuid
+  type       String   @db.VarChar(50)
+  status     String   @default("QUEUED") @db.VarChar(20)
+  parameters Json?
+  reportData Json?    @map("report_data")
+  createdBy  String   @map("created_by") @db.Uuid
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation("reportsCreator", fields: [createdBy], references: [id])
+
+  @@index([orgId])
+  @@map("reports")
 }
 
 // ─── Audit Log (ADM-056/057) ───

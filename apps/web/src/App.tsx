@@ -20,7 +20,11 @@ import { RegisterPage } from './pages/auth/RegisterPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { EmissionsPage } from './pages/dashboard/EmissionsPage';
 import { EmissionsDataEntry } from './pages/dashboard/emissions/EmissionsDataEntry';
+import { BaselinesPage } from './pages/dashboard/emissions/BaselinesPage';
+import { TargetsPage } from './pages/dashboard/emissions/TargetsPage';
+import { AnalyticsPage } from './pages/dashboard/AnalyticsPage';
 import { ReportsPage } from './pages/dashboard/ReportsPage';
+import { ReportBuilderPage } from './pages/dashboard/reports/ReportBuilderPage';
 import { SettingsPage } from './pages/dashboard/SettingsPage';
 import { TeamsPage } from './pages/dashboard/TeamsPage';
 import { IntegrationsPage } from './pages/dashboard/IntegrationsPage';
@@ -71,7 +75,11 @@ export function App() {
             <Route path="/dashboard" element={<DashboardPage />} />
             <Route path="/emissions" element={<EmissionsPage />} />
             <Route path="/emissions/new" element={<EmissionsDataEntry />} />
+            <Route path="/emissions/baselines" element={<BaselinesPage />} />
+            <Route path="/emissions/targets" element={<TargetsPage />} />
+            <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/reports/build/:type" element={<ReportBuilderPage />} />
             <Route path="/teams" element={<RoleGuard allowedRoles={['administrator', 'manager']}><TeamsPage /></RoleGuard>} />
             <Route path="/integrations" element={<RoleGuard allowedRoles={['administrator', 'manager', 'editor']}><IntegrationsPage /></RoleGuard>} />
             <Route path="/compliance" element={<RoleGuard allowedRoles={['administrator', 'manager', 'editor']}><CompliancePage /></RoleGuard>} />

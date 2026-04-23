@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 
 interface NavItem {
@@ -31,7 +31,18 @@ const navItems: NavItem[] = [
       { label: 'Scope 1 - Direct', path: '/emissions?scope=1' },
       { label: 'Scope 2 - Indirect', path: '/emissions?scope=2' },
       { label: 'Scope 3 - Value Chain', path: '/emissions?scope=3' },
+      { label: 'Baselines', path: '/emissions/baselines' },
+      { label: 'Targets', path: '/emissions/targets' },
     ],
+  },
+  {
+    label: 'Analytics',
+    path: '/analytics',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
+      </svg>
+    ),
   },
   {
     label: 'Reports',

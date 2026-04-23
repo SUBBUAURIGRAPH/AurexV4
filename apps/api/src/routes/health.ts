@@ -1,4 +1,5 @@
 import { Router, type IRouter } from 'express';
+import { prisma } from '@aurex/database';
 
 export const healthRouter: IRouter = Router();
 
@@ -12,7 +13,31 @@ healthRouter.get('/', (_req, res) => {
   });
 });
 
-healthRouter.get('/ready', (_req, res) => {
-  // TODO: check DB, Redis connectivity
-  res.json({ ready: true });
+healthRouter.get('/ready', async (_req, res) => {
+  let dbReady = false;
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    dbReady = true;
+  } catch {
+    dbReady = false;
+  }
+
+  const checks = {
+    database: dbReady ? 'up' : 'down',
+    cache: process.env.REDIS_URL ? 'configured_not_checked' : 'disabled',
+  };
+
+  if (!dbReady) {
+    return res.status(503).json({
+      ready: false,
+      checks,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  return res.json({
+    ready: true,
+    checks,
+    timestamp: new Date().toISOString(),
+  });
 });

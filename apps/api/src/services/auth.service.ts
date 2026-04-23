@@ -19,6 +19,10 @@ export interface AuthResult {
   };
 }
 
+function toApiRole(role: string): string {
+  return role.toLowerCase();
+}
+
 export async function login(
   email: string,
   password: string,
@@ -84,7 +88,7 @@ export async function login(
   return {
     accessToken,
     refreshToken,
-    user: { id: user.id, email: user.email, name: user.name, role: user.role },
+    user: { id: user.id, email: user.email, name: user.name, role: toApiRole(user.role) },
   };
 }
 
@@ -151,6 +155,59 @@ export async function logout(refreshToken: string, userId?: string): Promise<voi
   if (userId) {
     await logAuthEvent(userId, 'logout');
   }
+}
+
+export async function getCurrentUser(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      orgMembers: {
+        where: { isActive: true },
+        take: 1,
+        include: { org: { select: { name: true } } },
+      },
+    },
+  });
+
+  if (!user) {
+    throw new AppError(404, 'Not Found', 'User not found');
+  }
+
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: toApiRole(user.role),
+    organization: user.orgMembers[0]?.org?.name,
+  };
+}
+
+export async function updateCurrentUser(userId: string, data: { name?: string; email?: string }) {
+  const existing = await prisma.user.findUnique({ where: { id: userId } });
+  if (!existing) {
+    throw new AppError(404, 'Not Found', 'User not found');
+  }
+
+  if (data.email && data.email !== existing.email) {
+    const emailExists = await prisma.user.findUnique({ where: { email: data.email } });
+    if (emailExists) {
+      throw new AppError(409, 'Conflict', 'Email already in use');
+    }
+  }
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: {
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.email !== undefined ? { email: data.email } : {}),
+    },
+  });
+
+  return getCurrentUser(userId);
 }
 
 async function logAuthEvent(

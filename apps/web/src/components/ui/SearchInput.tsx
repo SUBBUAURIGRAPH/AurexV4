@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useCallback } from 'react';
+import { useRef, useEffect, useCallback, useState, type CSSProperties, type ChangeEvent } from 'react';
 
 interface SearchInputProps {
   value: string;
@@ -11,7 +11,7 @@ export function SearchInput({
   onChange,
   placeholder = 'Search...',
 }: SearchInputProps) {
-  const [localValue, setLocalValue] = React.useState(value);
+  const [localValue, setLocalValue] = useState(value);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const debouncedOnChange = useCallback(
@@ -34,7 +34,7 @@ export function SearchInput({
     };
   }, []);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleChange = (e: ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     setLocalValue(val);
     debouncedOnChange(val);
@@ -46,13 +46,13 @@ export function SearchInput({
     if (timerRef.current) clearTimeout(timerRef.current);
   };
 
-  const wrapperStyle: React.CSSProperties = {
+  const wrapperStyle: CSSProperties = {
     position: 'relative',
     display: 'flex',
     alignItems: 'center',
   };
 
-  const iconStyle: React.CSSProperties = {
+  const iconStyle: CSSProperties = {
     position: 'absolute',
     left: '0.75rem',
     color: 'var(--text-tertiary)',
@@ -61,7 +61,7 @@ export function SearchInput({
     pointerEvents: 'none',
   };
 
-  const inputStyle: React.CSSProperties = {
+  const inputStyle: CSSProperties = {
     width: '100%',
     padding: '0.625rem 0.875rem',
     paddingLeft: '2.5rem',
@@ -75,7 +75,7 @@ export function SearchInput({
     transition: 'all 150ms ease',
   };
 
-  const clearButtonStyle: React.CSSProperties = {
+  const clearButtonStyle: CSSProperties = {
     position: 'absolute',
     right: '0.5rem',
     display: 'flex',

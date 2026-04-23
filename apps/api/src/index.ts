@@ -11,6 +11,10 @@ import { organizationRouter } from './routes/organizations.js';
 import { userRouter } from './routes/users.js';
 import { emissionsRouter } from './routes/emissions.js';
 import { referenceDataRouter } from './routes/reference-data.js';
+import { analyticsRouter } from './routes/analytics.js';
+import { baselineRouter } from './routes/baselines.js';
+import { targetRouter } from './routes/targets.js';
+import { reportRouter } from './routes/reports.js';
 import { logger } from './lib/logger.js';
 
 const app: Express = express();
@@ -48,6 +52,10 @@ app.use('/api/v1/organizations', organizationRouter);
 app.use('/api/v1/users', userRouter);
 app.use('/api/v1/emissions', emissionsRouter);
 app.use('/api/v1/reference-data', referenceDataRouter);
+app.use('/api/v1/analytics', analyticsRouter);
+app.use('/api/v1/baselines', baselineRouter);
+app.use('/api/v1/targets', targetRouter);
+app.use('/api/v1/reports', reportRouter);
 
 // ADM-052: RFC 7807 error handler
 app.use(errorHandler);

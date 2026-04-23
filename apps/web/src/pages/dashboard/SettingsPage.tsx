@@ -4,20 +4,31 @@ import { Card } from '../../components/ui/Card';
 import { Input } from '../../components/ui/Input';
 import { Button } from '../../components/ui/Button';
 import { useTheme } from '@aurigraph/aurex-theme-kit';
+import { api } from '../../lib/api';
 
 export function SettingsPage() {
-  const { user } = useAuth();
+  const { user, refreshUser } = useAuth();
   const { theme, setTheme } = useTheme();
   const [name, setName] = useState(user?.name || '');
   const [email, setEmail] = useState(user?.email || '');
   const [org, setOrg] = useState(user?.organization || '');
   const [saved, setSaved] = useState(false);
+  const [isSavingProfile, setIsSavingProfile] = useState(false);
 
-  const handleProfileSubmit = (e: FormEvent) => {
+  const handleProfileSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    // TODO: API call to update profile
-    setSaved(true);
-    setTimeout(() => setSaved(false), 3000);
+    setIsSavingProfile(true);
+    try {
+      await api.patch<{ data: { id: string } }>('/auth/me', {
+        name,
+        email,
+      });
+      await refreshUser();
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
+    } finally {
+      setIsSavingProfile(false);
+    }
   };
 
   return (
@@ -92,10 +103,12 @@ export function SettingsPage() {
               value={org}
               onChange={(e) => setOrg(e.target.value)}
               placeholder="Your company or organization name"
+              disabled
+              hint="Organization is managed by your workspace administrator."
             />
 
             <div style={{ display: 'flex', justifyContent: 'flex-end', paddingTop: '0.5rem' }}>
-              <Button type="submit">Save Changes</Button>
+              <Button type="submit" loading={isSavingProfile}>Save Changes</Button>
             </div>
           </form>
         </Card>

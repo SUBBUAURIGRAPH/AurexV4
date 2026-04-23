@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react';
 
 interface User {
   id: string;
@@ -17,11 +17,31 @@ interface AuthContextValue {
   logout: () => Promise<void>;
   error: string | null;
   clearError: () => void;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined);
-
 const API_BASE = '/api/v1/auth';
+
+function pickUser(payload: unknown): User | null {
+  if (!payload || typeof payload !== 'object') return null;
+  const root = payload as Record<string, unknown>;
+  const candidate = (root.data as Record<string, unknown> | undefined) ?? (root.user as Record<string, unknown> | undefined) ?? root;
+  if (!candidate || typeof candidate !== 'object') return null;
+
+  const id = candidate.id ? String(candidate.id) : '';
+  const email = candidate.email ? String(candidate.email) : '';
+  const name = candidate.name ? String(candidate.name) : '';
+  if (!id || !email) return null;
+
+  return {
+    id,
+    email,
+    name,
+    role: candidate.role ? String(candidate.role).toLowerCase() : undefined,
+    organization: candidate.organization ? String(candidate.organization) : undefined,
+  };
+}
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -33,30 +53,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const scheduleRefresh = useCallback((expiresInMs: number) => {
     if (refreshTimerRef.current) clearTimeout(refreshTimerRef.current);
-    // Refresh 60s before expiry, minimum 10s
     const refreshIn = Math.max(expiresInMs - 60000, 10000);
     refreshTimerRef.current = setTimeout(async () => {
       try {
         const token = localStorage.getItem('aurex_refresh_token');
         if (!token) return;
+
         const res = await fetch(`${API_BASE}/refresh`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ refresh_token: token }),
+          body: JSON.stringify({ refreshToken: token }),
         });
-        if (res.ok) {
-          const data = await res.json();
-          localStorage.setItem('aurex_token', data.access_token);
-          if (data.refresh_token) {
-            localStorage.setItem('aurex_refresh_token', data.refresh_token);
-          }
-          // Schedule next refresh (default 15min)
-          scheduleRefresh(data.expires_in ? data.expires_in * 1000 : 900000);
-        } else {
+
+        if (!res.ok) {
           localStorage.removeItem('aurex_token');
           localStorage.removeItem('aurex_refresh_token');
           setUser(null);
+          return;
         }
+
+        const data = await res.json();
+        const accessToken = data.accessToken ?? data.access_token;
+        const refreshToken = data.refreshToken ?? data.refresh_token;
+
+        if (accessToken) localStorage.setItem('aurex_token', accessToken);
+        if (refreshToken) localStorage.setItem('aurex_refresh_token', refreshToken);
+        scheduleRefresh(data.expires_in ? data.expires_in * 1000 : 900000);
       } catch {
         // Silent fail on refresh
       }
@@ -69,19 +91,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setIsLoading(false);
       return;
     }
+
     try {
       const res = await fetch(`${API_BASE}/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
-      if (res.ok) {
-        const data = await res.json();
-        setUser(data.user || data);
-        scheduleRefresh(900000); // 15 min default
-      } else {
+
+      if (!res.ok) {
         localStorage.removeItem('aurex_token');
         localStorage.removeItem('aurex_refresh_token');
         setUser(null);
+        return;
       }
+
+      const data = await res.json();
+      setUser(pickUser(data));
+      scheduleRefresh(900000);
     } catch {
       setUser(null);
     } finally {
@@ -109,11 +134,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!res.ok) {
         throw new Error(data.message || data.error || 'Login failed');
       }
-      localStorage.setItem('aurex_token', data.access_token);
-      if (data.refresh_token) {
-        localStorage.setItem('aurex_refresh_token', data.refresh_token);
-      }
-      setUser(data.user);
+
+      const accessToken = data.accessToken ?? data.access_token;
+      const refreshToken = data.refreshToken ?? data.refresh_token;
+      if (accessToken) localStorage.setItem('aurex_token', accessToken);
+      if (refreshToken) localStorage.setItem('aurex_refresh_token', refreshToken);
+
+      setUser(pickUser(data));
       scheduleRefresh(data.expires_in ? data.expires_in * 1000 : 900000);
     } catch (err: any) {
       setError(err.message || 'Login failed');
@@ -136,13 +163,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!res.ok) {
         throw new Error(data.message || data.error || 'Registration failed');
       }
-      if (data.access_token) {
-        localStorage.setItem('aurex_token', data.access_token);
-        if (data.refresh_token) {
-          localStorage.setItem('aurex_refresh_token', data.refresh_token);
-        }
-        setUser(data.user);
+
+      const accessToken = data.accessToken ?? data.access_token;
+      const refreshToken = data.refreshToken ?? data.refresh_token;
+      if (accessToken) {
+        localStorage.setItem('aurex_token', accessToken);
+        if (refreshToken) localStorage.setItem('aurex_refresh_token', refreshToken);
+        setUser(pickUser(data));
         scheduleRefresh(data.expires_in ? data.expires_in * 1000 : 900000);
+      } else {
+        await fetchUser();
       }
     } catch (err: any) {
       setError(err.message || 'Registration failed');
@@ -150,15 +180,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } finally {
       setIsLoading(false);
     }
-  }, [scheduleRefresh]);
+  }, [fetchUser, scheduleRefresh]);
 
   const logout = useCallback(async () => {
     const token = localStorage.getItem('aurex_token');
+    const refreshToken = localStorage.getItem('aurex_refresh_token');
+
     try {
       if (token) {
         await fetch(`${API_BASE}/logout`, {
           method: 'POST',
-          headers: { Authorization: `Bearer ${token}` },
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ refreshToken }),
         });
       }
     } catch {
@@ -182,6 +215,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         logout,
         error,
         clearError,
+        refreshUser: fetchUser,
       }}
     >
       {children}
