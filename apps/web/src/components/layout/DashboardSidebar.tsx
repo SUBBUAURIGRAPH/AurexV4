@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect, useCallback, type CSSProperties, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useLocation } from 'react-router-dom';
 
 interface NavItem {
   label: string;
   path: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   children?: { label: string; path: string }[];
 }
 
@@ -102,21 +103,117 @@ const navItems: NavItem[] = [
   },
 ];
 
+interface DropdownMenuProps {
+  anchor: HTMLElement;
+  children: { label: string; path: string }[];
+  onClose: () => void;
+  isActive: (path: string) => boolean;
+}
+
+// Rendered at document.body level so it escapes the scroll container.
+// Positioned relative to the anchor button via getBoundingClientRect().
+function DropdownMenu({ anchor, children, onClose, isActive }: DropdownMenuProps) {
+  const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
+  const menuRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const update = () => {
+      const rect = anchor.getBoundingClientRect();
+      setPos({ top: rect.bottom + 6, left: rect.left });
+    };
+    update();
+    window.addEventListener('resize', update);
+    window.addEventListener('scroll', update, true);
+    return () => {
+      window.removeEventListener('resize', update);
+      window.removeEventListener('scroll', update, true);
+    };
+  }, [anchor]);
+
+  // Close on outside click or Escape
+  useEffect(() => {
+    const onDocClick = (e: MouseEvent) => {
+      if (!menuRef.current) return;
+      if (menuRef.current.contains(e.target as Node)) return;
+      if (anchor.contains(e.target as Node)) return;
+      onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    document.addEventListener('mousedown', onDocClick);
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('mousedown', onDocClick);
+      document.removeEventListener('keydown', onKey);
+    };
+  }, [anchor, onClose]);
+
+  const style: CSSProperties = {
+    position: 'fixed',
+    top: pos.top,
+    left: pos.left,
+    zIndex: 50,
+    minWidth: '220px',
+    padding: '0.375rem',
+    borderRadius: '0.625rem',
+    border: '1px solid var(--border-primary)',
+    backgroundColor: 'var(--bg-card)',
+    boxShadow: 'var(--shadow-lg)',
+  };
+
+  return createPortal(
+    <div ref={menuRef} style={style} role="menu">
+      {children.map((child) => (
+        <Link
+          key={child.path}
+          to={child.path}
+          onClick={onClose}
+          role="menuitem"
+          style={{
+            display: 'block',
+            padding: '0.5rem 0.625rem',
+            borderRadius: '0.375rem',
+            fontSize: '0.8125rem',
+            fontWeight: isActive(child.path) ? 600 : 400,
+            color: isActive(child.path) ? '#1a5d3d' : 'var(--text-tertiary)',
+            textDecoration: 'none',
+            backgroundColor: isActive(child.path) ? 'rgba(26, 93, 61, 0.06)' : 'transparent',
+            transition: 'all 150ms',
+          }}
+        >
+          {child.label}
+        </Link>
+      ))}
+    </div>,
+    document.body,
+  );
+}
+
 export function DashboardSidebar() {
   const location = useLocation();
-  const [expanded, setExpanded] = useState<string | null>('Emissions');
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const buttonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
 
-  const isActive = (path: string) => {
-    if (path.includes('?')) {
-      return location.pathname + location.search === path;
-    }
-    return location.pathname === path;
-  };
+  const isActive = useCallback(
+    (path: string) => {
+      if (path.includes('?')) {
+        return location.pathname + location.search === path;
+      }
+      return location.pathname === path;
+    },
+    [location.pathname, location.search],
+  );
 
   const isParentActive = (item: NavItem) => {
     if (isActive(item.path)) return true;
     return item.children?.some((c) => isActive(c.path)) ?? false;
   };
+
+  // Close dropdown on route change
+  useEffect(() => {
+    setExpanded(null);
+  }, [location.pathname, location.search]);
 
   return (
     <nav
@@ -139,70 +236,52 @@ export function DashboardSidebar() {
         }}
       >
         {navItems.map((item) => (
-          <div key={item.label} style={{ position: 'relative', flexShrink: 0 }}>
+          <div key={item.label} style={{ flexShrink: 0 }}>
             {item.children ? (
-              <>
-                <button
-                  onClick={() => setExpanded(expanded === item.label ? null : item.label)}
+              <button
+                ref={(el) => {
+                  buttonRefs.current[item.label] = el;
+                }}
+                onClick={() => setExpanded(expanded === item.label ? null : item.label)}
+                aria-haspopup="menu"
+                aria-expanded={expanded === item.label}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                  padding: '0.5rem 0.75rem',
+                  borderRadius: '0.5rem',
+                  border: 'none',
+                  background: isParentActive(item) ? 'rgba(26, 93, 61, 0.08)' : 'transparent',
+                  color: isParentActive(item) ? '#1a5d3d' : 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: '0.875rem',
+                  fontWeight: isParentActive(item) ? 600 : 500,
+                  fontFamily: 'inherit',
+                  transition: 'all 150ms',
+                }}
+              >
+                {item.icon}
+                <span>{item.label}</span>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 14 14"
+                  fill="none"
                   style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '0.5rem',
-                    padding: '0.5rem 0.75rem',
-                    borderRadius: '0.5rem',
-                    border: 'none',
-                    background: isParentActive(item) ? 'rgba(26, 93, 61, 0.08)' : 'transparent',
-                    color: isParentActive(item) ? '#1a5d3d' : 'var(--text-secondary)',
-                    cursor: 'pointer',
-                    fontSize: '0.875rem',
-                    fontWeight: isParentActive(item) ? 600 : 500,
-                    fontFamily: 'inherit',
-                    transition: 'all 150ms',
+                    transform: expanded === item.label ? 'rotate(180deg)' : 'none',
+                    transition: 'transform 200ms',
                   }}
                 >
-                  {item.icon}
-                  <span>{item.label}</span>
-                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ transform: expanded === item.label ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }}>
-                    <path d="M4 5.5L7 8.5L10 5.5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </button>
-                {expanded === item.label && (
-                  <div
-                    style={{
-                      position: 'absolute',
-                      top: 'calc(100% + 0.375rem)',
-                      left: 0,
-                      minWidth: '220px',
-                      padding: '0.375rem',
-                      borderRadius: '0.625rem',
-                      border: '1px solid var(--border-primary)',
-                      backgroundColor: 'var(--bg-card)',
-                      boxShadow: 'var(--shadow-lg)',
-                    }}
-                  >
-                    {item.children.map((child) => (
-                      <Link
-                        key={child.path}
-                        to={child.path}
-                        onClick={() => setExpanded(null)}
-                        style={{
-                          display: 'block',
-                          padding: '0.5rem 0.625rem',
-                          borderRadius: '0.375rem',
-                          fontSize: '0.8125rem',
-                          fontWeight: isActive(child.path) ? 600 : 400,
-                          color: isActive(child.path) ? '#1a5d3d' : 'var(--text-tertiary)',
-                          textDecoration: 'none',
-                          backgroundColor: isActive(child.path) ? 'rgba(26, 93, 61, 0.06)' : 'transparent',
-                          transition: 'all 150ms',
-                        }}
-                      >
-                        {child.label}
-                      </Link>
-                    ))}
-                  </div>
-                )}
-              </>
+                  <path
+                    d="M4 5.5L7 8.5L10 5.5"
+                    stroke="currentColor"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+              </button>
             ) : (
               <Link
                 to={item.path}
@@ -227,6 +306,23 @@ export function DashboardSidebar() {
           </div>
         ))}
       </div>
+
+      {/* Render the active dropdown via portal so the nav's overflow-x:auto
+          doesn't clip it. */}
+      {navItems.map((item) => {
+        if (!item.children || expanded !== item.label) return null;
+        const anchor = buttonRefs.current[item.label];
+        if (!anchor) return null;
+        return (
+          <DropdownMenu
+            key={item.label}
+            anchor={anchor}
+            children={item.children}
+            onClose={() => setExpanded(null)}
+            isActive={isActive}
+          />
+        );
+      })}
     </nav>
   );
 }
