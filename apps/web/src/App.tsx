@@ -35,6 +35,7 @@ import { SupportPage } from './pages/dashboard/SupportPage';
 import { UsersPage } from './pages/dashboard/admin/UsersPage';
 import { OrganizationPage } from './pages/dashboard/admin/OrganizationPage';
 import { OrganizationsPage } from './pages/dashboard/admin/OrganizationsPage';
+import { ApprovalsPage } from './pages/dashboard/ApprovalsPage';
 import { RoleGuard } from './components/auth/RoleGuard';
 
 const queryClient = new QueryClient({
@@ -90,6 +91,7 @@ export function App() {
             <Route path="/admin/users" element={<RoleGuard allowedRoles={['administrator', 'super_admin', 'org_admin']}><UsersPage /></RoleGuard>} />
             <Route path="/admin/organization" element={<RoleGuard allowedRoles={['administrator', 'super_admin', 'org_admin']}><OrganizationPage /></RoleGuard>} />
             <Route path="/admin/organizations" element={<RoleGuard allowedRoles={['administrator', 'super_admin', 'org_admin']}><OrganizationsPage /></RoleGuard>} />
+            <Route path="/approvals" element={<ApprovalsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Routes>
