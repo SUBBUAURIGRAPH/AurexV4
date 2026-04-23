@@ -6,8 +6,8 @@ export const createEmissionSchema = z.object({
   source: z.string().min(1).max(255),
   value: z.number().positive(),
   unit: z.string().max(20).default('tCO2e'),
-  periodStart: z.string().datetime(),
-  periodEnd: z.string().datetime(),
+  periodStart: z.string().min(1),
+  periodEnd: z.string().min(1),
   metadata: z.record(z.unknown()).optional(),
 });
 
@@ -17,18 +17,18 @@ export const updateEmissionSchema = z.object({
   source: z.string().min(1).max(255).optional(),
   value: z.number().positive().optional(),
   unit: z.string().max(20).optional(),
-  periodStart: z.string().datetime().optional(),
-  periodEnd: z.string().datetime().optional(),
+  periodStart: z.string().min(1).optional(),
+  periodEnd: z.string().min(1).optional(),
   metadata: z.record(z.unknown()).optional(),
 });
 
 export const updateEmissionStatusSchema = z.object({
-  status: z.enum(['verified', 'rejected']),
+  status: z.enum(['VERIFIED', 'REJECTED']),
 });
 
 export const bulkStatusSchema = z.object({
   ids: z.array(z.string().uuid()).min(1),
-  status: z.enum(['verified', 'rejected']),
+  status: z.enum(['VERIFIED', 'REJECTED']),
 });
 
 export type CreateEmissionInput = z.infer<typeof createEmissionSchema>;
