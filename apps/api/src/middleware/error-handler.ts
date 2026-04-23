@@ -1,4 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
+import { ZodError } from 'zod';
 import { logger } from '../lib/logger.js';
 
 /**
@@ -43,6 +44,20 @@ export function errorHandler(
 ): void {
   if (err instanceof AppError) {
     res.status(err.status).json(err.toProblemDetail(req));
+    return;
+  }
+
+  if (err instanceof ZodError) {
+    res.status(400).json({
+      type: 'https://aurex.in/errors/validation',
+      title: 'Bad Request',
+      status: 400,
+      detail: err.issues
+        .map((i) => `${i.path.join('.') || '(root)'}: ${i.message}`)
+        .join('; '),
+      instance: req.originalUrl,
+      errors: err.issues,
+    });
     return;
   }
 
