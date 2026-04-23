@@ -8,7 +8,13 @@ import { Tabs } from '../../components/ui/Tabs';
 import { Table, TableColumn } from '../../components/ui/Table';
 import { Pagination } from '../../components/ui/Pagination';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { useEmissions, useUpdateEmissionStatus, EmissionEntry } from '../../hooks/useEmissions';
+import {
+  useEmissions,
+  useUpdateEmissionStatus,
+  EmissionEntry,
+  EmissionStatus,
+} from '../../hooks/useEmissions';
+import type { Scope } from '../../hooks/useBaselines';
 import { useToast } from '../../contexts/ToastContext';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -28,30 +34,47 @@ function formatPeriod(start: string, end: string): string {
 
 function scopeLabel(scope: string): string {
   const map: Record<string, string> = {
-    scope_1: 'Scope 1',
-    scope_2: 'Scope 2',
-    scope_3: 'Scope 3',
+    SCOPE_1: 'Scope 1',
+    SCOPE_2: 'Scope 2',
+    SCOPE_3: 'Scope 3',
   };
   return map[scope] || scope;
 }
 
 function scopeBadgeVariant(scope: string): 'info' | 'warning' | 'success' {
   const map: Record<string, 'info' | 'warning' | 'success'> = {
-    scope_1: 'info',
-    scope_2: 'warning',
-    scope_3: 'success',
+    SCOPE_1: 'info',
+    SCOPE_2: 'warning',
+    SCOPE_3: 'success',
   };
   return map[scope] || 'info';
 }
 
 function statusBadgeVariant(status: string): 'neutral' | 'warning' | 'success' | 'error' {
   const map: Record<string, 'neutral' | 'warning' | 'success' | 'error'> = {
-    draft: 'neutral',
-    pending: 'warning',
-    verified: 'success',
-    rejected: 'error',
+    DRAFT: 'neutral',
+    PENDING: 'warning',
+    VERIFIED: 'success',
+    REJECTED: 'error',
   };
   return map[status] || 'neutral';
+}
+
+function getActivityValue(metadata: EmissionEntry['metadata']): number | null {
+  if (!metadata) return null;
+  const raw = (metadata as Record<string, unknown>).activityValue;
+  if (typeof raw === 'number') return raw;
+  if (typeof raw === 'string') {
+    const n = Number(raw);
+    return Number.isFinite(n) ? n : null;
+  }
+  return null;
+}
+
+function getActivityUnit(metadata: EmissionEntry['metadata'], fallback: string): string {
+  if (!metadata) return fallback;
+  const raw = (metadata as Record<string, unknown>).activityUnit;
+  return typeof raw === 'string' && raw ? raw : fallback;
 }
 
 function categoryLabel(category: string): string {
@@ -65,10 +88,10 @@ function categoryLabel(category: string): string {
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All Statuses' },
-  { value: 'draft', label: 'Draft' },
-  { value: 'pending', label: 'Pending' },
-  { value: 'verified', label: 'Verified' },
-  { value: 'rejected', label: 'Rejected' },
+  { value: 'DRAFT', label: 'Draft' },
+  { value: 'PENDING', label: 'Pending' },
+  { value: 'VERIFIED', label: 'Verified' },
+  { value: 'REJECTED', label: 'Rejected' },
 ];
 
 /* ─── Component ─── */
@@ -88,8 +111,8 @@ export function EmissionsPage() {
 
   /* API */
   const { data: response, isLoading, isError, error } = useEmissions({
-    scope: scopeFilter || undefined,
-    status: statusFilter || undefined,
+    scope: scopeFilter ? (scopeFilter as Scope) : undefined,
+    status: statusFilter ? (statusFilter as EmissionStatus) : undefined,
     page,
     pageSize,
   });
@@ -101,11 +124,11 @@ export function EmissionsPage() {
 
   /* Scope counts (from current page data — ideally API provides these) */
   const scopeCounts = useMemo(() => {
-    const counts = { all: total, scope_1: 0, scope_2: 0, scope_3: 0 };
+    const counts = { all: total, SCOPE_1: 0, SCOPE_2: 0, SCOPE_3: 0 };
     emissions.forEach((e) => {
-      if (e.scope === 'scope_1') counts.scope_1++;
-      else if (e.scope === 'scope_2') counts.scope_2++;
-      else if (e.scope === 'scope_3') counts.scope_3++;
+      if (e.scope === 'SCOPE_1') counts.SCOPE_1++;
+      else if (e.scope === 'SCOPE_2') counts.SCOPE_2++;
+      else if (e.scope === 'SCOPE_3') counts.SCOPE_3++;
     });
     return counts;
   }, [emissions, total]);
@@ -113,9 +136,9 @@ export function EmissionsPage() {
   const scopeTabs = useMemo(
     () => [
       { key: '', label: 'All', count: scopeCounts.all },
-      { key: 'scope_1', label: 'Scope 1', count: scopeCounts.scope_1 },
-      { key: 'scope_2', label: 'Scope 2', count: scopeCounts.scope_2 },
-      { key: 'scope_3', label: 'Scope 3', count: scopeCounts.scope_3 },
+      { key: 'SCOPE_1', label: 'Scope 1', count: scopeCounts.SCOPE_1 },
+      { key: 'SCOPE_2', label: 'Scope 2', count: scopeCounts.SCOPE_2 },
+      { key: 'SCOPE_3', label: 'Scope 3', count: scopeCounts.SCOPE_3 },
     ],
     [scopeCounts],
   );
@@ -141,11 +164,11 @@ export function EmissionsPage() {
 
   /* Bulk actions */
   const handleBulkStatus = useCallback(
-    async (status: string) => {
+    async (status: 'VERIFIED' | 'REJECTED') => {
       const ids = Array.from(selectedIds);
       try {
         await Promise.all(ids.map((id) => updateStatus.mutateAsync({ id, status })));
-        toast.success(`${ids.length} item(s) ${status === 'verified' ? 'approved' : 'rejected'} successfully`);
+        toast.success(`${ids.length} item(s) ${status === 'VERIFIED' ? 'approved' : 'rejected'} successfully`);
         setSelectedIds(new Set());
       } catch {
         toast.error(`Failed to update status. Please try again.`);
@@ -156,10 +179,10 @@ export function EmissionsPage() {
 
   /* Single action */
   const handleSingleStatus = useCallback(
-    async (id: string, status: string) => {
+    async (id: string, status: 'VERIFIED' | 'REJECTED') => {
       try {
         await updateStatus.mutateAsync({ id, status });
-        toast.success(`Entry ${status === 'verified' ? 'approved' : 'rejected'} successfully`);
+        toast.success(`Entry ${status === 'VERIFIED' ? 'approved' : 'rejected'} successfully`);
       } catch {
         toast.error('Failed to update status.');
       }
@@ -206,7 +229,7 @@ export function EmissionsPage() {
         label: 'Period',
         render: (_val, row) => (
           <span style={{ fontVariantNumeric: 'tabular-nums', color: 'var(--text-secondary)', fontSize: '0.8125rem' }}>
-            {formatPeriod(row.period_start, row.period_end)}
+            {formatPeriod(row.periodStart, row.periodEnd)}
           </span>
         ),
       },
@@ -235,22 +258,29 @@ export function EmissionsPage() {
         ),
       },
       {
-        key: 'activity_value',
+        key: 'activity',
         label: 'Activity Data',
-        render: (_val, row) => (
-          <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-            {Number(row.activity_value).toLocaleString()}{' '}
-            <span style={{ color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>{row.unit}</span>
-          </span>
-        ),
+        render: (_val, row) => {
+          const activity = getActivityValue(row.metadata);
+          const activityUnit = getActivityUnit(row.metadata, row.unit);
+          if (activity === null) {
+            return <span style={{ color: 'var(--text-tertiary)' }}>—</span>;
+          }
+          return (
+            <span style={{ fontVariantNumeric: 'tabular-nums' }}>
+              {activity.toLocaleString()}{' '}
+              <span style={{ color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>{activityUnit}</span>
+            </span>
+          );
+        },
       },
       {
-        key: 'co2e',
+        key: 'value',
         label: 'CO2e',
         render: (_val, row) => (
           <span style={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
-            {Number(row.co2e).toLocaleString(undefined, { maximumFractionDigits: 2 })}{' '}
-            <span style={{ fontWeight: 400, color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>tCO2e</span>
+            {Number(row.value).toLocaleString(undefined, { maximumFractionDigits: 2 })}{' '}
+            <span style={{ fontWeight: 400, color: 'var(--text-tertiary)', fontSize: '0.75rem' }}>{row.unit}</span>
           </span>
         ),
       },
@@ -259,7 +289,7 @@ export function EmissionsPage() {
         label: 'Status',
         render: (_val, row) => (
           <Badge variant={statusBadgeVariant(row.status)}>
-            {row.status.charAt(0).toUpperCase() + row.status.slice(1)}
+            {row.status.charAt(0) + row.status.slice(1).toLowerCase()}
           </Badge>
         ),
       },
@@ -267,7 +297,7 @@ export function EmissionsPage() {
         key: '_actions',
         label: 'Actions',
         render: (_val, row) => {
-          const canEdit = row.status === 'draft' || row.status === 'rejected';
+          const canEdit = row.status === 'DRAFT' || row.status === 'REJECTED';
           return (
             <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'nowrap' }}>
               <Button
@@ -288,12 +318,12 @@ export function EmissionsPage() {
                   Edit
                 </Button>
               )}
-              {isManagerOrAbove && row.status === 'pending' && (
+              {isManagerOrAbove && row.status === 'PENDING' && (
                 <>
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleSingleStatus(row.id, 'verified')}
+                    onClick={() => handleSingleStatus(row.id, 'VERIFIED')}
                     style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: '#16a34a' }}
                   >
                     Approve
@@ -301,7 +331,7 @@ export function EmissionsPage() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => handleSingleStatus(row.id, 'rejected')}
+                    onClick={() => handleSingleStatus(row.id, 'REJECTED')}
                     style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: '#dc2626' }}
                   >
                     Reject
@@ -388,7 +418,7 @@ export function EmissionsPage() {
                 size="sm"
                 variant="primary"
                 loading={updateStatus.isPending}
-                onClick={() => handleBulkStatus('verified')}
+                onClick={() => handleBulkStatus('VERIFIED')}
               >
                 Approve Selected
               </Button>
@@ -396,7 +426,7 @@ export function EmissionsPage() {
                 size="sm"
                 variant="danger"
                 loading={updateStatus.isPending}
-                onClick={() => handleBulkStatus('rejected')}
+                onClick={() => handleBulkStatus('REJECTED')}
               >
                 Reject Selected
               </Button>

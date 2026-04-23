@@ -1,46 +1,49 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
+import type { Scope } from './useBaselines';
 
 /* ============================================
-   Types
+   Types — match packages/shared/src/schemas/emissions.ts
+   (scope SCOPE_1/2/3, camelCase, value = computed CO2e)
    ============================================ */
 
+export type EmissionStatus = 'DRAFT' | 'PENDING' | 'VERIFIED' | 'REJECTED';
+
 export interface EmissionEntry {
-  [key: string]: unknown;
   id: string;
-  scope: string;
+  orgId: string;
+  scope: Scope;
   category: string;
   source: string;
-  emission_factor?: string;
-  activity_value: number;
+  value: number | string;
   unit: string;
-  co2e: number;
-  period_start: string;
-  period_end: string;
-  data_quality: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
+  periodStart: string;
+  periodEnd: string;
+  status: EmissionStatus;
+  // Extra UI fields (emissionFactor, activityValue, dataQuality, notes)
+  // live inside metadata so they don't require schema changes.
+  metadata?: Record<string, unknown> | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface EmissionsResponse {
   data: EmissionEntry[];
   total: number;
   page: number;
-  page_size: number;
+  pageSize: number;
 }
 
 export interface CreateEmissionData {
-  scope: string;
+  scope: Scope;
   category: string;
   source: string;
-  emission_factor?: string;
-  activity_value: number;
-  unit: string;
-  co2e: number;
-  period_start: string;
-  period_end: string;
-  data_quality: string;
+  value: number;
+  unit?: string;
+  periodStart: string;
+  periodEnd: string;
+  metadata?: Record<string, unknown>;
 }
 
 export interface UpdateEmissionData extends Partial<CreateEmissionData> {
@@ -48,14 +51,14 @@ export interface UpdateEmissionData extends Partial<CreateEmissionData> {
 }
 
 export interface EmissionsFilters {
-  scope?: string;
-  status?: string;
+  scope?: Scope;
+  status?: EmissionStatus;
   dateFrom?: string;
   dateTo?: string;
   page?: number;
   pageSize?: number;
   sort?: string;
-  order?: string;
+  order?: 'asc' | 'desc';
   search?: string;
 }
 
@@ -64,16 +67,17 @@ export interface EmissionsFilters {
    ============================================ */
 
 export function useEmissions(filters: EmissionsFilters) {
-  const params: Record<string, string | number | boolean | undefined> = {};
-  if (filters.scope) params.scope = filters.scope;
-  if (filters.status) params.status = filters.status;
-  if (filters.dateFrom) params.date_from = filters.dateFrom;
-  if (filters.dateTo) params.date_to = filters.dateTo;
-  if (filters.page) params.page = filters.page;
-  if (filters.pageSize) params.page_size = filters.pageSize;
-  if (filters.sort) params.sort = filters.sort;
-  if (filters.order) params.order = filters.order;
-  if (filters.search) params.search = filters.search;
+  const params: Record<string, string | number | boolean | undefined> = {
+    scope: filters.scope,
+    status: filters.status,
+    dateFrom: filters.dateFrom,
+    dateTo: filters.dateTo,
+    page: filters.page,
+    pageSize: filters.pageSize,
+    sort: filters.sort,
+    order: filters.order,
+    search: filters.search,
+  };
 
   return useQuery<EmissionsResponse>({
     queryKey: ['emissions', filters],
@@ -85,7 +89,7 @@ export function useCreateEmission() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (data: CreateEmissionData) =>
-      api.post<EmissionEntry>('/emissions', data),
+      api.post<{ data: EmissionEntry }>('/emissions', data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['emissions'] });
     },
@@ -96,7 +100,7 @@ export function useUpdateEmission() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: ({ id, ...data }: UpdateEmissionData) =>
-      api.patch<EmissionEntry>(`/emissions/${id}`, data),
+      api.patch<{ data: EmissionEntry }>(`/emissions/${id}`, data),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['emissions'] });
     },
@@ -116,8 +120,8 @@ export function useDeleteEmission() {
 export function useUpdateEmissionStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: string }) =>
-      api.patch<EmissionEntry>(`/emissions/${id}/status`, { status }),
+    mutationFn: ({ id, status }: { id: string; status: 'VERIFIED' | 'REJECTED' }) =>
+      api.patch<{ data: EmissionEntry }>(`/emissions/${id}/status`, { status }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['emissions'] });
     },
@@ -127,7 +131,7 @@ export function useUpdateEmissionStatus() {
 export function useBulkUpdateStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ ids, status }: { ids: string[]; status: string }) =>
+    mutationFn: ({ ids, status }: { ids: string[]; status: 'VERIFIED' | 'REJECTED' }) =>
       api.post<{ updated: number }>('/emissions/bulk-status', { ids, status }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['emissions'] });

@@ -33,7 +33,7 @@ export async function login(
 
   // ADM-052: No user enumeration — same error for both cases
   if (!user || !user.isActive) {
-    await logAuthEvent(null, 'login_failure', ipAddress, userAgent);
+    await logAuthEvent(null, 'LOGIN_FAILURE', ipAddress, userAgent);
     throw new AppError(401, 'Unauthorized', 'Invalid email or password');
   }
 
@@ -49,11 +49,11 @@ export async function login(
 
     if (attempts >= MAX_FAILED_ATTEMPTS) {
       update.lockedUntil = new Date(Date.now() + LOCKOUT_MINUTES * 60_000);
-      await logAuthEvent(user.id, 'account_locked', ipAddress, userAgent);
+      await logAuthEvent(user.id, 'ACCOUNT_LOCKED', ipAddress, userAgent);
     }
 
     await prisma.user.update({ where: { id: user.id }, data: update });
-    await logAuthEvent(user.id, 'login_failure', ipAddress, userAgent);
+    await logAuthEvent(user.id, 'LOGIN_FAILURE', ipAddress, userAgent);
     throw new AppError(401, 'Unauthorized', 'Invalid email or password');
   }
 
@@ -83,7 +83,7 @@ export async function login(
     },
   });
 
-  await logAuthEvent(user.id, 'login_success', ipAddress, userAgent);
+  await logAuthEvent(user.id, 'LOGIN_SUCCESS', ipAddress, userAgent);
 
   return {
     accessToken,
@@ -142,7 +142,7 @@ export async function refreshTokens(
     },
   });
 
-  await logAuthEvent(decoded.sub, 'token_refresh', ipAddress, userAgent);
+  await logAuthEvent(decoded.sub, 'TOKEN_REFRESH', ipAddress, userAgent);
 
   return {
     accessToken: signAccessToken({ sub: decoded.sub, email: decoded.email, role: decoded.role }),
@@ -153,7 +153,7 @@ export async function refreshTokens(
 export async function logout(refreshToken: string, userId?: string): Promise<void> {
   await prisma.session.deleteMany({ where: { refreshToken } });
   if (userId) {
-    await logAuthEvent(userId, 'logout');
+    await logAuthEvent(userId, 'LOGOUT');
   }
 }
 

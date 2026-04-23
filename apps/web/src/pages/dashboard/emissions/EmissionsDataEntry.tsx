@@ -5,30 +5,31 @@ import { Button } from '../../../components/ui/Button';
 import { Input } from '../../../components/ui/Input';
 import { Select } from '../../../components/ui/Select';
 import { useCreateEmission } from '../../../hooks/useEmissions';
+import type { Scope } from '../../../hooks/useBaselines';
 import { useToast } from '../../../contexts/ToastContext';
 
 /* ─── Scope / Category Mappings ─── */
 
 const SCOPE_OPTIONS = [
-  { value: 'scope_1', label: 'Scope 1 - Direct' },
-  { value: 'scope_2', label: 'Scope 2 - Energy' },
-  { value: 'scope_3', label: 'Scope 3 - Value Chain' },
+  { value: 'SCOPE_1', label: 'Scope 1 - Direct' },
+  { value: 'SCOPE_2', label: 'Scope 2 - Energy' },
+  { value: 'SCOPE_3', label: 'Scope 3 - Value Chain' },
 ];
 
 const CATEGORY_MAP: Record<string, { value: string; label: string }[]> = {
-  scope_1: [
+  SCOPE_1: [
     { value: 'stationary_combustion', label: 'Stationary Combustion' },
     { value: 'mobile_combustion', label: 'Mobile Combustion' },
     { value: 'process_emissions', label: 'Process Emissions' },
     { value: 'fugitive_emissions', label: 'Fugitive Emissions' },
   ],
-  scope_2: [
+  SCOPE_2: [
     { value: 'purchased_electricity', label: 'Purchased Electricity' },
     { value: 'purchased_steam', label: 'Purchased Steam' },
     { value: 'purchased_heating', label: 'Purchased Heating' },
     { value: 'purchased_cooling', label: 'Purchased Cooling' },
   ],
-  scope_3: [
+  SCOPE_3: [
     { value: 'purchased_goods', label: 'Purchased Goods' },
     { value: 'capital_goods', label: 'Capital Goods' },
     { value: 'fuel_energy', label: 'Fuel & Energy' },
@@ -183,29 +184,35 @@ export function EmissionsDataEntry() {
     return Object.keys(errs).length === 0;
   }, [scope, category, source, emissionFactor, activityValue, unit, periodStart, periodEnd, dataQuality]);
 
-  /* Submit */
+  /* Submit — backend stores the computed CO2e as `value` (tCO2e).
+     Form-only fields (emission factor, raw activity, unit, data quality, notes)
+     go into `metadata` so the schema doesn't need to change. */
   const handleSubmit = useCallback(async () => {
     if (!validate()) return;
 
     try {
       await createEmission.mutateAsync({
-        scope,
+        scope: scope as Scope,
         category,
         source: source.trim(),
-        emission_factor: emissionFactor,
-        activity_value: parseFloat(activityValue),
-        unit,
-        co2e: parseFloat(calculatedCO2e || '0'),
-        period_start: periodStart,
-        period_end: periodEnd,
-        data_quality: dataQuality,
+        value: parseFloat(calculatedCO2e || '0'),
+        unit: 'tCO2e',
+        periodStart,
+        periodEnd,
+        metadata: {
+          emissionFactor,
+          activityValue: parseFloat(activityValue),
+          activityUnit: unit,
+          dataQuality,
+          ...(notes.trim() ? { notes: notes.trim() } : {}),
+        },
       });
       toast.success('Emission entry saved successfully');
       navigate('/emissions');
     } catch {
       toast.error('Failed to save emission entry. Please try again.');
     }
-  }, [validate, createEmission, scope, category, source, emissionFactor, activityValue, unit, calculatedCO2e, periodStart, periodEnd, dataQuality, toast, navigate]);
+  }, [validate, createEmission, scope, category, source, emissionFactor, activityValue, unit, calculatedCO2e, periodStart, periodEnd, dataQuality, notes, toast, navigate]);
 
   return (
     <div style={{ maxWidth: '900px' }}>
