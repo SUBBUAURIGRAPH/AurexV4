@@ -26,11 +26,12 @@ model User {
   createdAt      DateTime  @default(now()) @map("created_at")
   updatedAt      DateTime  @updatedAt @map("updated_at")
 
-  sessions         Session[]
-  authEvents       AuthEvent[]
-  orgMembers       OrgMember[]
-  emissionsCreated EmissionsRecord[] @relation("emissionsCreator")
-  reportsCreated   Report[]          @relation("reportsCreator")
+  sessions           Session[]
+  authEvents         AuthEvent[]
+  orgMembers         OrgMember[]
+  emissionsCreated   EmissionsRecord[] @relation("emissionsCreator")
+  reportsCreated     Report[]          @relation("reportsCreator")
+  importJobsCreated  ImportJob[]       @relation("importJobsCreator")
 
   @@index([email])
   @@index([role])
@@ -89,6 +90,7 @@ model Organization {
   baselines        EmissionsBaseline[]
   targets          EmissionsTarget[]
   reports          Report[]
+  importJobs       ImportJob[]
 
   @@index([parentOrgId])
   @@map("organizations")
@@ -240,6 +242,36 @@ model Report {
 
   @@index([orgId])
   @@map("reports")
+}
+
+// ─── Import Jobs (AV4-255 — CSV bulk import) ───
+
+enum ImportJobStatus {
+  QUEUED     @map("queued")
+  PROCESSING @map("processing")
+  COMPLETED  @map("completed")
+  FAILED     @map("failed")
+}
+
+model ImportJob {
+  id             String          @id @default(uuid()) @db.Uuid
+  orgId          String          @map("org_id") @db.Uuid
+  createdBy      String          @map("created_by") @db.Uuid
+  filename       String          @db.VarChar(255)
+  status         ImportJobStatus @default(QUEUED)
+  totalRows      Int             @default(0) @map("total_rows")
+  processedRows  Int             @default(0) @map("processed_rows")
+  successRows    Int             @default(0) @map("success_rows")
+  errorRows      Int             @default(0) @map("error_rows")
+  errors         Json?
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user User         @relation("importJobsCreator", fields: [createdBy], references: [id])
+
+  @@index([orgId])
+  @@map("import_jobs")
 }
 
 // ─── Audit Log (ADM-056/057) ───
