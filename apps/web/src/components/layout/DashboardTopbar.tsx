@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useTheme } from '@aurigraph/aurex-theme-kit';
 import { useAuth } from '../../contexts/AuthContext';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -7,6 +7,12 @@ const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
   '/emissions': 'Emissions Tracking',
   '/reports': 'Reports',
+  '/teams': 'Teams and Access',
+  '/integrations': 'Integrations',
+  '/compliance': 'Compliance Center',
+  '/audit-logs': 'Audit Logs',
+  '/billing': 'Billing and Subscription',
+  '/support': 'Support Center',
   '/settings': 'Settings',
 };
 
@@ -16,6 +22,26 @@ export function DashboardTopbar() {
   const location = useLocation();
   const navigate = useNavigate();
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const orgOptions = useMemo(() => {
+    const primary = user?.organization || 'Aurex Global';
+    return [primary, `${primary} - APAC`, `${primary} - EMEA`];
+  }, [user?.organization]);
+  const [selectedOrg, setSelectedOrg] = useState<string>('');
+
+  useEffect(() => {
+    const cached = localStorage.getItem('aurex_active_org');
+    if (cached && orgOptions.includes(cached)) {
+      setSelectedOrg(cached);
+      return;
+    }
+    setSelectedOrg(orgOptions[0] || '');
+  }, [orgOptions]);
+
+  useEffect(() => {
+    if (selectedOrg) {
+      localStorage.setItem('aurex_active_org', selectedOrg);
+    }
+  }, [selectedOrg]);
 
   const pageTitle = pageTitles[location.pathname] || 'Dashboard';
 
@@ -33,11 +59,31 @@ export function DashboardTopbar() {
       zIndex: 40,
       backdropFilter: 'blur(12px)',
     }}>
-      {/* Left - Page title */}
-      <div>
+      {/* Left - Page title + org switcher */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
         <h1 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)', lineHeight: 1.3 }}>
           {pageTitle}
         </h1>
+        <select
+          value={selectedOrg}
+          onChange={(e) => setSelectedOrg(e.target.value)}
+          aria-label="Select organization"
+          style={{
+            border: '1px solid var(--border-primary)',
+            backgroundColor: 'var(--bg-card)',
+            color: 'var(--text-secondary)',
+            borderRadius: '0.5rem',
+            fontSize: '0.8125rem',
+            padding: '0.35rem 0.625rem',
+            fontFamily: 'inherit',
+          }}
+        >
+          {orgOptions.map((org) => (
+            <option key={org} value={org}>
+              {org}
+            </option>
+          ))}
+        </select>
       </div>
 
       {/* Right actions */}

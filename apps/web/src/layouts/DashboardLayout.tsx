@@ -37,11 +37,11 @@ export function DashboardLayout() {
   }
 
   return (
-    <div style={{ display: 'flex', minHeight: '100vh' }}>
+    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-secondary)' }}>
+      <DashboardTopbar />
       <DashboardSidebar />
-      <div style={{ flex: 1, marginLeft: '260px', display: 'flex', flexDirection: 'column', minHeight: '100vh' }}>
-        <DashboardTopbar />
-        <main style={{ flex: 1, padding: '1.5rem', backgroundColor: 'var(--bg-secondary)' }}>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <main style={{ flex: 1, padding: '1.5rem' }}>
           <div className="page-enter">
             <Outlet />
           </div>

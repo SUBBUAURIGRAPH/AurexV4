@@ -242,6 +242,41 @@ export function DashboardPage() {
           </div>
         </Card>
       </div>
+
+      <div style={{ marginTop: '1.5rem' }}>
+        <Card padding="lg">
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.875rem', color: 'var(--text-primary)' }}>
+            Enterprise Control Center
+          </h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem' }}>
+            {[
+              { label: 'Teams', path: '/teams' },
+              { label: 'Integrations', path: '/integrations' },
+              { label: 'Compliance', path: '/compliance' },
+              { label: 'Audit Logs', path: '/audit-logs' },
+              { label: 'Billing', path: '/billing' },
+              { label: 'Support', path: '/support' },
+            ].map((item) => (
+              <Link
+                key={item.path}
+                to={item.path}
+                style={{
+                  textDecoration: 'none',
+                  border: '1px solid var(--border-primary)',
+                  borderRadius: '0.5rem',
+                  padding: '0.75rem',
+                  color: 'var(--text-primary)',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  backgroundColor: 'var(--bg-primary)',
+                }}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </div>
+        </Card>
+      </div>
     </div>
   );
 }

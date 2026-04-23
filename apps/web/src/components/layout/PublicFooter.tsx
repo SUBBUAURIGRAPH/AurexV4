@@ -19,9 +19,11 @@ const footerLinks = {
     { label: 'Changelog', path: '#' },
   ],
   Legal: [
-    { label: 'Privacy Policy', path: '#' },
-    { label: 'Terms of Service', path: '#' },
-    { label: 'Cookie Policy', path: '#' },
+    { label: 'Legal Overview', path: '/legal' },
+    { label: 'Privacy Policy', path: '/legal/privacy' },
+    { label: 'Terms and Conditions', path: '/legal/terms' },
+    { label: 'EULA', path: '/legal/eula' },
+    { label: 'Disclaimer', path: '/legal/disclaimer' },
   ],
 };
 
