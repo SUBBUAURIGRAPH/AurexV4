@@ -1,41 +1,60 @@
-import { useTheme } from '@aurigraph/aurex-theme-kit';
-import { useState, useEffect } from 'react';
+import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+
+import { PublicLayout } from './layouts/PublicLayout';
+import { DashboardLayout } from './layouts/DashboardLayout';
+
+import { HomePage } from './pages/public/HomePage';
+import { AboutPage } from './pages/public/AboutPage';
+import { NeutralisPage } from './pages/products/NeutralisPage';
+import { CarbonTracePage } from './pages/products/CarbonTracePage';
+import { HydroPulsePage } from './pages/products/HydroPulsePage';
+import { SylvagraphPage } from './pages/products/SylvagraphPage';
+import { LoginPage } from './pages/auth/LoginPage';
+import { RegisterPage } from './pages/auth/RegisterPage';
+import { DashboardPage } from './pages/dashboard/DashboardPage';
+import { EmissionsPage } from './pages/dashboard/EmissionsPage';
+import { ReportsPage } from './pages/dashboard/ReportsPage';
+import { SettingsPage } from './pages/dashboard/SettingsPage';
+
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      staleTime: 5 * 60 * 1000,
+      retry: 1,
+      refetchOnWindowFocus: false,
+    },
+  },
+});
 
 export function App() {
-  const { theme, toggleTheme } = useTheme();
-  const [health, setHealth] = useState<{ status: string; version: string } | null>(null);
-
-  useEffect(() => {
-    fetch('/api/v1/health')
-      .then((r) => r.json())
-      .then(setHealth)
-      .catch(() => setHealth(null));
-  }, []);
-
   return (
-    <div style={{ minHeight: '100vh', padding: '2rem', fontFamily: 'Inter, sans-serif' }}>
-      <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <h1 style={{ fontSize: '1.5rem', fontWeight: 700 }}>
-          Aurex<span style={{ fontWeight: 400, opacity: 0.6 }}>V4</span>
-        </h1>
-        <button onClick={toggleTheme} style={{ cursor: 'pointer', padding: '0.5rem 1rem' }}>
-          {theme === 'dark' ? 'Light' : 'Dark'} Mode
-        </button>
-      </header>
-      <main style={{ marginTop: '3rem', maxWidth: '600px' }}>
-        <h2>Sustainability Intelligence Platform</h2>
-        <p style={{ opacity: 0.7, marginTop: '0.5rem' }}>
-          Environmental compliance, carbon accounting, and regulatory reporting.
-        </p>
-        <div style={{ marginTop: '2rem', padding: '1rem', borderRadius: '8px', border: '1px solid currentColor', opacity: 0.8 }}>
-          <strong>API Status:</strong>{' '}
-          {health ? (
-            <span style={{ color: 'green' }}>{health.status} (v{health.version})</span>
-          ) : (
-            <span style={{ color: 'orange' }}>Connecting...</span>
-          )}
-        </div>
-      </main>
-    </div>
+    <QueryClientProvider client={queryClient}>
+      <BrowserRouter>
+        <Routes>
+          {/* Public routes */}
+          <Route element={<PublicLayout />}>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/about" element={<AboutPage />} />
+            <Route path="/products/neutralis" element={<NeutralisPage />} />
+            <Route path="/products/carbontrace" element={<CarbonTracePage />} />
+            <Route path="/products/hydropulse" element={<HydroPulsePage />} />
+            <Route path="/products/sylvagraph" element={<SylvagraphPage />} />
+          </Route>
+
+          {/* Auth routes (no layout wrapper) */}
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+
+          {/* Protected dashboard routes */}
+          <Route element={<DashboardLayout />}>
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/emissions" element={<EmissionsPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </QueryClientProvider>
   );
 }
