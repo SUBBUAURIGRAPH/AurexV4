@@ -12,6 +12,7 @@ import { logger } from '../lib/logger.js';
 import * as emissionsService from '../services/emissions.service.js';
 import { exportEmissionsCsv } from '../services/export.service.js';
 import { recordAudit } from '../services/audit-log.service.js';
+import { createNotification } from '../services/notification.service.js';
 
 /**
  * Workflow transition table (AV4-301).
@@ -233,6 +234,18 @@ emissionsRouter.patch('/:id/status', async (req, res, next) => {
           oldValue: { status: fromStatus },
           newValue: { status: toStatus, orgRole: req.orgRole ?? null },
           ipAddress: req.ip,
+        });
+
+        // AV4-264: Notify the record's original creator about the transition.
+        // Best-effort; createNotification swallows errors internally.
+        await createNotification({
+          orgId: req.orgId!,
+          userId: current.createdBy,
+          type: 'INFO',
+          title: 'Emission status changed',
+          body: `${fromStatus} → ${toStatus}`,
+          resource: 'emissions_record',
+          resourceId: id,
         });
 
         logger.info(

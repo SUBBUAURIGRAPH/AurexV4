@@ -17,6 +17,7 @@ import { targetRouter } from './routes/targets.js';
 import { reportRouter } from './routes/reports.js';
 import { auditLogRouter } from './routes/audit-logs.js';
 import { importRouter } from './routes/imports.js';
+import { notificationsRouter } from './routes/notifications.js';
 import { logger } from './lib/logger.js';
 
 const app: Express = express();
@@ -60,6 +61,7 @@ app.use('/api/v1/targets', targetRouter);
 app.use('/api/v1/reports', reportRouter);
 app.use('/api/v1/audit-logs', auditLogRouter);
 app.use('/api/v1/imports', importRouter);
+app.use('/api/v1/notifications', notificationsRouter);
 
 // ADM-052: RFC 7807 error handler
 app.use(errorHandler);

@@ -49,5 +49,11 @@ export {
   listAuditLogsQuerySchema,
   type ListAuditLogsQuery,
 } from './schemas/audit.js';
+export {
+  listNotificationsQuerySchema,
+  updatePrefsSchema,
+  type ListNotificationsQuery,
+  type UpdatePrefsInput,
+} from './schemas/notifications.js';
 export { type ProblemDetail, type PaginatedResponse, type ApiResponse } from './types/api.js';
 export { ROLES, type Role, type Permission } from './types/rbac.js';

@@ -32,6 +32,8 @@ model User {
   emissionsCreated   EmissionsRecord[] @relation("emissionsCreator")
   reportsCreated     Report[]          @relation("reportsCreator")
   importJobsCreated  ImportJob[]       @relation("importJobsCreator")
+  notifications      Notification[]          @relation("notifications")
+  notificationPrefs  NotificationPreference? @relation("notificationPrefs")
 
   @@index([email])
   @@index([role])
@@ -91,6 +93,7 @@ model Organization {
   targets          EmissionsTarget[]
   reports          Report[]
   importJobs       ImportJob[]
+  notifications    Notification[]
 
   @@index([parentOrgId])
   @@map("organizations")
@@ -331,4 +334,48 @@ enum SBTiPathway {
   CELSIUS_1_5 @map("1.5C")
   WELL_BELOW_2 @map("WB2C")
   CELSIUS_2   @map("2C")
+}
+
+// ─── Notifications (AV4-264 — polling-based) ───
+
+enum NotificationType {
+  INFO    @map("info")
+  WARNING @map("warning")
+  SUCCESS @map("success")
+  ERROR   @map("error")
+}
+
+model Notification {
+  id         String           @id @default(uuid()) @db.Uuid
+  orgId      String?          @map("org_id") @db.Uuid
+  userId     String           @map("user_id") @db.Uuid
+  type       NotificationType @default(INFO)
+  title      String           @db.VarChar(255)
+  body       String?          @db.Text
+  resource   String?          @db.VarChar(100)
+  resourceId String?          @map("resource_id") @db.Uuid
+  readAt     DateTime?        @map("read_at")
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  user User          @relation("notifications", fields: [userId], references: [id], onDelete: Cascade)
+  org  Organization? @relation(fields: [orgId], references: [id], onDelete: SetNull)
+
+  @@index([userId, readAt])
+  @@index([orgId])
+  @@index([createdAt])
+  @@map("notifications")
+}
+
+model NotificationPreference {
+  id                     String   @id @default(uuid()) @db.Uuid
+  userId                 String   @unique @map("user_id") @db.Uuid
+  emailOnStatusChange    Boolean  @default(true) @map("email_on_status_change")
+  emailOnApprovalRequest Boolean  @default(true) @map("email_on_approval_request")
+  inAppOnStatusChange    Boolean  @default(true) @map("in_app_on_status_change")
+  inAppOnApprovalRequest Boolean  @default(true) @map("in_app_on_approval_request")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  user User @relation("notificationPrefs", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("notification_preferences")
 }
