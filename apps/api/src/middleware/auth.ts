@@ -43,6 +43,9 @@ export function requireAuth(req: Request, res: Response, next: NextFunction): vo
 }
 
 export function requireRole(...roles: string[]) {
+  // Normalize once up-front: the users.role column stores uppercase enum names
+  // (ORG_ADMIN) but callers pass 'org_admin' or 'ORG_ADMIN' interchangeably.
+  const allowed = new Set(roles.map((r) => r.toUpperCase()));
   return (req: Request, res: Response, next: NextFunction): void => {
     if (!req.user) {
       res.status(401).json({
@@ -53,7 +56,7 @@ export function requireRole(...roles: string[]) {
       return;
     }
 
-    if (!roles.includes(req.user.role)) {
+    if (!allowed.has(String(req.user.role).toUpperCase())) {
       res.status(403).json({
         type: 'https://aurex.in/errors/forbidden',
         title: 'Forbidden',
