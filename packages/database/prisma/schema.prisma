@@ -37,6 +37,7 @@ model User {
   approvalRequests   ApprovalRequest[] @relation("approvalRequests")
   approvalDecisions  ApprovalRequest[] @relation("approvalDecisions")
   approvalComments   ApprovalComment[]
+  brsrResponses      BrsrResponse[]    @relation("brsrResponsesCreator")
 
   @@index([email])
   @@index([role])
@@ -90,14 +91,17 @@ model Organization {
   parent   Organization?  @relation("OrgHierarchy", fields: [parentOrgId], references: [id], onDelete: SetNull)
   children Organization[] @relation("OrgHierarchy")
 
-  members          OrgMember[]
-  emissionsRecords EmissionsRecord[]
-  baselines        EmissionsBaseline[]
-  targets          EmissionsTarget[]
-  reports          Report[]
-  importJobs       ImportJob[]
-  notifications    Notification[]
-  approvals        ApprovalRequest[]
+  members           OrgMember[]
+  emissionsRecords  EmissionsRecord[]
+  baselines         EmissionsBaseline[]
+  targets           EmissionsTarget[]
+  reports           Report[]
+  importJobs        ImportJob[]
+  notifications      Notification[]
+  approvals          ApprovalRequest[]
+  frameworkMappings  OrgFrameworkMapping[]
+  brsrResponses      BrsrResponse[]
+  onboardingProgress OnboardingProgress?
 
   @@index([parentOrgId])
   @@map("organizations")
@@ -429,4 +433,144 @@ model ApprovalComment {
 
   @@index([requestId])
   @@map("approval_comments")
+}
+
+// ─── ESG Frameworks (AV4-211) ───
+
+model EsgFramework {
+  id          String   @id @default(uuid()) @db.Uuid
+  code        String   @unique @db.VarChar(20)
+  name        String   @db.VarChar(100)
+  description String?  @db.Text
+  version     String?  @db.VarChar(20)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  indicators  EsgIndicator[]
+  orgMappings OrgFrameworkMapping[]
+
+  @@map("esg_frameworks")
+}
+
+model EsgIndicator {
+  id          String   @id @default(uuid()) @db.Uuid
+  frameworkId String   @map("framework_id") @db.Uuid
+  code        String   @db.VarChar(50)
+  title       String   @db.VarChar(200)
+  description String?  @db.Text
+  category    String?  @db.VarChar(100)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  framework EsgFramework @relation(fields: [frameworkId], references: [id], onDelete: Cascade)
+
+  @@unique([frameworkId, code])
+  @@index([frameworkId])
+  @@map("esg_indicators")
+}
+
+model OrgFrameworkMapping {
+  id          String   @id @default(uuid()) @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  frameworkId String   @map("framework_id") @db.Uuid
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  framework EsgFramework @relation(fields: [frameworkId], references: [id])
+
+  @@unique([orgId, frameworkId])
+  @@index([orgId])
+  @@map("org_framework_mappings")
+}
+
+// ─── BRSR Indicators (AV4-216) ───
+
+enum BrsrSection {
+  SECTION_A @map("section_a")
+  SECTION_B @map("section_b")
+  SECTION_C @map("section_c")
+}
+
+enum BrsrIndicatorType {
+  ESSENTIAL  @map("essential")
+  LEADERSHIP @map("leadership")
+}
+
+model BrsrPrinciple {
+  id          String   @id @default(uuid()) @db.Uuid
+  number      Int      @unique
+  title       String   @db.VarChar(200)
+  description String?  @db.Text
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  indicators BrsrIndicator[]
+
+  @@map("brsr_principles")
+}
+
+model BrsrIndicator {
+  id            String            @id @default(uuid()) @db.Uuid
+  principleId   String?           @map("principle_id") @db.Uuid
+  section       BrsrSection
+  indicatorType BrsrIndicatorType @map("indicator_type")
+  code          String            @unique @db.VarChar(30)
+  title         String            @db.VarChar(300)
+  description   String?           @db.Text
+  isActive      Boolean           @default(true) @map("is_active")
+  createdAt     DateTime          @default(now()) @map("created_at")
+
+  principle BrsrPrinciple? @relation(fields: [principleId], references: [id])
+  responses BrsrResponse[]
+
+  @@index([principleId])
+  @@index([section])
+  @@map("brsr_indicators")
+}
+
+model BrsrResponse {
+  id          String   @id @default(uuid()) @db.Uuid
+  orgId       String   @map("org_id") @db.Uuid
+  indicatorId String   @map("indicator_id") @db.Uuid
+  fiscalYear  String   @map("fiscal_year") @db.VarChar(10)
+  value       Json
+  notes       String?  @db.Text
+  createdBy   String   @map("created_by") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  org       Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  indicator BrsrIndicator @relation(fields: [indicatorId], references: [id])
+  user      User          @relation("brsrResponsesCreator", fields: [createdBy], references: [id])
+
+  @@unique([orgId, indicatorId, fiscalYear])
+  @@index([orgId])
+  @@index([indicatorId])
+  @@map("brsr_responses")
+}
+
+// ─── Onboarding (AV4-227) ───
+
+enum OnboardingStatus {
+  IN_PROGRESS @map("in_progress")
+  COMPLETED   @map("completed")
+  SKIPPED     @map("skipped")
+}
+
+model OnboardingProgress {
+  id             String           @id @default(uuid()) @db.Uuid
+  orgId          String           @unique @map("org_id") @db.Uuid
+  status         OnboardingStatus @default(IN_PROGRESS)
+  currentStep    Int              @default(1) @map("current_step")
+  completedSteps Int[]            @map("completed_steps")
+  stepData       Json?            @map("step_data")
+  completedAt    DateTime?        @map("completed_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@map("onboarding_progress")
 }
