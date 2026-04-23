@@ -55,5 +55,15 @@ export {
   type ListNotificationsQuery,
   type UpdatePrefsInput,
 } from './schemas/notifications.js';
+export {
+  submitApprovalSchema,
+  decideApprovalSchema,
+  listApprovalsQuerySchema,
+  addApprovalCommentSchema,
+  type SubmitApprovalInput,
+  type DecideApprovalInput,
+  type ListApprovalsQuery,
+  type AddApprovalCommentInput,
+} from './schemas/approvals.js';
 export { type ProblemDetail, type PaginatedResponse, type ApiResponse } from './types/api.js';
 export { ROLES, type Role, type Permission } from './types/rbac.js';

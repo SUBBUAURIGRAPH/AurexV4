@@ -34,6 +34,9 @@ model User {
   importJobsCreated  ImportJob[]       @relation("importJobsCreator")
   notifications      Notification[]          @relation("notifications")
   notificationPrefs  NotificationPreference? @relation("notificationPrefs")
+  approvalRequests   ApprovalRequest[] @relation("approvalRequests")
+  approvalDecisions  ApprovalRequest[] @relation("approvalDecisions")
+  approvalComments   ApprovalComment[]
 
   @@index([email])
   @@index([role])
@@ -94,6 +97,7 @@ model Organization {
   reports          Report[]
   importJobs       ImportJob[]
   notifications    Notification[]
+  approvals        ApprovalRequest[]
 
   @@index([parentOrgId])
   @@map("organizations")
@@ -378,4 +382,51 @@ model NotificationPreference {
   user User @relation("notificationPrefs", fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("notification_preferences")
+}
+
+// ─── Approval Workflow (AV4-219) ───
+
+enum ApprovalStatus {
+  PENDING   @map("pending")
+  APPROVED  @map("approved")
+  REJECTED  @map("rejected")
+  CANCELLED @map("cancelled")
+}
+
+model ApprovalRequest {
+  id           String          @id @default(uuid()) @db.Uuid
+  orgId        String          @map("org_id") @db.Uuid
+  resource     String          @db.VarChar(100)
+  resourceId   String          @map("resource_id") @db.Uuid
+  requestedBy  String          @map("requested_by") @db.Uuid
+  status       ApprovalStatus  @default(PENDING)
+  decidedBy    String?         @map("decided_by") @db.Uuid
+  decidedAt    DateTime?       @map("decided_at")
+  reason       String?         @db.Text
+  payload      Json?
+  createdAt    DateTime        @default(now()) @map("created_at")
+  updatedAt    DateTime        @updatedAt @map("updated_at")
+
+  org       Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  requester User              @relation("approvalRequests", fields: [requestedBy], references: [id])
+  decider   User?             @relation("approvalDecisions", fields: [decidedBy], references: [id])
+  comments  ApprovalComment[]
+
+  @@index([orgId, status])
+  @@index([resource, resourceId])
+  @@map("approval_requests")
+}
+
+model ApprovalComment {
+  id         String   @id @default(uuid()) @db.Uuid
+  requestId  String   @map("request_id") @db.Uuid
+  userId     String   @map("user_id") @db.Uuid
+  body       String   @db.Text
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  request ApprovalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id])
+
+  @@index([requestId])
+  @@map("approval_comments")
 }
