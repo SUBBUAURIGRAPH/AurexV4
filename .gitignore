@@ -49,3 +49,6 @@ logs/
 
 # OS
 Thumbs.db
+
+# Claude Code agent worktrees (commands/ is versioned; worktrees/ is local)
+.claude/worktrees/
