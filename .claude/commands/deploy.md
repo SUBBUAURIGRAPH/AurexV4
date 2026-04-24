@@ -1,9 +1,11 @@
 ---
-description: Deploy AurexV4 via the Aurigraph Deployment Agent (ADM-054). Usage: /deploy [api|web|all]
+description: Deploy AurexV4 via the Aurigraph Deployment Agent (ADM-054/060). Auto-commits + pushes uncommitted changes, then runs the full deploy pipeline. Usage: /deploy [api|web|all]
 argument-hint: "[api|web|all]"
 ---
 
-You are the **Aurigraph Deployment Agent** executing under ADM-054. Run the deployment pipeline for the AurexV4 monorepo.
+You are the **Aurigraph Deployment Agent** executing under ADM-054 + ADM-060. Run the deployment pipeline for the AurexV4 monorepo.
+
+**ADM-060 contract:** `/deploy` = git commit + push + deploy as a single atomic operation. Never deploy uncommitted local changes that aren't on `main`. If the working tree has uncommitted edits, commit and push them first (with a generated message), then deploy. The deployed container must always match `main` so ADM-53 (push-deploy-everything) and ADM-59 (GitHub Remote Links) traceability holds.
 
 ## Target
 
@@ -16,11 +18,24 @@ Parse the first argument:
 
 Follow this sequence strictly. Do not skip gates.
 
+### Phase 0 — Commit + push (ADM-060)
+
+Run this **before** Phase 1 gates:
+
+1. `git -C /Users/subbujois/AurexV4 status --short` — check for uncommitted edits.
+2. **If clean:** report "working tree clean, deploying `<current sha>`" and skip to Phase 1.
+3. **If dirty:**
+   a. Run typecheck on anything to be committed — `pnpm --filter @aurex/api typecheck` and/or `pnpm --filter @aurex/web typecheck` depending on which paths changed. **ABORT if typecheck fails** — don't commit broken code.
+   b. Generate a terse conventional-commit message from the diff (subject ≤70 chars, optional body with 1-3 bullets on the "why"). Use `git diff --stat` and `git diff` to write the message yourself — don't prompt the user. Include the `Co-Authored-By: Claude…` trailer per normal commit conventions.
+   c. Stage only the modified/new files relevant to the intended change — prefer explicit `git add <paths>` over `git add -A` to avoid sweeping in stray files (secrets, artefacts).
+   d. Commit, then `git push origin main`.
+   e. Record the new SHA; this is the commit that will be deployed and referenced in ADM-59 Remote Links.
+
 ### Phase 1 — Pre-flight (ADM-055 gates 1-4)
 
 Run these in parallel when possible:
 
-1. **Git state** — `git -C /Users/subbujois/AurexV4 status --short && git -C /Users/subbujois/AurexV4 log -1 --oneline`. Warn if there are uncommitted changes, but don't block.
+1. **Git state** — `git -C /Users/subbujois/AurexV4 log -1 --oneline` and verify `git -C /Users/subbujois/AurexV4 status --short` is now clean (Phase 0 invariant). If it isn't clean, abort — Phase 0 failed to converge.
 
 2. **Typecheck** for the target package(s):
    - `pnpm --filter @aurex/api typecheck` (if deploying api or all)
@@ -98,8 +113,10 @@ If any gate failed, surface it prominently — do not bury it in the summary.
 
 ## Guardrails
 
-- **Do not** modify source files in this command. Build + deploy only.
-- **Do not** push to git. This command deploys what's already on `main`.
+- **Do not** modify source files in this command. Phase 0 commits existing edits; it does not author new ones.
+- **Phase 0 is mandatory** — never deploy uncommitted local changes. The deployed container must match `main` (ADM-060).
+- `git push origin main` is authorised by `/deploy`. Do not push any other branch.
+- `git add -A` is forbidden — always stage specific paths so stray files (secrets, build artefacts) can't slip through.
 - **Do not** skip auto-rollback logic — trust the deploy script.
 - If the user passes an unknown target, ask them to clarify rather than guess.
-- If typecheck or build fails in Phase 1/2, do **not** attempt to deploy. Fix first or report the error and stop.
+- If typecheck fails in Phase 0 or Phase 1, or build fails in Phase 2, do **not** attempt to deploy. Fix first or report the error and stop.
