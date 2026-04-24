@@ -1,9 +1,10 @@
 import { prisma } from '@aurex/database';
 import { AppError } from '../middleware/error-handler.js';
+import * as transactionService from './transaction.service.js';
 
 /**
  * Read-side for A6.4 credit units + accounts.
- * Transfers/retirements are Phase C — stubbed here.
+ * Transfers/retirements (Phase C) delegate to transaction.service.
  */
 
 export async function listOrgAccounts(orgId: string) {
@@ -61,33 +62,16 @@ export async function getBlockBySerialRange(serialFirst: string, orgId: string) 
 }
 
 /**
- * Retire units within an account — voluntary retirement path.
- * Phase C will extend this for NDC / OIMP retirements with CA events.
+ * Retire units within an account — delegates to transaction.service.
+ * Phase C adds purpose enum (NDC / OIMP / VOLUNTARY) and CA event emission.
+ * `purpose` defaults to VOLUNTARY for backward compat with pre-Phase-C callers.
  */
 export async function retireBlock(
   blockId: string,
   orgId: string,
   userId: string,
   narrative: string,
+  purpose: transactionService.RetirementPurpose = 'VOLUNTARY',
 ) {
-  const block = await prisma.creditUnitBlock.findUnique({
-    where: { id: blockId },
-    include: { holderAccount: true },
-  });
-  if (!block) throw new AppError(404, 'Not Found', 'Block not found');
-  if (block.holderAccount.orgId !== orgId) {
-    throw new AppError(404, 'Not Found', 'Block not found');
-  }
-  if (block.retirementStatus !== 'ACTIVE') {
-    throw new AppError(409, 'Conflict', `Block is already ${block.retirementStatus}`);
-  }
-  return prisma.creditUnitBlock.update({
-    where: { id: blockId },
-    data: {
-      retirementStatus: 'RETIRED_VOLUNTARY' as never,
-      retirementNarrative: narrative,
-      retiredAt: new Date(),
-      retiredBy: userId,
-    },
-  });
+  return transactionService.retireBlock(blockId, purpose, narrative, userId, orgId);
 }

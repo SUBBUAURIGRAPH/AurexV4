@@ -808,6 +808,10 @@ model Activity {
   expectedAnnualEr     Decimal? @map("expected_annual_er") @db.Decimal(18, 3) // tCO2e/yr
   status              ActivityStatus @default(DRAFT)
   isRemoval           Boolean  @default(false) @map("is_removal") // triggers buffer pool reqs
+  /// Reversal-risk buffer pool contribution (% of NET units) applied to removal
+  /// activities at issuance. Default 20% per SB removals-tool baseline. AAT-2
+  /// uses this on mint to deposit into the REVERSAL_BUFFER admin account.
+  bufferPoolContributionPct Decimal @default(20.00) @db.Decimal(5, 2) @map("buffer_pool_pct")
   cdmTransition       Boolean  @default(false) @map("cdm_transition") // legacy CDM migrating
   cdmReference        String?  @map("cdm_reference") @db.VarChar(50) // e.g. "CDM-1234"
   submittedAt         DateTime? @map("submitted_at")
@@ -1124,6 +1128,7 @@ model CreditUnitBlock {
 
   holderAccount CreditAccount @relation(fields: [holderAccountId], references: [id])
   issuances     Issuance[]
+  transactions  Transaction[]
 
   @@index([activityId])
   @@index([holderAccountId])
@@ -1164,6 +1169,8 @@ model CreditAccount {
   org      Organization?      @relation(fields: [orgId], references: [id], onDelete: SetNull)
   activity Activity?          @relation(fields: [activityId], references: [id], onDelete: SetNull)
   holdings CreditUnitBlock[]
+  transactionsFrom Transaction[] @relation("transactionsFrom")
+  transactionsTo   Transaction[] @relation("transactionsTo")
 
   @@index([orgId])
   @@index([accountType])
@@ -1356,4 +1363,40 @@ model DatapointArchive {
   createdAt      DateTime @default(now()) @map("created_at")
 
   @@map("datapoint_archives")
+}
+
+// ─── Article 6.4 Phase C — Transaction ledger ──────────────────────────────
+// Immutable append-only record of every transfer / retirement / cancellation
+// applied to a CreditUnitBlock. Pairs with the block state machine — the
+// block row holds CURRENT state; Transaction rows hold HISTORY.
+
+enum TransactionType {
+  TRANSFER         @map("transfer")
+  RETIREMENT       @map("retirement")
+  CANCELLATION     @map("cancellation")
+  REVERSAL_DRAW    @map("reversal_draw")   // buffer-pool draw on post-issuance reversal
+  ISSUANCE_MINT    @map("issuance_mint")   // synthetic row for the mint event itself
+}
+
+model Transaction {
+  id              String          @id @default(uuid()) @db.Uuid
+  transactionType TransactionType @map("transaction_type")
+  blockId         String          @map("block_id") @db.Uuid
+  fromAccountId   String?         @map("from_account_id") @db.Uuid
+  toAccountId     String          @map("to_account_id") @db.Uuid
+  units           Decimal         @db.Decimal(18, 3)
+  actorUserId     String          @map("actor_user_id") @db.Uuid
+  narrative       String          @db.Text
+  caEventId       String?         @map("ca_event_id") @db.Uuid
+  createdAt       DateTime        @default(now()) @map("created_at")
+
+  block       CreditUnitBlock @relation(fields: [blockId], references: [id], onDelete: Cascade)
+  fromAccount CreditAccount?  @relation("transactionsFrom", fields: [fromAccountId], references: [id])
+  toAccount   CreditAccount   @relation("transactionsTo",   fields: [toAccountId],   references: [id])
+
+  @@index([blockId, createdAt])
+  @@index([fromAccountId])
+  @@index([toAccountId])
+  @@index([transactionType, createdAt])
+  @@map("transactions")
 }
