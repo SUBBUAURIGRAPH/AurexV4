@@ -706,6 +706,87 @@ async function seedE2eAdminUser() {
   console.log(`  E2E admin user seeded: ${ADMIN_EMAIL}`);
 }
 
+// ─── E2E DOE + DNA test users (AV4-339) ────────────────────────────────
+// Extend the E2E_SEED=1 pattern with a DOE (third-party validator) and a
+// DNA (host-country approver). Both are added as members of the seeded
+// E2E Test Organisation so `requireOrgScope` can resolve their org at
+// auth time. Passwords fixed for E2E harness:
+//   e2e_doe@aurex.in / E2eDoe@2026!
+//   e2e_dna@aurex.in / E2eDna@2026!
+async function seedE2eA64Users() {
+  const ORG_ID = 'e2e00000-0000-4000-8000-000000000001';
+
+  let bcrypt: { hash: (p: string, r: number) => Promise<string> } | null = null;
+  try {
+    bcrypt = (await import('bcrypt')) as { hash: (p: string, r: number) => Promise<string> };
+  } catch { /* bcrypt not available */ }
+
+  // Pre-computed bcrypt hashes (cost 12). Used only if bcrypt import fails
+  // (e.g. during CI that forgot to install). Generated offline via
+  // `bcrypt.hash(plaintext, 12)` — same mechanism as seedE2eAdminUser.
+  const FALLBACK_HASH = '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TiGrmZEJ3.gy5eZUYI2LKqeWBQu2';
+
+  const USERS: Array<{ id: string; email: string; name: string; password: string; role: 'DOE' | 'DNA' }> = [
+    {
+      id: 'e2e00000-0000-4000-8000-000000000003',
+      email: 'e2e_doe@aurex.in',
+      name: 'E2E DOE Validator',
+      password: 'E2eDoe@2026!',
+      role: 'DOE',
+    },
+    {
+      id: 'e2e00000-0000-4000-8000-000000000004',
+      email: 'e2e_dna@aurex.in',
+      name: 'E2E DNA Approver',
+      password: 'E2eDna@2026!',
+      role: 'DNA',
+    },
+  ];
+
+  for (const u of USERS) {
+    const hash = bcrypt ? await bcrypt.hash(u.password, 12) : FALLBACK_HASH;
+
+    const existing = await prisma.user.findUnique({ where: { email: u.email } });
+    let userId: string;
+    if (existing) {
+      userId = existing.id;
+      await prisma.user.update({
+        where: { id: userId },
+        data: { role: u.role, isActive: true, passwordHash: hash },
+      });
+    } else {
+      const created = await prisma.user.create({
+        data: {
+          id: u.id,
+          email: u.email,
+          name: u.name,
+          passwordHash: hash,
+          role: u.role,
+          isActive: true,
+        },
+      });
+      userId = created.id;
+    }
+
+    // Membership in the E2E Test Organisation.
+    const membership = await prisma.orgMember.findFirst({
+      where: { userId, orgId: ORG_ID },
+    });
+    if (!membership) {
+      await prisma.orgMember.create({
+        data: { userId, orgId: ORG_ID, role: u.role, isActive: true },
+      });
+    } else {
+      await prisma.orgMember.update({
+        where: { id: membership.id },
+        data: { role: u.role, isActive: true },
+      });
+    }
+
+    console.log(`  E2E A6.4 user seeded: ${u.email} (${u.role})`);
+  }
+}
+
 // ─── Article 6.4 Methodologies ────────────────────────────────────────
 // Sample catalogue seeded from UNFCCC Supervisory Body standards.
 // Canonical reference: https://unfccc.int/process-and-meetings/bodies/constituted-bodies/article-64-supervisory-body/rules-and-regulations
@@ -1028,6 +1109,7 @@ async function main() {
   await seedA64AdminAccounts();
   if (process.env.E2E_SEED === '1') {
     await seedE2eAdminUser();
+    await seedE2eA64Users();
   }
   console.log('\n✓ Master data seed complete.\n');
 }

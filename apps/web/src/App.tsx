@@ -44,6 +44,7 @@ import { BRSRBuilderPage } from './pages/dashboard/brsr/BRSRBuilderPage';
 import { SuppliersPage } from './pages/dashboard/suppliers/SuppliersPage';
 // Article 6.4 / PACM pages
 import { ActivitiesPage } from './pages/dashboard/activities/ActivitiesPage';
+import { PddEditorPage } from './pages/dashboard/activities/PddEditorPage';
 import { CreditsPage } from './pages/dashboard/credits/CreditsPage';
 import { RoleGuard } from './components/auth/RoleGuard';
 
@@ -109,6 +110,7 @@ export function App() {
             <Route path="/suppliers" element={<RoleGuard allowedRoles={['administrator', 'org_admin', 'super_admin', 'manager']}><SuppliersPage /></RoleGuard>} />
             {/* Article 6.4 / PACM */}
             <Route path="/activities" element={<ActivitiesPage />} />
+            <Route path="/activities/:id/pdd" element={<PddEditorPage />} />
             <Route path="/credits" element={<CreditsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>

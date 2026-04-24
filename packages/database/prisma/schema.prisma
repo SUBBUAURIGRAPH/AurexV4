@@ -1321,3 +1321,39 @@ enum SdContributionType {
   EX_ANTE @map("ex_ante")
   EX_POST @map("ex_post")
 }
+
+// ─── A6.4 Retention policy (AV4-338) ─────────────────────────────────────
+// Raw monitoring data must be retained ≥ 2 years after crediting-period end
+// per A6.4-PROC-AC-002 + Decision 3/CMA.3. Data is moved to cold storage
+// (blob store) rather than deleted. Never purge.
+
+model RetentionPolicy {
+  id                String   @id @default(uuid()) @db.Uuid
+  name              String   @db.VarChar(100)
+  description       String?  @db.Text
+  minRetentionYears Int      @default(2) @map("min_retention_years") // ≥ 2yr post-end-of-crediting-period per A6.4-PROC-AC-002
+  ruleJson          Json?    @map("rule_json")
+  isDefault         Boolean  @default(false) @map("is_default")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  @@map("retention_policies")
+}
+
+/// Record of a monitoring period whose datapoints have been archived to
+/// cold blob storage. The Postgres datapoint rows have been deleted and can
+/// be re-hydrated from `archiveUrl` after SHA-256 verification.
+model DatapointArchive {
+  id             String   @id @default(uuid()) @db.Uuid
+  periodId       String   @unique @map("period_id") @db.Uuid
+  archivedAt     DateTime @default(now()) @map("archived_at")
+  archiveUrl     String   @map("archive_url") @db.VarChar(1000)
+  archiveFormat  String   @default("jsonl.gz") @map("archive_format") @db.VarChar(16)
+  rowCount       Int      @map("row_count")
+  checksumSha256 String   @map("checksum_sha256") @db.VarChar(64)
+  restoreCount   Int      @default(0) @map("restore_count")
+  bytes          Int      @default(0)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@map("datapoint_archives")
+}

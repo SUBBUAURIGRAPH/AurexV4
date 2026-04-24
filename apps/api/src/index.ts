@@ -35,6 +35,9 @@ import { creditsRouter } from './routes/credits.js';
 // A6.4 Deferred items (AAT-3): BaselineScenario + SD-Tool
 import { baselineScenariosRouter } from './routes/baseline-scenarios.js';
 import { sdToolRouter } from './routes/sd-tool.js';
+// A6.4 Deferred items (AAT-4): PDD wizard + retention admin
+import { pddsRouter } from './routes/pdds.js';
+import { adminRetentionRouter } from './routes/admin-retention.js';
 import { logger } from './lib/logger.js';
 
 const app: Express = express();
@@ -98,6 +101,9 @@ app.use('/api/v1/credits', creditsRouter);
 // A6.4 Deferred items (AAT-3)
 app.use('/api/v1/baseline-scenarios', baselineScenariosRouter);
 app.use('/api/v1/sd-tool', sdToolRouter);
+// A6.4 Deferred items (AAT-4)
+app.use('/api/v1/pdds', pddsRouter);
+app.use('/api/v1/admin/retention', adminRetentionRouter);
 
 // ADM-052: RFC 7807 error handler
 app.use(errorHandler);

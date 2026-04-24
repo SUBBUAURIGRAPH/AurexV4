@@ -20,6 +20,7 @@
     "db:seed": "turbo run db:seed --filter=@aurex/database",
     "db:studio": "turbo run db:studio --filter=@aurex/database",
     "test:integration": "turbo run test --filter=@aurex/integration-tests",
+    "test:a6.4:e2e": "E2E_RUN=1 turbo run test:a6.4:e2e --filter=@aurex/a64-e2e",
     "test:owasp:all": "turbo run test:owasp --filter=@aurex/security-tests",
     "test:owasp:critical": "turbo run test:owasp:critical --filter=@aurex/security-tests",
     "test:owasp:baseline": "./scripts/deploy/owasp-scan.sh",
