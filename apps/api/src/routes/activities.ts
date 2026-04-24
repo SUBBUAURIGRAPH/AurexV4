@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
 import { requireOrgRole } from '../middleware/org-role.js';
 import * as activityService from '../services/activity.service.js';
+import * as reversalService from '../services/reversal.service.js';
 
 export const activitiesRouter: IRouter = Router();
 
@@ -167,6 +168,37 @@ activitiesRouter.post(
         reason,
       );
       res.json({ data: row });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+/**
+ * POST /:id/reversal — draw from REVERSAL_BUFFER on a non-permanence event
+ * for a removal activity (Phase C, AV4-332). Gated to ORG_ADMIN / DOE /
+ * SUPER_ADMIN — the host-party role (DNA) does not draw directly; they
+ * trigger a cancellation event which the mechanism then honours.
+ */
+const reversalSchema = z.object({
+  units: z.number().int().positive(),
+  evidence: z.string().min(1).max(5000),
+});
+
+activitiesRouter.post(
+  '/:id/reversal',
+  requireOrgRole('ORG_ADMIN', 'DOE', 'SUPER_ADMIN'),
+  async (req, res, next) => {
+    try {
+      const { units, evidence } = reversalSchema.parse(req.body);
+      const result = await reversalService.draw({
+        activityId: req.params.id as string,
+        units,
+        evidence,
+        actorUserId: req.user!.sub,
+        orgId: req.orgId!,
+      });
+      res.json({ data: result });
     } catch (err) {
       next(err);
     }

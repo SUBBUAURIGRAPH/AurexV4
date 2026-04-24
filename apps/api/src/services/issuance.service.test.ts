@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { calculateLevies, SOP_RATE, OMGE_RATE } from './issuance.service.js';
+import {
+  calculateLevies,
+  SOP_RATE,
+  OMGE_RATE,
+  splitNetForBuffer,
+  DEFAULT_BUFFER_PCT,
+} from './issuance.service.js';
 
 describe('issuance.service — SOP + OMGE levy math', () => {
   it('rates are 5% SOP + 2% OMGE (ADM compliance)', () => {
@@ -60,5 +66,55 @@ describe('issuance.service — SOP + OMGE levy math', () => {
     expect(r.sop).toBe(1);
     expect(r.omge).toBe(0);
     expect(r.net).toBe(19);
+  });
+});
+
+describe('issuance.service — removal buffer deposit math (AV4-330)', () => {
+  it('default buffer pct is 20% (SB guidance — removals)', () => {
+    expect(DEFAULT_BUFFER_PCT).toBe(20);
+  });
+
+  it('removal net=1000, pct=20 → participant=800, buffer=200', () => {
+    const r = splitNetForBuffer(1000, 20);
+    expect(r.participantUnits).toBe(800);
+    expect(r.bufferUnits).toBe(200);
+    expect(r.participantUnits + r.bufferUnits).toBe(1000);
+  });
+
+  it('pct=0 → all to participant, buffer=0', () => {
+    const r = splitNetForBuffer(1000, 0);
+    expect(r.participantUnits).toBe(1000);
+    expect(r.bufferUnits).toBe(0);
+  });
+
+  it('pct=100 → all to buffer, participant=0', () => {
+    const r = splitNetForBuffer(1000, 100);
+    expect(r.participantUnits).toBe(0);
+    expect(r.bufferUnits).toBe(1000);
+  });
+
+  it('rounding — buffer floored, participant absorbs residue', () => {
+    // 137 × 0.20 = 27.4 → floor 27 buffer; 137 − 27 = 110 participant
+    const r = splitNetForBuffer(137, 20);
+    expect(r.bufferUnits).toBe(27);
+    expect(r.participantUnits).toBe(110);
+    expect(r.bufferUnits + r.participantUnits).toBe(137);
+  });
+
+  it('rejects out-of-range pct', () => {
+    expect(() => splitNetForBuffer(100, -1)).toThrow();
+    expect(() => splitNetForBuffer(100, 101)).toThrow();
+    expect(() => splitNetForBuffer(100, Number.NaN)).toThrow();
+  });
+
+  it('rejects negative net', () => {
+    expect(() => splitNetForBuffer(-1, 20)).toThrow();
+    expect(() => splitNetForBuffer(Number.POSITIVE_INFINITY, 20)).toThrow();
+  });
+
+  it('zero net → zero buffer, zero participant', () => {
+    const r = splitNetForBuffer(0, 20);
+    expect(r.participantUnits).toBe(0);
+    expect(r.bufferUnits).toBe(0);
   });
 });

@@ -7,6 +7,7 @@ import { requireOrgRole } from '../middleware/org-role.js';
 import { AppError } from '../middleware/error-handler.js';
 import * as creditsService from '../services/credits.service.js';
 import * as transactionService from '../services/transaction.service.js';
+import * as registryLabelService from '../services/registry-label.service.js';
 
 export const creditsRouter: IRouter = Router();
 
@@ -118,3 +119,20 @@ creditsRouter.post(
     }
   },
 );
+
+/**
+ * GET /blocks/:id/registry-label — voluntary-registry label JSON for a
+ * block (AV4-333). Scaffold — see registry-label.service for rollout note.
+ * Org-scope gated: only the block's holder org can fetch the label.
+ */
+creditsRouter.get('/blocks/:id/registry-label', async (req, res, next) => {
+  try {
+    const label = await registryLabelService.generateLabel(
+      req.params.id as string,
+      req.orgId!,
+    );
+    res.json({ data: label });
+  } catch (err) {
+    next(err);
+  }
+});

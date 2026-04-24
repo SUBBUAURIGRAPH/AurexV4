@@ -38,6 +38,8 @@ import { sdToolRouter } from './routes/sd-tool.js';
 // A6.4 Deferred items (AAT-4): PDD wizard + retention admin
 import { pddsRouter } from './routes/pdds.js';
 import { adminRetentionRouter } from './routes/admin-retention.js';
+// A6.4 Phase C (AAT-2): corresponding adjustments / BTR export
+import { correspondingAdjustmentsRouter } from './routes/corresponding-adjustments.js';
 import { logger } from './lib/logger.js';
 
 const app: Express = express();
@@ -104,6 +106,8 @@ app.use('/api/v1/sd-tool', sdToolRouter);
 // A6.4 Deferred items (AAT-4)
 app.use('/api/v1/pdds', pddsRouter);
 app.use('/api/v1/admin/retention', adminRetentionRouter);
+// A6.4 Phase C (AAT-2)
+app.use('/api/v1/corresponding-adjustments', correspondingAdjustmentsRouter);
 
 // ADM-052: RFC 7807 error handler
 app.use(errorHandler);

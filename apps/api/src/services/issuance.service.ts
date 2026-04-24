@@ -21,6 +21,36 @@ export const OMGE_RATE = 0.02; // 2%
 
 const ADAPTATION_FUND_ID = 'a64a0000-0000-4000-8000-000000000001';
 const OMGE_CANCELLATION_ID = 'a64a0000-0000-4000-8000-000000000002';
+const REVERSAL_BUFFER_ID = 'a64a0000-0000-4000-8000-000000000003';
+
+/**
+ * Default buffer contribution for removal activities — 20% of NET units
+ * are parked in the REVERSAL_BUFFER admin account as ACTIVE (drawable).
+ * Override per-activity via Activity.bufferPoolContributionPct.
+ */
+export const DEFAULT_BUFFER_PCT = 20;
+
+export interface BufferSplit {
+  participantUnits: number;
+  bufferUnits: number;
+}
+
+/**
+ * Pure function: given NET units + pct (0–100), compute how many go to the
+ * REVERSAL_BUFFER admin account vs. the activity-participant account.
+ * Buffer is floored; participant absorbs any rounding residue.
+ */
+export function splitNetForBuffer(netInt: number, pct: number): BufferSplit {
+  if (netInt < 0 || !Number.isFinite(netInt)) {
+    throw new Error('netInt must be a non-negative finite number');
+  }
+  if (pct < 0 || pct > 100 || !Number.isFinite(pct)) {
+    throw new Error('pct must be between 0 and 100 inclusive');
+  }
+  const bufferUnits = Math.floor((netInt * pct) / 100);
+  const participantUnits = netInt - bufferUnits;
+  return { participantUnits, bufferUnits };
+}
 
 export interface LevyBreakdown {
   gross: number;
@@ -157,14 +187,26 @@ export async function approveIssuance(
   const sopInt = Number(issuance.sopLevyUnits);
   const omgeInt = Number(issuance.omgeCancelledUnits);
 
+  // Removal buffer deposit (Phase C, AV4-330) — removal activities park a
+  // percentage of NET units in the REVERSAL_BUFFER admin account, leaving
+  // the remainder for the activity-participant account. Buffer units are
+  // ACTIVE (drawable on reversal), not cancelled.
+  const isRemoval = issuance.activity.isRemoval === true;
+  const bufferPct = isRemoval
+    ? Number(issuance.activity.bufferPoolContributionPct ?? DEFAULT_BUFFER_PCT)
+    : 0;
+  const { participantUnits, bufferUnits } = isRemoval
+    ? splitNetForBuffer(netInt, bufferPct)
+    : { participantUnits: netInt, bufferUnits: 0 };
+
   const result = await prisma.$transaction(async (tx) => {
-    // NET block → activity participant
-    const netBlock = netInt > 0
+    // NET block → activity participant (participantUnits after buffer split)
+    const netBlock = participantUnits > 0
       ? await tx.creditUnitBlock.create({
           data: {
             serialFirst: `${serialPrefix}-N-0000000001`,
-            serialLast: `${serialPrefix}-N-${String(netInt).padStart(10, '0')}`,
-            unitCount: netInt,
+            serialLast: `${serialPrefix}-N-${String(participantUnits).padStart(10, '0')}`,
+            unitCount: participantUnits,
             unitType: issuance.unitType,
             vintage: issuance.vintage,
             activityId: issuance.activityId,
@@ -177,6 +219,27 @@ export async function approveIssuance(
           },
         })
       : null;
+
+    // BUFFER block → REVERSAL_BUFFER admin account (ACTIVE — drawable on reversal)
+    if (bufferUnits > 0) {
+      await tx.creditUnitBlock.create({
+        data: {
+          serialFirst: `${serialPrefix}-B-0000000001`,
+          serialLast: `${serialPrefix}-B-${String(bufferUnits).padStart(10, '0')}`,
+          unitCount: bufferUnits,
+          unitType: issuance.unitType,
+          vintage: issuance.vintage,
+          activityId: issuance.activityId,
+          hostCountry: issuance.activity.hostCountry,
+          issuanceDate: new Date(),
+          holderAccountId: REVERSAL_BUFFER_ID,
+          authorizationStatus: issuance.activity.hostAuthorization!.authorizedFor,
+          caStatus: 'NOT_REQUIRED',
+          retirementStatus: 'ACTIVE',
+          retirementNarrative: `Reversal buffer deposit (${bufferPct}% of NET) — removal activity, drawable on reversal`,
+        },
+      });
+    }
 
     // SOP block → Adaptation Fund (active, retirable for use on adaptation projects)
     if (sopInt > 0) {
@@ -259,6 +322,13 @@ export async function approveIssuance(
       netUnits: netInt,
       sopLevy: sopInt,
       omgeLevy: omgeInt,
+      // Phase C — buffer deposit (AV4-330). Participant/buffer split is
+      // computed at approval (no schema change on Issuance); the raw block
+      // rows are the source of truth for audit reconstruction.
+      isRemoval,
+      bufferPct: isRemoval ? bufferPct : null,
+      bufferDepositUnits: bufferUnits,
+      participantUnits,
       netBlockId: result.netBlockId,
     },
   });
