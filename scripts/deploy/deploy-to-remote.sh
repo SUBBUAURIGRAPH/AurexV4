@@ -95,6 +95,7 @@ $SSH "set -e
 
   ENV_ARGS=\$(docker inspect ${API_CONTAINER} --format '{{range .Config.Env}}-e {{.}} {{end}}')
   docker stop ${API_CONTAINER} >/dev/null
+  docker rm ${API_CONTAINER}-prev 2>/dev/null || true
   docker rename ${API_CONTAINER} ${API_CONTAINER}-prev
   docker run -d --name ${API_CONTAINER} --network aurex_network --restart unless-stopped \$ENV_ARGS ${API_IMAGE}:latest >/dev/null
 "
@@ -131,10 +132,12 @@ fi
 # compiled seed script baked into the new image at
 # /app/node_modules/@aurex/database/dist/seed-master-data.js.
 # Idempotent (upserts on natural keys) — safe to re-run every deploy.
-if [ "$RUN_SEED_MASTER" = "1" ]; then
+if [ "${RUN_SEED_MASTER:-0}" = "1" ]; then
   echo ""
   echo "[Seed] Running master data seed..."
-  $SSH "docker exec ${API_CONTAINER} node /app/node_modules/@aurex/database/dist/seed-master-data.js" | tail -20
+  E2E_ENV=""
+  [ "${E2E_SEED:-0}" = "1" ] && E2E_ENV="-e E2E_SEED=1"
+  $SSH "docker exec $E2E_ENV ${API_CONTAINER} node /app/node_modules/@aurex/database/dist/seed-master-data.js" | tail -20
   echo "  Master data seeded"
 fi
 
