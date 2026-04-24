@@ -8,7 +8,11 @@ import { useNotifications, useMarkRead, useMarkAllRead } from '../../hooks/useNo
 const pageTitles: Record<string, string> = {
   '/dashboard': 'Dashboard',
   '/emissions': 'Emissions Tracking',
+  '/emissions/new': 'Add Emission Entry',
   '/emissions/import': 'Bulk Upload',
+  '/emissions/baselines': 'Baselines',
+  '/emissions/targets': 'Targets',
+  '/analytics': 'Analytics',
   '/frameworks': 'ESG Frameworks',
   '/brsr': 'BRSR Builder',
   '/suppliers': 'Suppliers',
@@ -18,10 +22,25 @@ const pageTitles: Record<string, string> = {
   '/compliance': 'Compliance Center',
   '/audit-logs': 'Audit Logs',
   '/approvals': 'Approvals',
+  '/onboarding': 'Get Started',
   '/billing': 'Billing and Subscription',
   '/support': 'Support Center',
   '/settings': 'Settings',
+  '/admin/users': 'User Management',
+  '/admin/organization': 'Organization',
+  '/admin/organizations': 'Organizations',
 };
+
+function resolvePageTitle(pathname: string): string {
+  if (pageTitles[pathname]) return pageTitles[pathname];
+  // Dynamic routes
+  if (pathname.startsWith('/reports/build/')) {
+    const type = pathname.split('/').pop() ?? '';
+    return `Build ${type.toUpperCase()} Report`;
+  }
+  if (pathname.startsWith('/frameworks/')) return 'Framework Details';
+  return 'Dashboard';
+}
 
 const TYPE_COLORS: Record<string, string> = {
   INFO: '#3b82f6',
@@ -271,7 +290,7 @@ export function DashboardTopbar() {
     }
   }, [selectedOrg]);
 
-  const pageTitle = pageTitles[location.pathname] || 'Dashboard';
+  const pageTitle = resolvePageTitle(location.pathname);
 
   return (
     <header style={{
