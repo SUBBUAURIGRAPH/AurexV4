@@ -22,6 +22,8 @@ import { approvalsRouter } from './routes/approvals.js';
 import { esgRouter } from './routes/esg.js';
 import { brsrRouter } from './routes/brsr.js';
 import { onboardingRouter } from './routes/onboarding.js';
+import { securityRouter } from './routes/security.js';
+import { suppliersRouter } from './routes/suppliers.js';
 import { logger } from './lib/logger.js';
 
 const app: Express = express();
@@ -56,6 +58,9 @@ app.use(rateLimiter);
 app.use('/api/v1/health', healthRouter);
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/organizations', organizationRouter);
+// Security router must be mounted BEFORE userRouter so /users/me/* doesn't
+// fall through to userRouter's /:id handler.
+app.use('/api/v1/users/me', securityRouter);
 app.use('/api/v1/users', userRouter);
 app.use('/api/v1/emissions', emissionsRouter);
 app.use('/api/v1/reference-data', referenceDataRouter);
@@ -70,6 +75,7 @@ app.use('/api/v1/approvals', approvalsRouter);
 app.use('/api/v1/esg', esgRouter);
 app.use('/api/v1/brsr', brsrRouter);
 app.use('/api/v1/onboarding', onboardingRouter);
+app.use('/api/v1/suppliers', suppliersRouter);
 
 // ADM-052: RFC 7807 error handler
 app.use(errorHandler);

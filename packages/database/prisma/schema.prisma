@@ -102,6 +102,8 @@ model Organization {
   frameworkMappings  OrgFrameworkMapping[]
   brsrResponses      BrsrResponse[]
   onboardingProgress OnboardingProgress?
+  suppliers          Supplier[]
+  supplierRequests   SupplierDataRequest[]
 
   @@index([parentOrgId])
   @@map("organizations")
@@ -573,4 +575,67 @@ model OnboardingProgress {
   org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@map("onboarding_progress")
+}
+
+// ─── Supplier Portal (AV4-268) ───
+
+enum SupplierStatus {
+  INVITED   @map("invited")
+  ACTIVE    @map("active")
+  SUSPENDED @map("suspended")
+}
+
+enum SupplierRequestStatus {
+  PENDING   @map("pending")
+  SUBMITTED @map("submitted")
+  ACCEPTED  @map("accepted")
+  REJECTED  @map("rejected")
+  CANCELLED @map("cancelled")
+}
+
+model Supplier {
+  id            String         @id @default(uuid()) @db.Uuid
+  orgId         String         @map("org_id") @db.Uuid
+  name          String         @db.VarChar(200)
+  email         String         @db.VarChar(254)
+  contactPerson String?        @map("contact_person") @db.VarChar(200)
+  category      String?        @db.VarChar(100)
+  externalId    String?        @map("external_id") @db.VarChar(100)
+  status        SupplierStatus @default(INVITED)
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+
+  org          Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  dataRequests SupplierDataRequest[]
+
+  @@unique([orgId, email])
+  @@index([orgId])
+  @@map("suppliers")
+}
+
+model SupplierDataRequest {
+  id             String                @id @default(uuid()) @db.Uuid
+  supplierId     String                @map("supplier_id") @db.Uuid
+  orgId          String                @map("org_id") @db.Uuid
+  title          String                @db.VarChar(200)
+  description    String?               @db.Text
+  dataScope      String                @map("data_scope") @db.VarChar(100)
+  periodStart    DateTime              @map("period_start")
+  periodEnd      DateTime              @map("period_end")
+  dueBy          DateTime?             @map("due_by")
+  status         SupplierRequestStatus @default(PENDING)
+  submittedValue Json?                 @map("submitted_value")
+  submittedAt    DateTime?             @map("submitted_at")
+  reviewNotes    String?               @map("review_notes") @db.Text
+  createdBy      String                @map("created_by") @db.Uuid
+  createdAt      DateTime              @default(now()) @map("created_at")
+  updatedAt      DateTime              @updatedAt @map("updated_at")
+
+  supplier Supplier     @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([supplierId])
+  @@index([orgId])
+  @@index([status])
+  @@map("supplier_data_requests")
 }

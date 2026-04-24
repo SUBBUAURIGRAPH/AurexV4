@@ -210,7 +210,7 @@ export async function updateCurrentUser(userId: string, data: { name?: string; e
   return getCurrentUser(userId);
 }
 
-async function logAuthEvent(
+export async function logAuthEvent(
   userId: string | null,
   eventType: string,
   ipAddress?: string,
