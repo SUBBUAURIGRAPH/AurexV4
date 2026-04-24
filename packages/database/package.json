@@ -9,6 +9,7 @@
     "build": "tsc",
     "db:migrate": "prisma migrate dev",
     "db:seed": "tsx src/seed.ts",
+    "db:seed-master": "tsx src/seed-master-data.ts",
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
     "typecheck": "tsc --noEmit",

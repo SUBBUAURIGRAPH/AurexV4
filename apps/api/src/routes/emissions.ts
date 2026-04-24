@@ -60,7 +60,9 @@ emissionsRouter.post(
  * POST / — Create emission record
  * Sets orgId from user's org, createdBy from user, status=DRAFT.
  */
-emissionsRouter.post('/', async (req, res, next) => {
+const CONTRIBUTOR_ROLES = ['MAKER', 'CHECKER', 'APPROVER', 'MANAGER', 'ORG_ADMIN', 'SUPER_ADMIN'];
+
+emissionsRouter.post('/', requireOrgRole(...CONTRIBUTOR_ROLES), async (req, res, next) => {
   try {
     const data = createEmissionSchema.parse(req.body);
 
@@ -272,7 +274,7 @@ emissionsRouter.patch('/:id/status', async (req, res, next) => {
  * PATCH /:id — Update emission record
  * Only if status is DRAFT or REJECTED.
  */
-emissionsRouter.patch('/:id', async (req, res, next) => {
+emissionsRouter.patch('/:id', requireOrgRole(...CONTRIBUTOR_ROLES), async (req, res, next) => {
   try {
     const id = req.params.id as string;
     const data = updateEmissionSchema.parse(req.body);
@@ -293,7 +295,7 @@ emissionsRouter.patch('/:id', async (req, res, next) => {
  * DELETE /:id — Delete emission record
  * Only if status is DRAFT.
  */
-emissionsRouter.delete('/:id', async (req, res, next) => {
+emissionsRouter.delete('/:id', requireOrgRole('MANAGER', 'ORG_ADMIN', 'SUPER_ADMIN'), async (req, res, next) => {
   try {
     const id = req.params.id as string;
     await emissionsService.deleteEmission(id, req.orgId!);
