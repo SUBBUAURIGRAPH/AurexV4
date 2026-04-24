@@ -1,5 +1,6 @@
 import { prisma } from '@aurex/database';
 import { recordAudit } from './audit-log.service.js';
+import { syncFirstTransfer } from './registries/sync-recorder.js';
 
 /**
  * Article 6.4 — Corresponding Adjustment (CA) event emission.
@@ -77,6 +78,26 @@ export async function emitOnFirstTransfer(
       vintage: block.vintage,
     },
   });
+
+  // Best-effort UNFCCC central registry sync (Phase C, AV4-334). The default
+  // adapter is disabled — records a sync-event row noting the spec is pending.
+  // Never throws; wrapped one more level in try/catch for belt-and-braces.
+  try {
+    await syncFirstTransfer({
+      orgId: null,
+      userId: actorUserId,
+      resourceId: blockId,
+      params: {
+        blockSerialFirst: block.serialFirst,
+        fromAccountKey: block.holderAccountId,
+        toAccountKey: block.holderAccountId,
+        units,
+        ...(buyerCountry ? { buyerCountry } : {}),
+      },
+    });
+  } catch {
+    /* swallowed — recorded inside syncFirstTransfer */
+  }
 
   return {
     id: event.id,

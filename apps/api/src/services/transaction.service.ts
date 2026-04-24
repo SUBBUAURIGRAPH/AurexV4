@@ -2,6 +2,7 @@ import { prisma } from '@aurex/database';
 import { AppError } from '../middleware/error-handler.js';
 import { recordAudit } from './audit-log.service.js';
 import * as caEvents from './ca-events.service.js';
+import { syncRetirement } from './registries/sync-recorder.js';
 
 /**
  * Article 6.4 — transfer + retirement engine.
@@ -258,6 +259,25 @@ export async function retireBlock(
       caEventId: caEvent?.id ?? null,
     },
   });
+
+  // Best-effort UNFCCC central registry sync (Phase C, AV4-334). Voluntary
+  // retirements are skipped inside syncRetirement (outside the A6.4 CA regime).
+  // The default adapter is disabled; never throws; belt-and-braces try/catch.
+  try {
+    await syncRetirement({
+      orgId,
+      userId: actorUserId,
+      resourceId: blockId,
+      params: {
+        blockSerialFirst: block.serialFirst,
+        purpose,
+        units: Number(block.unitCount),
+        narrative,
+      },
+    });
+  } catch {
+    /* swallowed — recorded inside syncRetirement */
+  }
 
   return { block: updated, caEvent };
 }

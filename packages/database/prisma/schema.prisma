@@ -1400,3 +1400,35 @@ model Transaction {
   @@index([transactionType, createdAt])
   @@map("transactions")
 }
+
+// ─── Article 6.4 Phase C — UNFCCC central registry sync audit trail ────────
+// Append-only record of every adapter call made against the UNFCCC A6.4
+// mechanism registry (issuance, first-transfer, retirement notifications).
+// The real registry API spec is pending CMA.6+; in the meantime the default
+// adapter is `disabled` and every call lands here with `synced=false` plus a
+// reason. When the spec publishes and an operator flips
+// UNFCCC_REGISTRY_ADAPTER to a live adapter, successful calls land here with
+// the external registry ref so we have an auditable sync history.
+
+enum UnfcccSyncEventType {
+  ISSUANCE        @map("issuance")
+  FIRST_TRANSFER  @map("first_transfer")
+  RETIREMENT      @map("retirement")
+}
+
+model UnfcccRegistrySyncEvent {
+  id             String              @id @default(uuid()) @db.Uuid
+  eventType      UnfcccSyncEventType @map("event_type")
+  resourceKind   String              @map("resource_kind") @db.VarChar(64)   // "issuance" | "block" | "transaction"
+  resourceId     String              @map("resource_id") @db.Uuid
+  adapterName    String              @map("adapter_name") @db.VarChar(64)
+  externalRef    String?             @map("external_ref") @db.VarChar(255)
+  synced         Boolean             @default(false)
+  reason         String?             @db.Text
+  requestPayload Json?               @map("request_payload")
+  createdAt      DateTime            @default(now()) @map("created_at")
+
+  @@index([resourceKind, resourceId])
+  @@index([synced, createdAt])
+  @@map("unfccc_registry_sync_events")
+}

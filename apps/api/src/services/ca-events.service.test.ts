@@ -16,6 +16,12 @@ const { mockPrisma } = vi.hoisted(() => ({
     auditLog: {
       create: vi.fn(),
     },
+    // AV4-334 — UNFCCC adapter sync recorder writes a sync-event row on
+    // every notifyFirstTransfer call. Stub to a resolving create so the
+    // best-effort path doesn't log non-fatal errors in the test output.
+    unfcccRegistrySyncEvent: {
+      create: vi.fn().mockResolvedValue({ id: 'sync-1' }),
+    },
   },
 }));
 

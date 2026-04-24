@@ -2,6 +2,7 @@ import { prisma } from '@aurex/database';
 import { AppError } from '../middleware/error-handler.js';
 import { recordAudit } from './audit-log.service.js';
 import * as activityService from './activity.service.js';
+import { syncIssuance } from './registries/sync-recorder.js';
 
 /**
  * A6.4 issuance with automatic Share-of-Proceeds + OMGE levies.
@@ -332,6 +333,30 @@ export async function approveIssuance(
       netBlockId: result.netBlockId,
     },
   });
+
+  // Best-effort UNFCCC central registry sync (Phase C, AV4-334). The default
+  // adapter is disabled — records a sync-event row noting the spec is pending.
+  // Never throws; wrapped in try/catch for belt-and-braces.
+  try {
+    await syncIssuance({
+      orgId,
+      userId: approverUserId,
+      resourceId: issuanceId,
+      params: {
+        issuanceId,
+        activityId: issuance.activityId,
+        hostCountry: issuance.activity.hostCountry,
+        unitType: issuance.unitType as 'A6_4ER' | 'A6_4ER_MC',
+        vintage: issuance.vintage,
+        grossUnits: Number(issuance.grossUnits),
+        netUnits: netInt,
+        sopUnits: sopInt,
+        omgeUnits: omgeInt,
+      },
+    });
+  } catch {
+    /* swallowed — recorded inside syncIssuance */
+  }
 
   return result;
 }
