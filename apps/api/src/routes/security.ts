@@ -2,6 +2,7 @@ import { Router, type IRouter } from 'express';
 import { changePasswordSchema, mfaVerifySchema, mfaDisableSchema } from '@aurex/shared';
 import { requireAuth } from '../middleware/auth.js';
 import * as securityService from '../services/security.service.js';
+import * as userService from '../services/user.service.js';
 
 /**
  * AV4-273 — account self-service security routes. All scoped to
@@ -11,6 +12,15 @@ import * as securityService from '../services/security.service.js';
 export const securityRouter: IRouter = Router();
 
 securityRouter.use(requireAuth);
+
+securityRouter.get('/', async (req, res, next) => {
+  try {
+    const profile = await userService.getProfile(req.user!.sub);
+    res.json({ data: profile });
+  } catch (err) {
+    next(err);
+  }
+});
 
 securityRouter.patch('/password', async (req, res, next) => {
   try {

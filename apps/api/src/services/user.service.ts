@@ -207,6 +207,48 @@ export async function createUserForOrg(params: {
   };
 }
 
+export async function getProfile(userId: string) {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      isActive: true,
+      isVerified: true,
+      mfaEnabled: true,
+      lastLoginAt: true,
+      createdAt: true,
+      updatedAt: true,
+      orgMembers: {
+        where: { isActive: true },
+        select: { orgId: true, role: true, org: { select: { id: true, name: true } } },
+        take: 1,
+      },
+    },
+  });
+
+  if (!user) throw new AppError(404, 'Not Found', 'User not found');
+
+  const membership = user.orgMembers[0];
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role,
+    isActive: user.isActive,
+    isVerified: user.isVerified,
+    mfaEnabled: user.mfaEnabled,
+    lastLoginAt: user.lastLoginAt,
+    createdAt: user.createdAt,
+    updatedAt: user.updatedAt,
+    orgId: membership?.orgId ?? null,
+    orgName: membership?.org?.name ?? null,
+    orgRole: membership?.role ?? null,
+  };
+}
+
 export async function getUserById(userId: string): Promise<UserResult> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
