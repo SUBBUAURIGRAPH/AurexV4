@@ -29,6 +29,19 @@ notificationsRouter.get('/', async (req, res, next) => {
 });
 
 /**
+ * GET /notifications/count — Returns the unread notification count for the
+ * current user. Declared before `/:id` routes to avoid param capture.
+ */
+notificationsRouter.get('/count', async (req, res, next) => {
+  try {
+    const count = await notificationService.countUnread(req.user!.sub);
+    res.json({ data: { unread: count } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
  * GET /notifications/preferences — Current user's preferences.
  * Creates a default row on first read so callers always get a 200.
  * Declared before `/:id/read` to avoid being captured by a param route.

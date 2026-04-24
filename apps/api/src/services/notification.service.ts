@@ -185,3 +185,7 @@ export async function updatePreferences(
   });
   return upserted as unknown as NotificationPreferencesResult;
 }
+
+export async function countUnread(userId: string): Promise<number> {
+  return prisma.notification.count({ where: { userId, isRead: false } });
+}
