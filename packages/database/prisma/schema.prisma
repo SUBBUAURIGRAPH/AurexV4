@@ -104,6 +104,7 @@ model Organization {
   onboardingProgress OnboardingProgress?
   suppliers          Supplier[]
   supplierRequests   SupplierDataRequest[]
+  categoryMappings   CategoryMapping[]
 
   @@index([parentOrgId])
   @@map("organizations")
@@ -182,6 +183,28 @@ model EmissionFactor {
   dataSource String?       @map("data_source") @db.VarChar(255)
 
   @@map("emission_factors")
+}
+
+/// Maps emission category (free-text on EmissionsRecord) to framework indicator
+/// codes. Reports roll up an emissions record into an indicator by looking up
+/// the mapping for that (scope, category) and, if `orgId` is set, preferring
+/// the org override over the platform default.
+model CategoryMapping {
+  id                   String        @id @default(uuid()) @db.Uuid
+  orgId                String?       @map("org_id") @db.Uuid
+  scope                EmissionScope
+  category             String        @db.VarChar(100)
+  esgIndicatorCodes    String[]      @map("esg_indicator_codes")
+  brsrIndicatorCodes   String[]      @map("brsr_indicator_codes")
+  isDefault            Boolean       @default(false) @map("is_default")
+  createdAt            DateTime      @default(now()) @map("created_at")
+  updatedAt            DateTime      @updatedAt @map("updated_at")
+
+  org Organization? @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([orgId, scope, category])
+  @@index([scope, category])
+  @@map("category_mappings")
 }
 
 model EmissionsBaseline {

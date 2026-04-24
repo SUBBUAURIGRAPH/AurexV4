@@ -161,8 +161,31 @@ const FUEL_FACTORS: Array<{
   { scope: 'SCOPE_3', category: 'Upstream Transportation', source: 'Air Freight', factor: 0.602, unit: 'kgCO2e/tonne-km', region: 'Global', year: 2023, dataSource: 'DEFRA/BEIS 2023' },
 ];
 
+// Legacy rows stored factor in tCO2e/<unit>, the new IPCC set is kgCO2e/<unit>.
+// Normalise so the UI shows a single coherent unit across every row.
+async function normalizeLegacyFactors() {
+  const legacy = await prisma.emissionFactor.findMany({
+    where: { unit: { contains: 'tCO2e/' } },
+  });
+  if (legacy.length === 0) {
+    console.log('  (no legacy tCO2e/ rows to normalise)');
+    return;
+  }
+  for (const row of legacy) {
+    const newFactor = Number(row.factor) * 1000; // tCO2e → kgCO2e
+    const newUnit = row.unit.replace(/^tCO2e\//, 'kgCO2e/');
+    await prisma.emissionFactor.update({
+      where: { id: row.id },
+      data: { factor: newFactor, unit: newUnit },
+    });
+  }
+  console.log(`  Normalised ${legacy.length} legacy factors: tCO2e/ → kgCO2e/ (×1000)`);
+}
+
 async function seedEmissionFactors() {
   console.log('\n── Emission Sources & Factors (IPCC AR6 / DEFRA) ──');
+
+  await normalizeLegacyFactors();
 
   let sourceCount = 0;
   for (const s of FUEL_SOURCES) {
@@ -461,6 +484,116 @@ async function seedBrsr() {
   console.log(`  BrsrIndicator: ${BRSR_INDICATORS.length} rows upserted`);
 }
 
+// ─── Category → Framework Indicator mappings ───────────────────────────
+// Platform defaults (orgId = null). Orgs can override per-category via the
+// /reference-data/category-mappings API.
+
+const CATEGORY_MAPPINGS: Array<{
+  scope: 'SCOPE_1' | 'SCOPE_2' | 'SCOPE_3';
+  category: string;
+  esg: string[];
+  brsr: string[];
+}> = [
+  // Scope 1
+  {
+    scope: 'SCOPE_1', category: 'Stationary Combustion',
+    esg: ['GRI 305-1', 'TCFD-MT-b', 'SASB-GHG-1', 'ISSB-S2-MT-1', 'CDP-C6'],
+    brsr: ['P6-E-4'],
+  },
+  {
+    scope: 'SCOPE_1', category: 'Mobile Combustion',
+    esg: ['GRI 305-1', 'TCFD-MT-b', 'SASB-GHG-1', 'ISSB-S2-MT-1', 'CDP-C6'],
+    brsr: ['P6-E-4'],
+  },
+  {
+    scope: 'SCOPE_1', category: 'Fugitive Emissions',
+    esg: ['GRI 305-1', 'TCFD-MT-b', 'ISSB-S2-MT-1'],
+    brsr: ['P6-E-4'],
+  },
+  {
+    scope: 'SCOPE_1', category: 'Process Emissions',
+    esg: ['GRI 305-1', 'TCFD-MT-b', 'ISSB-S2-MT-1'],
+    brsr: ['P6-E-4'],
+  },
+  // Scope 2
+  {
+    scope: 'SCOPE_2', category: 'Purchased Electricity',
+    esg: ['GRI 305-2', 'GRI 302-1', 'TCFD-MT-b', 'SASB-ENG-1', 'ISSB-S2-MT-1', 'CDP-C6', 'CDP-C8'],
+    brsr: ['P6-E-4', 'P6-E-1'],
+  },
+  {
+    scope: 'SCOPE_2', category: 'Purchased Heat',
+    esg: ['GRI 305-2', 'GRI 302-1', 'TCFD-MT-b', 'ISSB-S2-MT-1'],
+    brsr: ['P6-E-4', 'P6-E-1'],
+  },
+  {
+    scope: 'SCOPE_2', category: 'Purchased Steam',
+    esg: ['GRI 305-2', 'GRI 302-1', 'TCFD-MT-b', 'ISSB-S2-MT-1'],
+    brsr: ['P6-E-4', 'P6-E-1'],
+  },
+  // Scope 3
+  {
+    scope: 'SCOPE_3', category: 'Business Travel',
+    esg: ['GRI 305-3', 'TCFD-MT-b', 'ISSB-S2-MT-1'],
+    brsr: ['P6-L-1'],
+  },
+  {
+    scope: 'SCOPE_3', category: 'Employee Commuting',
+    esg: ['GRI 305-3', 'TCFD-MT-b', 'ISSB-S2-MT-1'],
+    brsr: ['P6-L-1'],
+  },
+  {
+    scope: 'SCOPE_3', category: 'Waste',
+    esg: ['GRI 305-3', 'GRI 306-3', 'TCFD-MT-b'],
+    brsr: ['P6-L-1', 'P6-E-6'],
+  },
+  {
+    scope: 'SCOPE_3', category: 'Purchased Goods',
+    esg: ['GRI 305-3', 'TCFD-MT-b', 'ISSB-S2-MT-1'],
+    brsr: ['P6-L-1', 'P6-L-3'],
+  },
+  {
+    scope: 'SCOPE_3', category: 'Upstream Transportation',
+    esg: ['GRI 305-3', 'TCFD-MT-b', 'ISSB-S2-MT-1'],
+    brsr: ['P6-L-1', 'P6-L-3'],
+  },
+];
+
+async function seedCategoryMappings() {
+  console.log('\n── Category → Indicator Mappings (platform defaults) ──');
+
+  for (const m of CATEGORY_MAPPINGS) {
+    // Compound unique includes nullable orgId, so we can't address the platform
+    // default row via the generated `findUnique` input. Use findFirst + create/
+    // update by id instead.
+    const existing = await prisma.categoryMapping.findFirst({
+      where: { orgId: null, scope: m.scope as never, category: m.category },
+    });
+    if (existing) {
+      await prisma.categoryMapping.update({
+        where: { id: existing.id },
+        data: {
+          esgIndicatorCodes: m.esg,
+          brsrIndicatorCodes: m.brsr,
+          isDefault: true,
+        },
+      });
+    } else {
+      await prisma.categoryMapping.create({
+        data: {
+          orgId: null,
+          scope: m.scope as never,
+          category: m.category,
+          esgIndicatorCodes: m.esg,
+          brsrIndicatorCodes: m.brsr,
+          isDefault: true,
+        },
+      });
+    }
+  }
+  console.log(`  CategoryMapping: ${CATEGORY_MAPPINGS.length} rows upserted`);
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────
 
 async function main() {
@@ -468,6 +601,7 @@ async function main() {
   await seedEmissionFactors();
   await seedEsgFrameworks();
   await seedBrsr();
+  await seedCategoryMappings();
   console.log('\n✓ Master data seed complete.\n');
 }
 

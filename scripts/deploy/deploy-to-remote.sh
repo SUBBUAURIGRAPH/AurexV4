@@ -124,6 +124,17 @@ else
   echo "  HTTPS WARNING: status ${HTTPS_STATUS}"
 fi
 
+# Optional: seed master data after the new container is healthy. Runs the
+# compiled seed script baked into the new image at
+# /app/node_modules/@aurex/database/dist/seed-master-data.js.
+# Idempotent (upserts on natural keys) — safe to re-run every deploy.
+if [ "$RUN_SEED_MASTER" = "1" ]; then
+  echo ""
+  echo "[Seed] Running master data seed..."
+  $SSH "docker exec ${API_CONTAINER} node /app/node_modules/@aurex/database/dist/seed-master-data.js" | tail -20
+  echo "  Master data seeded"
+fi
+
 # Clean up the previous container
 echo ""
 echo "[Cleanup] Removing previous container + :new tag..."
@@ -135,3 +146,4 @@ echo "Frontend: https://${REMOTE_HOST}"
 echo "API:      https://${REMOTE_HOST}/api/v1/health"
 echo ""
 echo "Note: if schema changed, re-run with RUN_DB_PUSH=1"
+echo "Note: to re-seed master data, re-run with RUN_SEED_MASTER=1"
