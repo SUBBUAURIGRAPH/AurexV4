@@ -40,6 +40,9 @@ import { pddsRouter } from './routes/pdds.js';
 import { adminRetentionRouter } from './routes/admin-retention.js';
 // A6.4 Phase C (AAT-2): corresponding adjustments / BTR export
 import { correspondingAdjustmentsRouter } from './routes/corresponding-adjustments.js';
+// AV4-338 / AAT-7: retention header + nightly archival worker
+import { retentionHeaderMiddleware } from './middleware/retention-header.js';
+import { startRetentionWorker } from './workers/retention-archival.worker.js';
 import { logger } from './lib/logger.js';
 
 const app: Express = express();
@@ -96,8 +99,11 @@ app.use('/api/v1/suppliers', suppliersRouter);
 // Article 6.4 / Paris Agreement Crediting Mechanism
 app.use('/api/v1/methodologies', methodologiesRouter);
 app.use('/api/v1/activities', activitiesRouter);
-app.use('/api/v1/monitoring', monitoringRouter);
-app.use('/api/v1/verification', verificationRouter);
+// AV4-338 / AAT-7: tag monitoring + verification responses with the
+// retention-policy identifier so DOEs / SB reviewers can verify the ≥ 2yr
+// post-crediting-period rule out-of-band.
+app.use('/api/v1/monitoring', retentionHeaderMiddleware, monitoringRouter);
+app.use('/api/v1/verification', retentionHeaderMiddleware, verificationRouter);
 app.use('/api/v1/issuances', issuanceRouter);
 app.use('/api/v1/credits', creditsRouter);
 // A6.4 Deferred items (AAT-3)
@@ -119,6 +125,16 @@ if (process.env.NODE_ENV !== 'test') {
   app.listen(PORT, '0.0.0.0', () => {
     logger.info({ port: PORT, cors: CORS_ORIGINS }, 'AurexV4 API started');
   });
+
+  // AV4-338 / AAT-7: opt-in nightly retention archival worker.
+  // Operator must explicitly set RETENTION_WORKER_ENABLED=1 — default off
+  // so provisioning / credentials / Redis connectivity can be validated
+  // before enabling data movement.
+  if (process.env.RETENTION_WORKER_ENABLED === '1') {
+    startRetentionWorker().catch((err) => {
+      logger.error({ err }, 'Failed to start retention archival worker');
+    });
+  }
 }
 
 export { app };

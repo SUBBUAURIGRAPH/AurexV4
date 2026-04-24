@@ -6,6 +6,7 @@ import { prisma } from '@aurex/database';
 import { AppError } from '../middleware/error-handler.js';
 import { logger } from '../lib/logger.js';
 import { recordAudit } from './audit-log.service.js';
+import { BackblazeB2BlobStore } from './blob-stores/backblaze-b2.js';
 
 /**
  * AV4-338: Raw monitoring-data retention + archival service.
@@ -78,15 +79,14 @@ export class LocalDirBlobStore implements BlobStore {
 
 /**
  * Factory: returns a `BlobStore` based on `BLOB_STORE` env var.
- * - unset / "local" → LocalDirBlobStore at BLOB_STORE_PATH (default /tmp/aurex-blob-store)
- * - "backblaze"     → throws "not implemented" (provision Backblaze B2 first)
+ * - unset / "local"   → LocalDirBlobStore at BLOB_STORE_PATH (default /tmp/aurex-blob-store)
+ * - "backblaze-b2"    → BackblazeB2BlobStore (requires BACKBLAZE_B2_* env vars)
+ * - "backblaze"       → alias of "backblaze-b2"
  */
 export function defaultBlobStore(): BlobStore {
   const provider = (process.env.BLOB_STORE ?? 'local').toLowerCase();
-  if (provider === 'backblaze') {
-    throw new Error(
-      'BLOB_STORE=backblaze not implemented — provision Backblaze B2 bucket first and wire credentials (AV4-338 follow-up)',
-    );
+  if (provider === 'backblaze-b2' || provider === 'backblaze') {
+    return new BackblazeB2BlobStore();
   }
   const root = process.env.BLOB_STORE_PATH ?? '/tmp/aurex-blob-store';
   return new LocalDirBlobStore(root);

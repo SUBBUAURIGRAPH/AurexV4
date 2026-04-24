@@ -1094,6 +1094,47 @@ async function seedSdIndicators() {
   console.log(`  SdIndicator: ${SD_INDICATORS.length} rows upserted`);
 }
 
+// ─── A6.4 retention policy (AV4-338) ───────────────────────────────────
+// Seeds a single default policy row capturing the A6.4-PROC-AC-002 rule
+// (≥ 2yr post-end-of-crediting-period). Code enforces the 2yr constant
+// today; this row is the database-visible source of truth for compliance
+// reporting + future per-org / per-jurisdiction overrides.
+
+async function seedRetentionPolicies() {
+  console.log('\n── Retention policies (A6.4-PROC-AC-002) ──');
+  const defaults = await prisma.retentionPolicy.findMany({ where: { isDefault: true } });
+  if (defaults.length > 0) {
+    // Update the existing default in-place so re-running the seed is idempotent
+    // without creating a second default row.
+    const first = defaults[0];
+    if (!first) return;
+    await prisma.retentionPolicy.update({
+      where: { id: first.id },
+      data: {
+        name: 'Default A6.4 retention',
+        description:
+          'Minimum 2 years after end of crediting period, per A6.4-PROC-AC-002 + Decision 3/CMA.3. Data is archived to cold storage; never deleted.',
+        minRetentionYears: 2,
+        isDefault: true,
+        isActive: true,
+      },
+    });
+    console.log('  RetentionPolicy: default row updated');
+    return;
+  }
+  await prisma.retentionPolicy.create({
+    data: {
+      name: 'Default A6.4 retention',
+      description:
+        'Minimum 2 years after end of crediting period, per A6.4-PROC-AC-002 + Decision 3/CMA.3. Data is archived to cold storage; never deleted.',
+      minRetentionYears: 2,
+      isDefault: true,
+      isActive: true,
+    },
+  });
+  console.log('  RetentionPolicy: default row created');
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────
 
 async function main() {
@@ -1107,6 +1148,7 @@ async function main() {
   await seedSdIndicators();
   await seedA64Methodologies();
   await seedA64AdminAccounts();
+  await seedRetentionPolicies();
   if (process.env.E2E_SEED === '1') {
     await seedE2eAdminUser();
     await seedE2eA64Users();
