@@ -126,11 +126,15 @@ correspondingAdjustmentsRouter.get(
         });
       }
 
-      // Re-read the current state so the response reflects the post-update
-      // snapshot (previously PENDING_EXPORT events will now show EXPORTED).
+      // Re-read the post-update state by ID — NOT by the original `where`.
+      // The `where` still includes the requested status filter (e.g.
+      // PENDING_EXPORT); after the updateMany above, those same rows have
+      // transitioned to EXPORTED and would be filtered out. Fetching by ID
+      // returns the actual post-update snapshot of the originally-matched
+      // events regardless of their new status.
       const snapshot = pendingIds.length > 0
         ? await prisma.correspondingAdjustmentEvent.findMany({
-            where,
+            where: { id: { in: events.map((e) => e.id) } },
             orderBy: { triggeredAt: 'asc' },
           })
         : events;

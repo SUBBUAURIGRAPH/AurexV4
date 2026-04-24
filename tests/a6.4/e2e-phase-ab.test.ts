@@ -523,12 +523,11 @@ d('[a6.4] Phase A+B full-lifecycle E2E', () => {
     expect(movedBlock!.retirementStatus).toBe('ACTIVE');
 
     // CA event emitted — fetch via the DNA-scoped BTR endpoint. We scope by
-    // since=RUN_TAG-60s so only this run's events appear. We deliberately
-    // do NOT pass status=PENDING_EXPORT because the route flips matching
-    // events → EXPORTED inside the same request, then re-queries with the
-    // same `where` (including status=PENDING_EXPORT), which returns [] for
-    // the just-flipped events. The no-status variant returns the full
-    // post-flip snapshot (see AV4-XXX follow-up: BTR snapshot re-read bug).
+    // since=RUN_TAG-60s so only this run's events appear. Pass
+    // status=PENDING_EXPORT explicitly — post-fix the route re-reads by ID
+    // after the flip, so just-flipped events appear in the response with
+    // their NEW status=EXPORTED (regression test for the status-filter
+    // snapshot re-read bug).
     const since = new Date(RUN_TAG - 60_000).toISOString();
     const btr = await api<{
       data: {
@@ -540,12 +539,14 @@ d('[a6.4] Phase A+B full-lifecycle E2E', () => {
         }>;
       };
     }>(
-      `/corresponding-adjustments/btr/IN?since=${encodeURIComponent(since)}`,
+      `/corresponding-adjustments/btr/IN?status=PENDING_EXPORT&since=${encodeURIComponent(since)}`,
       { token: S.dna!.accessToken },
     );
     expect(btr.status).toBe(200);
     const ourEvent = btr.body.data.events.find((e) => e.blockId === S.netBlockId);
-    expect(ourEvent, 'CA event emitted for transferred block').toBeTruthy();
+    // Regression: pre-fix this was undefined because the re-read used the
+    // same where={status:PENDING_EXPORT} which excluded our just-flipped event.
+    expect(ourEvent, 'CA event visible in BTR response even when filtering by PENDING_EXPORT').toBeTruthy();
     expect(ourEvent!.status).toBe('EXPORTED'); // GET /btr has side-effect: flips PENDING→EXPORTED
     expect(Number(ourEvent!.units)).toBe(S.netUnits);
     S.caEventId = ourEvent!.eventId;

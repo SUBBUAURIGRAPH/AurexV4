@@ -101,9 +101,9 @@ Scenarios 8-10 are followed by 4 RBAC + state-machine guards (run after the happ
 - Do NOT add arbitrary `sleep` — if you need to wait for an async transition, add a `pollUntil(predicate, timeoutMs)` helper.
 - `RUN_TAG = Date.now()` is used in resource titles + BTR `since` filters so parallel runs isolate cleanly.
 
-### BTR endpoint caveat
+### BTR endpoint side-effect
 
-The `GET /corresponding-adjustments/btr/:hostCountry` route has a side-effect: any events matching the query with `status=PENDING_EXPORT` are atomically flipped to `EXPORTED` + `btrExportedAt` stamped, then the response snapshot is re-read. **Do not pass `status=PENDING_EXPORT` in the query** if you also want to see the just-flipped events in the response body — the re-read uses the same `where` clause and will return `[]` for the now-EXPORTED events. Call without a status filter (or with `status=EXPORTED`) to see the post-flip snapshot. This is a prod-side re-read symmetry bug that should be tracked in a follow-up ticket; the harness works around it explicitly.
+The `GET /corresponding-adjustments/btr/:hostCountry` route has a side-effect: any events matching the query with `status=PENDING_EXPORT` are atomically flipped to `EXPORTED` + `btrExportedAt` stamped, then the response snapshot is re-read **by event ID** (not by the original `where` clause). This means the just-flipped events appear in the response body with their new `status=EXPORTED`, regardless of the `status` filter in the request — so `?status=PENDING_EXPORT` returns events that *were* pending when the request arrived, now showing their post-flip state. Scenario 8 asserts this invariant explicitly as a regression guard.
 
 ---
 
@@ -139,7 +139,7 @@ A shorter path: invoke the harness from `pnpm deploy:post-check` as a final gate
 | Scenario 4 returns activity status `AWAITING_HOST` (not `REGISTERED`) | Host authorization endpoint path / body shape differs | Align test with current `host-authorization.service` route |
 | Scenario 6 `verified_er != 7125` | `calculateEr` changed its rounding | Check `er-calc.service.ts` + its unit test |
 | Scenario 7 `net != 6627` | Levy rates drifted from 5% SOP + 2% OMGE | Check `issuance.service.ts::calculateLevies` — rates are platform-wide constants |
-| Scenario 8 "CA event emitted for transferred block: expected undefined to be truthy" | BTR query filtered `status=PENDING_EXPORT` — side-effect flipped events EXPORTED before snapshot re-read | Harness already omits the status filter; don't re-add it |
+| Scenario 8 "CA event emitted for transferred block: expected undefined to be truthy" | BTR route regressed — re-read now must query by event ID, not by original `where` clause | Check that the re-read in `corresponding-adjustments.ts::GET /btr/:hostCountry` uses `{ id: { in: events.map(e => e.id) } }` after the `updateMany` flip |
 | Scenario 8 / 10 flake with 429 / 503 | Rate-limit burst (100 req/min per IP) | `api()` helper already retries 429/503 with exponential back-off; check `rate-limiter.ts` settings if flakes persist |
 
 ---
