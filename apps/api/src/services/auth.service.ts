@@ -118,7 +118,14 @@ export async function refreshTokens(
   ipAddress?: string,
   userAgent?: string,
 ): Promise<{ accessToken: string; refreshToken: string }> {
-  const decoded = verifyRefreshToken(token);
+  // jwt.verify() throws JsonWebTokenError for malformed tokens and
+  // TokenExpiredError for expired ones — both mean 401, not 500.
+  let decoded: ReturnType<typeof verifyRefreshToken>;
+  try {
+    decoded = verifyRefreshToken(token);
+  } catch {
+    throw new AppError(401, 'Unauthorized', 'Invalid or expired refresh token');
+  }
 
   const session = await prisma.session.findUnique({ where: { refreshToken: token } });
   if (!session || session.expiresAt < new Date()) {
