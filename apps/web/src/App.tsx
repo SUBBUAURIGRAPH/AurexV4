@@ -41,6 +41,7 @@ import { OnboardingPage } from './pages/dashboard/OnboardingPage';
 import { FrameworksHubPage } from './pages/dashboard/frameworks/FrameworksHubPage';
 import { FrameworkDetailPage } from './pages/dashboard/frameworks/FrameworkDetailPage';
 import { BRSRBuilderPage } from './pages/dashboard/brsr/BRSRBuilderPage';
+import { SuppliersPage } from './pages/dashboard/suppliers/SuppliersPage';
 import { RoleGuard } from './components/auth/RoleGuard';
 
 const queryClient = new QueryClient({
@@ -102,6 +103,7 @@ export function App() {
             <Route path="/frameworks" element={<FrameworksHubPage />} />
             <Route path="/frameworks/:id" element={<FrameworkDetailPage />} />
             <Route path="/brsr" element={<BRSRBuilderPage />} />
+            <Route path="/suppliers" element={<RoleGuard allowedRoles={['administrator', 'org_admin', 'super_admin', 'manager']}><SuppliersPage /></RoleGuard>} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Routes>

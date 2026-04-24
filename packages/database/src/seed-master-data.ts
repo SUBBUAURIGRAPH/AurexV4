@@ -594,6 +594,47 @@ async function seedCategoryMappings() {
   console.log(`  CategoryMapping: ${CATEGORY_MAPPINGS.length} rows upserted`);
 }
 
+// ─── Approval Workflow Recipes (Phase C) ───────────────────────────────
+
+const WORKFLOW_RECIPES = [
+  {
+    code: 'single-approver',
+    name: 'Single Approver',
+    description: 'A single APPROVER decides.',
+    requiredApprovers: 1,
+  },
+  {
+    code: 'dual-approval',
+    name: 'Dual Approval',
+    description: 'Two APPROVERs must both approve.',
+    requiredApprovers: 2,
+  },
+  {
+    code: 'triple-approval',
+    name: 'Triple Approval (consensus)',
+    description: 'Three APPROVERs must all approve.',
+    requiredApprovers: 3,
+  },
+];
+
+async function seedWorkflowRecipes() {
+  console.log('\n── Workflow Recipes (configurable quorum) ──');
+
+  for (const r of WORKFLOW_RECIPES) {
+    await prisma.workflowRecipe.upsert({
+      where: { code: r.code },
+      update: {
+        name: r.name,
+        description: r.description,
+        requiredApprovers: r.requiredApprovers,
+        isActive: true,
+      },
+      create: { ...r, isActive: true },
+    });
+  }
+  console.log(`  WorkflowRecipe: ${WORKFLOW_RECIPES.length} rows upserted`);
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────
 
 async function main() {
@@ -602,6 +643,7 @@ async function main() {
   await seedEsgFrameworks();
   await seedBrsr();
   await seedCategoryMappings();
+  await seedWorkflowRecipes();
   console.log('\n✓ Master data seed complete.\n');
 }
 

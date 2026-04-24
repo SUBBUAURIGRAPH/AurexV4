@@ -31,12 +31,17 @@ model User {
   orgMembers         OrgMember[]
   emissionsCreated   EmissionsRecord[] @relation("emissionsCreator")
   reportsCreated     Report[]          @relation("reportsCreator")
+  reportsApproved    Report[]          @relation("reportsApprover")
+  reportsPublished   Report[]          @relation("reportsPublisher")
+  reportsArchived    Report[]          @relation("reportsArchiver")
   importJobsCreated  ImportJob[]       @relation("importJobsCreator")
   notifications      Notification[]          @relation("notifications")
   notificationPrefs  NotificationPreference? @relation("notificationPrefs")
   approvalRequests   ApprovalRequest[] @relation("approvalRequests")
   approvalDecisions  ApprovalRequest[] @relation("approvalDecisions")
   approvalComments   ApprovalComment[]
+  approvalVotes      ApprovalVote[]    @relation("approvalVotes")
+  workflowEnablements OrgWorkflowEnablement[] @relation("workflowEnabler")
   brsrResponses      BrsrResponse[]    @relation("brsrResponsesCreator")
 
   @@index([email])
@@ -105,6 +110,7 @@ model Organization {
   suppliers          Supplier[]
   supplierRequests   SupplierDataRequest[]
   categoryMappings   CategoryMapping[]
+  workflowEnablements OrgWorkflowEnablement[]
 
   @@index([parentOrgId])
   @@map("organizations")
@@ -262,21 +268,42 @@ model TargetProgress {
 
 // ─── Reports (AAT-2) ───
 
-model Report {
-  id         String   @id @default(uuid()) @db.Uuid
-  orgId      String   @map("org_id") @db.Uuid
-  type       String   @db.VarChar(50)
-  status     String   @default("QUEUED") @db.VarChar(20)
-  parameters Json?
-  reportData Json?    @map("report_data")
-  createdBy  String   @map("created_by") @db.Uuid
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+enum ReportLifecycleStatus {
+  DRAFT     @map("draft")
+  REVIEW    @map("review")
+  APPROVED  @map("approved")
+  PUBLISHED @map("published")
+  ARCHIVED  @map("archived")
+}
 
-  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  user User         @relation("reportsCreator", fields: [createdBy], references: [id])
+model Report {
+  id              String                @id @default(uuid()) @db.Uuid
+  orgId           String                @map("org_id") @db.Uuid
+  type            String                @db.VarChar(50)
+  status          String                @default("QUEUED") @db.VarChar(20)
+  lifecycleStatus ReportLifecycleStatus @default(DRAFT) @map("lifecycle_status")
+  parameters      Json?
+  reportData      Json?                 @map("report_data")
+  createdBy       String                @map("created_by") @db.Uuid
+  submittedAt     DateTime?             @map("submitted_at")
+  approvedAt      DateTime?             @map("approved_at")
+  approvedBy      String?               @map("approved_by") @db.Uuid
+  publishedAt     DateTime?             @map("published_at")
+  publishedBy     String?               @map("published_by") @db.Uuid
+  archivedAt      DateTime?             @map("archived_at")
+  archivedBy      String?               @map("archived_by") @db.Uuid
+  shareToken      String?               @unique @map("share_token") @db.VarChar(100)
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  org       Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  user      User         @relation("reportsCreator", fields: [createdBy], references: [id])
+  approver  User?        @relation("reportsApprover", fields: [approvedBy], references: [id])
+  publisher User?        @relation("reportsPublisher", fields: [publishedBy], references: [id])
+  archiver  User?        @relation("reportsArchiver", fields: [archivedBy], references: [id])
 
   @@index([orgId])
+  @@index([orgId, lifecycleStatus])
   @@map("reports")
 }
 
@@ -423,23 +450,27 @@ enum ApprovalStatus {
 }
 
 model ApprovalRequest {
-  id           String          @id @default(uuid()) @db.Uuid
-  orgId        String          @map("org_id") @db.Uuid
-  resource     String          @db.VarChar(100)
-  resourceId   String          @map("resource_id") @db.Uuid
-  requestedBy  String          @map("requested_by") @db.Uuid
-  status       ApprovalStatus  @default(PENDING)
-  decidedBy    String?         @map("decided_by") @db.Uuid
-  decidedAt    DateTime?       @map("decided_at")
-  reason       String?         @db.Text
-  payload      Json?
-  createdAt    DateTime        @default(now()) @map("created_at")
-  updatedAt    DateTime        @updatedAt @map("updated_at")
+  id                String          @id @default(uuid()) @db.Uuid
+  orgId             String          @map("org_id") @db.Uuid
+  resource          String          @db.VarChar(100)
+  resourceId        String          @map("resource_id") @db.Uuid
+  requestedBy       String          @map("requested_by") @db.Uuid
+  status            ApprovalStatus  @default(PENDING)
+  decidedBy         String?         @map("decided_by") @db.Uuid
+  decidedAt         DateTime?       @map("decided_at")
+  reason            String?         @db.Text
+  payload           Json?
+  recipeId          String?         @map("recipe_id") @db.Uuid
+  requiredApprovers Int             @default(1) @map("required_approvers")
+  approvalsReceived Int             @default(0) @map("approvals_received")
+  createdAt         DateTime        @default(now()) @map("created_at")
+  updatedAt         DateTime        @updatedAt @map("updated_at")
 
   org       Organization      @relation(fields: [orgId], references: [id], onDelete: Cascade)
   requester User              @relation("approvalRequests", fields: [requestedBy], references: [id])
   decider   User?             @relation("approvalDecisions", fields: [decidedBy], references: [id])
   comments  ApprovalComment[]
+  votes     ApprovalVote[]
 
   @@index([orgId, status])
   @@index([resource, resourceId])
@@ -458,6 +489,56 @@ model ApprovalComment {
 
   @@index([requestId])
   @@map("approval_comments")
+}
+
+// ─── Configurable Approval Recipes (Phase C) ───
+
+model WorkflowRecipe {
+  id                String   @id @default(uuid()) @db.Uuid
+  code              String   @unique @db.VarChar(50)
+  name              String   @db.VarChar(100)
+  description       String?  @db.Text
+  requiredApprovers Int      @map("required_approvers")
+  isActive          Boolean  @default(true) @map("is_active")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  orgEnablements OrgWorkflowEnablement[]
+
+  @@map("workflow_recipes")
+}
+
+model OrgWorkflowEnablement {
+  id           String   @id @default(uuid()) @db.Uuid
+  orgId        String   @map("org_id") @db.Uuid
+  resourceType String   @map("resource_type") @db.VarChar(50)
+  recipeId     String   @map("recipe_id") @db.Uuid
+  enabledAt    DateTime @default(now()) @map("enabled_at")
+  enabledBy    String   @map("enabled_by") @db.Uuid
+
+  org     Organization   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  recipe  WorkflowRecipe @relation(fields: [recipeId], references: [id])
+  enabler User           @relation("workflowEnabler", fields: [enabledBy], references: [id])
+
+  @@unique([orgId, resourceType])
+  @@index([orgId])
+  @@map("org_workflow_enablements")
+}
+
+model ApprovalVote {
+  id        String   @id @default(uuid()) @db.Uuid
+  requestId String   @map("request_id") @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  decision  String   @db.VarChar(20)
+  reason    String?  @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+
+  request ApprovalRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  user    User            @relation("approvalVotes", fields: [userId], references: [id])
+
+  @@unique([requestId, userId])
+  @@index([requestId])
+  @@map("approval_votes")
 }
 
 // ─── ESG Frameworks (AV4-211) ───

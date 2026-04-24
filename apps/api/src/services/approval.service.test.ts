@@ -10,11 +10,20 @@ const { mockPrisma } = vi.hoisted(() => ({
       findFirst: vi.fn(),
       findUnique: vi.fn(),
       findMany: vi.fn(),
+      update: vi.fn(),
       updateMany: vi.fn(),
       count: vi.fn(),
     },
     approvalComment: {
       create: vi.fn(),
+    },
+    approvalVote: {
+      create: vi.fn(),
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
+    },
+    orgWorkflowEnablement: {
+      findUnique: vi.fn(),
     },
     auditLog: {
       create: vi.fn(),
@@ -85,6 +94,9 @@ describe('listApprovals', () => {
         decidedAt: null,
         reason: null,
         payload: null,
+        recipeId: null,
+        requiredApprovers: 1,
+        approvalsReceived: 0,
         createdAt: new Date('2026-03-01T00:00:00Z'),
         updatedAt: new Date('2026-03-01T00:00:00Z'),
       },
@@ -122,7 +134,10 @@ describe('submitApproval', () => {
     vi.clearAllMocks();
   });
 
-  it('creates a PENDING row and records an audit log', async () => {
+  it('resolves the recipe quorum and stamps it onto the new row', async () => {
+    // No recipe enabled → fall back to the platform default of 1 approver.
+    mockPrisma.orgWorkflowEnablement.findUnique.mockResolvedValue(null);
+
     mockPrisma.approvalRequest.create.mockResolvedValue({
       id: 'a1',
       orgId: 'org-1',
@@ -130,6 +145,9 @@ describe('submitApproval', () => {
       resourceId: 'e1',
       requestedBy: 'user-1',
       status: 'PENDING',
+      recipeId: null,
+      requiredApprovers: 1,
+      approvalsReceived: 0,
       createdAt: new Date(),
       updatedAt: new Date(),
     });
@@ -144,13 +162,15 @@ describe('submitApproval', () => {
     });
 
     expect(mockPrisma.approvalRequest.create).toHaveBeenCalledWith({
-      data: {
+      data: expect.objectContaining({
         orgId: 'org-1',
         requestedBy: 'user-1',
         resource: 'emissions_record',
         resourceId: 'e1',
+        recipeId: null,
+        requiredApprovers: 1,
         payload: { note: 'please review' },
-      },
+      }),
     });
     expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
       data: expect.objectContaining({
@@ -162,6 +182,40 @@ describe('submitApproval', () => {
       }),
     });
     expect(result.id).toBe('a1');
+  });
+
+  it('picks up the enabled recipe quorum when one exists', async () => {
+    mockPrisma.orgWorkflowEnablement.findUnique.mockResolvedValue({
+      recipeId: 'recipe-2',
+      recipe: { requiredApprovers: 2 },
+    });
+    mockPrisma.approvalRequest.create.mockResolvedValue({
+      id: 'a2',
+      orgId: 'org-1',
+      resource: 'report',
+      resourceId: 'r1',
+      requestedBy: 'user-1',
+      status: 'PENDING',
+      recipeId: 'recipe-2',
+      requiredApprovers: 2,
+      approvalsReceived: 0,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    });
+
+    await submitApproval({
+      orgId: 'org-1',
+      requestedBy: 'user-1',
+      resource: 'report',
+      resourceId: 'r1',
+    });
+
+    expect(mockPrisma.approvalRequest.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        recipeId: 'recipe-2',
+        requiredApprovers: 2,
+      }),
+    });
   });
 });
 
@@ -188,9 +242,9 @@ describe('decideApproval', () => {
       id: 'a1',
       orgId: 'org-1',
       status: 'APPROVED',
+      requiredApprovers: 1,
+      approvalsReceived: 1,
     });
-    // updateMany returns 0 because the status filter (=PENDING) doesn't match.
-    mockPrisma.approvalRequest.updateMany.mockResolvedValue({ count: 0 });
 
     const err = await decideApproval({
       id: 'a1',
@@ -201,47 +255,154 @@ describe('decideApproval', () => {
 
     expect(err).toBeInstanceOf(AppError);
     expect((err as AppError).status).toBe(409);
+    expect(mockPrisma.approvalVote.create).not.toHaveBeenCalled();
   });
 
-  it('updates the row atomically and records an audit log on success', async () => {
+  it('throws 409 when the approver has already voted', async () => {
     mockPrisma.approvalRequest.findFirst.mockResolvedValue({
       id: 'a1',
       orgId: 'org-1',
       status: 'PENDING',
+      requiredApprovers: 2,
+      approvalsReceived: 0,
     });
-    mockPrisma.approvalRequest.updateMany.mockResolvedValue({ count: 1 });
-    mockPrisma.approvalRequest.findUnique.mockResolvedValue({
+    mockPrisma.approvalVote.findUnique.mockResolvedValue({
+      id: 'v1',
+      requestId: 'a1',
+      userId: 'user-2',
+      decision: 'APPROVED',
+    });
+
+    const err = await decideApproval({
       id: 'a1',
       orgId: 'org-1',
+      deciderId: 'user-2',
       status: 'APPROVED',
+    }).catch((e: unknown) => e);
+
+    expect(err).toBeInstanceOf(AppError);
+    expect((err as AppError).status).toBe(409);
+    expect(mockPrisma.approvalVote.create).not.toHaveBeenCalled();
+  });
+
+  it('flips to REJECTED on the first rejection vote (any-one fails quorum)', async () => {
+    mockPrisma.approvalRequest.findFirst.mockResolvedValue({
+      id: 'a1',
+      orgId: 'org-1',
+      status: 'PENDING',
+      requiredApprovers: 3,
+      approvalsReceived: 1,
+    });
+    mockPrisma.approvalVote.findUnique.mockResolvedValue(null);
+    mockPrisma.approvalVote.create.mockResolvedValue({ id: 'v2' });
+    mockPrisma.approvalRequest.update.mockResolvedValue({
+      id: 'a1',
+      status: 'REJECTED',
       decidedBy: 'user-2',
       decidedAt: new Date(),
     });
-    mockPrisma.auditLog.create.mockResolvedValue({});
 
     const result = await decideApproval({
       id: 'a1',
       orgId: 'org-1',
       deciderId: 'user-2',
+      status: 'REJECTED',
+      reason: 'data is off',
+    });
+
+    expect(mockPrisma.approvalVote.create).toHaveBeenCalledWith({
+      data: {
+        requestId: 'a1',
+        userId: 'user-2',
+        decision: 'REJECTED',
+        reason: 'data is off',
+      },
+    });
+    expect(mockPrisma.approvalRequest.update).toHaveBeenCalledWith({
+      where: { id: 'a1' },
+      data: expect.objectContaining({
+        status: 'REJECTED',
+        decidedBy: 'user-2',
+        reason: 'data is off',
+      }),
+    });
+    expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'approval.rejected' }),
+    });
+    expect(result.status).toBe('REJECTED');
+  });
+
+  it('increments the tally without flipping when quorum not yet reached', async () => {
+    mockPrisma.approvalRequest.findFirst.mockResolvedValue({
+      id: 'a1',
+      orgId: 'org-1',
+      status: 'PENDING',
+      requiredApprovers: 3,
+      approvalsReceived: 1,
+    });
+    mockPrisma.approvalVote.findUnique.mockResolvedValue(null);
+    mockPrisma.approvalVote.create.mockResolvedValue({ id: 'v3' });
+    mockPrisma.approvalRequest.update.mockResolvedValue({
+      id: 'a1',
+      status: 'PENDING',
+      approvalsReceived: 2,
+      requiredApprovers: 3,
+    });
+
+    const result = await decideApproval({
+      id: 'a1',
+      orgId: 'org-1',
+      deciderId: 'user-3',
+      status: 'APPROVED',
+    });
+
+    const updateArgs = mockPrisma.approvalRequest.update.mock.calls[0]?.[0] as
+      | { data: Record<string, unknown> }
+      | undefined;
+    expect(updateArgs?.data.approvalsReceived).toBe(2);
+    // Should NOT have flipped status.
+    expect(updateArgs?.data.status).toBeUndefined();
+    expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
+      data: expect.objectContaining({ action: 'approval.vote_cast' }),
+    });
+    expect(result.status).toBe('PENDING');
+  });
+
+  it('flips to APPROVED when the final approving vote reaches the quorum', async () => {
+    mockPrisma.approvalRequest.findFirst.mockResolvedValue({
+      id: 'a1',
+      orgId: 'org-1',
+      status: 'PENDING',
+      requiredApprovers: 2,
+      approvalsReceived: 1,
+    });
+    mockPrisma.approvalVote.findUnique.mockResolvedValue(null);
+    mockPrisma.approvalVote.create.mockResolvedValue({ id: 'v4' });
+    mockPrisma.approvalRequest.update.mockResolvedValue({
+      id: 'a1',
+      status: 'APPROVED',
+      approvalsReceived: 2,
+      requiredApprovers: 2,
+      decidedBy: 'user-4',
+      decidedAt: new Date(),
+    });
+
+    const result = await decideApproval({
+      id: 'a1',
+      orgId: 'org-1',
+      deciderId: 'user-4',
       status: 'APPROVED',
       reason: 'looks good',
     });
 
-    expect(mockPrisma.approvalRequest.updateMany).toHaveBeenCalledWith({
-      where: { id: 'a1', orgId: 'org-1', status: 'PENDING' },
-      data: {
-        status: 'APPROVED',
-        decidedBy: 'user-2',
-        decidedAt: expect.any(Date),
-        reason: 'looks good',
-      },
-    });
+    const updateArgs = mockPrisma.approvalRequest.update.mock.calls[0]?.[0] as
+      | { data: Record<string, unknown> }
+      | undefined;
+    expect(updateArgs?.data.status).toBe('APPROVED');
+    expect(updateArgs?.data.approvalsReceived).toBe(2);
+    expect(updateArgs?.data.decidedBy).toBe('user-4');
     expect(mockPrisma.auditLog.create).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        action: 'approval.approved',
-        resource: 'approval_request',
-        resourceId: 'a1',
-      }),
+      data: expect.objectContaining({ action: 'approval.approved' }),
     });
     expect(result.status).toBe('APPROVED');
   });

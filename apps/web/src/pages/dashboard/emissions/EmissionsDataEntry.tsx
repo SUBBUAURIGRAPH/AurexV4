@@ -1,4 +1,5 @@
 import { useState, useMemo, useCallback } from 'react';
+import { useResolvedMapping } from '../../../hooks/useCategoryMapping';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
@@ -247,6 +248,9 @@ export function EmissionsDataEntry() {
             error={errors.category}
           />
 
+          {/* Framework indicator mapping — resolved from category */}
+          <MappingBadge scope={scope} category={category} />
+
           {/* Row 2: Source + Emission Factor */}
           <Input
             label="Source Name"
@@ -362,4 +366,82 @@ export function EmissionsDataEntry() {
       </Card>
     </div>
   );
+}
+
+// ─── Category → Framework indicator badge ──────────────────────────────
+
+function MappingBadge({ scope, category }: { scope: string; category: string }) {
+  const { data, isLoading } = useResolvedMapping(scope || null, category || null);
+  if (!scope || !category) return null;
+
+  const mapping = data?.data;
+
+  if (isLoading) {
+    return (
+      <div style={mappingBadgeStyle}>
+        <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>Resolving indicators…</span>
+      </div>
+    );
+  }
+
+  if (!mapping) {
+    return (
+      <div style={{ ...mappingBadgeStyle, borderColor: 'rgba(245,158,11,0.3)', backgroundColor: 'rgba(245,158,11,0.04)' }}>
+        <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#f59e0b' }}>No mapping configured</span>
+        <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+          This entry won't roll up into any framework report. Ask your admin to configure a mapping under Reference Data.
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div style={mappingBadgeStyle}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', marginBottom: '0.25rem' }}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <polyline points="20 6 9 17 4 12" />
+        </svg>
+        <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#10b981', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+          Rolls up to {mapping.esgIndicatorCodes.length + mapping.brsrIndicatorCodes.length} indicator{mapping.esgIndicatorCodes.length + mapping.brsrIndicatorCodes.length === 1 ? '' : 's'}
+        </span>
+        {!mapping.isDefault && (
+          <span style={{ fontSize: '0.6875rem', fontWeight: 600, padding: '0.1rem 0.4rem', borderRadius: '0.25rem', backgroundColor: 'rgba(139,92,246,0.12)', color: '#8b5cf6' }}>
+            Org override
+          </span>
+        )}
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.3rem' }}>
+        {mapping.esgIndicatorCodes.map((code) => (
+          <span key={`esg-${code}`} style={codeChipStyle('#1a5d3d')}>{code}</span>
+        ))}
+        {mapping.brsrIndicatorCodes.map((code) => (
+          <span key={`brsr-${code}`} style={codeChipStyle('#0ea5e9')}>{code}</span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+const mappingBadgeStyle: React.CSSProperties = {
+  gridColumn: '1 / -1',
+  padding: '0.625rem 0.875rem',
+  backgroundColor: 'rgba(16,185,129,0.04)',
+  border: '1px solid rgba(16,185,129,0.2)',
+  borderRadius: '0.5rem',
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '0.2rem',
+};
+
+function codeChipStyle(color: string): React.CSSProperties {
+  return {
+    fontSize: '0.6875rem',
+    fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+    fontWeight: 600,
+    padding: '0.1rem 0.45rem',
+    borderRadius: '0.25rem',
+    backgroundColor: `${color}15`,
+    color,
+    border: `1px solid ${color}30`,
+  };
 }

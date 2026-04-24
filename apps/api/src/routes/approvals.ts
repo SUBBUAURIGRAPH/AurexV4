@@ -141,3 +141,21 @@ approvalsRouter.post('/:id/comments', async (req, res, next) => {
     next(err);
   }
 });
+
+/**
+ * GET /:id/votes — list the individual votes cast on a request.
+ * Used by the approvals detail panel to show the quorum progress.
+ */
+approvalsRouter.get(
+  '/:id/votes',
+  requireOrgRole(...INBOX_ROLES),
+  async (req, res, next) => {
+    try {
+      const id = req.params.id as string;
+      const rows = await approvalService.getVotes(id, req.orgId!);
+      res.json({ data: rows });
+    } catch (err) {
+      next(err);
+    }
+  },
+);

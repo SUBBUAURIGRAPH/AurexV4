@@ -11,6 +11,7 @@ const pageTitles: Record<string, string> = {
   '/emissions/import': 'Bulk Upload',
   '/frameworks': 'ESG Frameworks',
   '/brsr': 'BRSR Builder',
+  '/suppliers': 'Suppliers',
   '/reports': 'Reports',
   '/teams': 'Teams and Access',
   '/integrations': 'Integrations',

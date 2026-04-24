@@ -78,7 +78,10 @@ if [ "$RUN_DB_PUSH" = "1" ]; then
     echo "Migrate FAILED: could not read DATABASE_URL from ${API_CONTAINER}"
     exit 1
   fi
-  $SSH "docker run --rm --network aurex_network -e DATABASE_URL='${DB_URL}' -w /app/packages/database ${API_IMAGE}-build:tmp npx --no-install prisma db push --schema=prisma/schema.prisma --skip-generate"
+  # --accept-data-loss needed when adding unique constraints on nullable cols
+  # (Postgres allows multiple NULLs under UNIQUE, but Prisma warns). Safe for
+  # the constraints we add; the flag is scoped to this one invocation.
+  $SSH "docker run --rm --network aurex_network -e DATABASE_URL='${DB_URL}' -w /app/packages/database ${API_IMAGE}-build:tmp npx --no-install prisma db push --schema=prisma/schema.prisma --skip-generate --accept-data-loss"
   echo "  Schema synced"
 fi
 

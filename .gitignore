@@ -52,3 +52,7 @@ Thumbs.db
 
 # Claude Code agent worktrees (commands/ is versioned; worktrees/ is local)
 .claude/worktrees/
+.claude/scheduled_tasks.lock
+
+# Vite dev-server timestamp artifacts
+vite.config.ts.timestamp-*.mjs

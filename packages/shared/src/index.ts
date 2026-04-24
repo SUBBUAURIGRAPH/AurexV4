@@ -66,6 +66,10 @@ export {
   type AddApprovalCommentInput,
 } from './schemas/approvals.js';
 export {
+  enableRecipeSchema,
+  type EnableRecipeInput,
+} from './schemas/workflows.js';
+export {
   listFrameworksQuerySchema,
   listIndicatorsQuerySchema,
   createFrameworkSchema,
