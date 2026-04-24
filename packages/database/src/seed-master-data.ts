@@ -662,7 +662,7 @@ async function seedE2eAdminUser() {
   await prisma.organization.upsert({
     where: { id: ORG_ID },
     update: { name: ORG_NAME, isActive: true },
-    create: { id: ORG_ID, name: ORG_NAME, isActive: true },
+    create: { id: ORG_ID, name: ORG_NAME, slug: 'e2e-test-org', isActive: true },
   });
 
   // Upsert user
