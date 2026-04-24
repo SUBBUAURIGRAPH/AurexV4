@@ -187,5 +187,5 @@ export async function updatePreferences(
 }
 
 export async function countUnread(userId: string): Promise<number> {
-  return prisma.notification.count({ where: { userId, isRead: false } });
+  return prisma.notification.count({ where: { userId, readAt: null } });
 }
