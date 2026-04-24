@@ -5,9 +5,13 @@
   "type": "module",
   "description": "AV4-339: End-to-end test harness for the full Article 6.4 / PACM activity lifecycle. Scenarios 1-7 (Phase A+B) shipped; 8-10 stubbed as it.todo pending Phase C.",
   "scripts": {
-    "test:a6.4:e2e": "vitest run --config vitest.config.ts"
+    "test": "vitest run --config vitest.config.ts",
+    "test:a6.4:e2e": "vitest run --config vitest.config.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.7.0",
     "vitest": "^2.1.0"
   }
 }
