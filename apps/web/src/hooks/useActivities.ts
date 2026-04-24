@@ -27,6 +27,27 @@ export interface Methodology {
   isActive: boolean;
 }
 
+export interface MonitoringParameter {
+  id: string;
+  code: string;
+  name: string;
+  unit: string;
+  measurementMethod: 'DIRECT' | 'CALCULATED' | 'DEFAULT' | 'ESTIMATED';
+  frequency: string;
+  equipment: string | null;
+  uncertaintyPct: string | number | null;
+}
+
+export interface MonitoringPlan {
+  id: string;
+  activityId: string;
+  version: number;
+  qaqcNotes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  parameters: MonitoringParameter[];
+}
+
 export interface Activity {
   id: string;
   orgId: string;
@@ -53,6 +74,7 @@ export interface Activity {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  monitoringPlan?: MonitoringPlan | null;
 }
 
 export interface CreateActivityInput {
