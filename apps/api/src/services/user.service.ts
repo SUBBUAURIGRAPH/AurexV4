@@ -19,9 +19,19 @@ export interface UserResult {
   updatedAt: Date;
 }
 
+// ADM-301: workflow roles (MAKER/CHECKER/APPROVER/AUDITOR) sit between ANALYST
+// and MANAGER in privilege. Any org member can be escalated to a workflow role;
+// only ORG_ADMIN+ can assign ORG_ADMIN or SUPER_ADMIN.
+// Missing entries here caused "Cannot assign a role higher than your own" (403)
+// when an ORG_ADMIN tried to invite a user as MAKER/CHECKER/APPROVER/AUDITOR
+// — the user was never created, surfacing as "can't log in."
 const ROLE_HIERARCHY: Record<string, number> = {
   VIEWER: 0,
   ANALYST: 1,
+  MAKER: 1,
+  CHECKER: 2,
+  AUDITOR: 2,
+  APPROVER: 2,
   MANAGER: 2,
   ORG_ADMIN: 3,
   SUPER_ADMIN: 4,
