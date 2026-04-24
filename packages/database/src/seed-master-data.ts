@@ -706,6 +706,185 @@ async function seedE2eAdminUser() {
   console.log(`  E2E admin user seeded: ${ADMIN_EMAIL}`);
 }
 
+// ─── Article 6.4 Methodologies ────────────────────────────────────────
+// Sample catalogue seeded from UNFCCC Supervisory Body standards.
+// Canonical reference: https://unfccc.int/process-and-meetings/bodies/constituted-bodies/article-64-supervisory-body/rules-and-regulations
+// Extend this list as the SB publishes new methodologies.
+
+const A64_METHODOLOGIES: Array<{
+  code: string;
+  name: string;
+  version: string;
+  category:
+    | 'BASELINE_AND_MONITORING'
+    | 'REMOVAL'
+    | 'SMALL_SCALE'
+    | 'CONSOLIDATED'
+    | 'CDM_TRANSITION';
+  sectoralScope: number | null;
+  summary: string;
+  referenceUrl: string;
+  effectiveFrom: Date;
+}> = [
+  {
+    code: 'A6.4-STAN-METH-004',
+    name: 'Methodology Standard (baseline + additionality + leakage)',
+    version: '01.0',
+    category: 'BASELINE_AND_MONITORING',
+    sectoralScope: null,
+    summary:
+      'Core A6.4 methodology standard: additionality, conservative baselines with mandatory downward adjustment, NDC alignment, leakage treatment, conservativeness principle.',
+    referenceUrl: 'https://unfccc.int/sites/default/files/resource/A6.4-STAN-METH-004.pdf',
+    effectiveFrom: new Date('2024-10-09'),
+  },
+  {
+    code: 'A6.4-STAN-METH-005',
+    name: 'Removals Standard (permanence + buffer pool)',
+    version: '01.0',
+    category: 'REMOVAL',
+    sectoralScope: 14, // AFOLU
+    summary:
+      'Requirements for removal activities: reversal-risk rating, buffer-pool contribution, long-term monitoring obligations, liability on reversal.',
+    referenceUrl: 'https://unfccc.int/sites/default/files/resource/A6.4-STAN-METH-005.pdf',
+    effectiveFrom: new Date('2024-10-09'),
+  },
+  {
+    code: 'A6.4-AM-GRID-RE-001',
+    name: 'Grid-connected renewable electricity generation',
+    version: '01.0',
+    category: 'BASELINE_AND_MONITORING',
+    sectoralScope: 1, // Energy industries
+    summary:
+      'Baseline = grid emission factor (combined margin) × electricity displaced by the renewable plant. Monitoring: metered electricity supplied to grid + grid EF updated annually.',
+    referenceUrl:
+      'https://unfccc.int/process-and-meetings/bodies/constituted-bodies/article-64-supervisory-body/rules-and-regulations',
+    effectiveFrom: new Date('2025-01-01'),
+  },
+  {
+    code: 'A6.4-AM-LANDFILL-CH4-001',
+    name: 'Landfill methane capture and flaring / utilisation',
+    version: '01.0',
+    category: 'BASELINE_AND_MONITORING',
+    sectoralScope: 13, // Waste handling and disposal
+    summary:
+      'Baseline = CH4 emitted without capture per first-order decay model. Project: metered CH4 destroyed (flared) or used (energy). GWP AR6 (CH4 = 27.9).',
+    referenceUrl:
+      'https://unfccc.int/process-and-meetings/bodies/constituted-bodies/article-64-supervisory-body/rules-and-regulations',
+    effectiveFrom: new Date('2025-01-01'),
+  },
+  {
+    code: 'A6.4-AM-COOKSTOVE-001',
+    name: 'Efficient cookstoves replacing non-renewable biomass',
+    version: '01.0',
+    category: 'SMALL_SCALE',
+    sectoralScope: 3, // Energy demand
+    summary:
+      'Baseline = non-renewable biomass burned per household × emission factor. Suppressed-demand adjustment allowed for LDC/SIDS.',
+    referenceUrl:
+      'https://unfccc.int/process-and-meetings/bodies/constituted-bodies/article-64-supervisory-body/rules-and-regulations',
+    effectiveFrom: new Date('2025-01-01'),
+  },
+  {
+    code: 'A6.4-AM-AR-001',
+    name: 'Afforestation and reforestation (AR)',
+    version: '01.0',
+    category: 'REMOVAL',
+    sectoralScope: 14, // AFOLU
+    summary:
+      'Removals = biomass stock change (above-ground + below-ground + deadwood + litter + SOC) − leakage. Buffer pool contribution per reversal risk rating. Minimum 15-year crediting period.',
+    referenceUrl:
+      'https://unfccc.int/process-and-meetings/bodies/constituted-bodies/article-64-supervisory-body/rules-and-regulations',
+    effectiveFrom: new Date('2025-01-01'),
+  },
+  {
+    code: 'A6.4-AM-DAC-001',
+    name: 'Direct air capture and geologic storage',
+    version: '01.0-DRAFT',
+    category: 'REMOVAL',
+    sectoralScope: 1,
+    summary:
+      'Removals = CO2 captured + permanently stored − lifecycle project emissions. Long-term monitoring for leakage from storage site.',
+    referenceUrl:
+      'https://unfccc.int/process-and-meetings/bodies/constituted-bodies/article-64-supervisory-body/rules-and-regulations',
+    effectiveFrom: new Date('2026-01-01'),
+  },
+  {
+    code: 'A6.4-AM-EE-INDUSTRIAL-001',
+    name: 'Industrial energy efficiency (retrofit)',
+    version: '01.0',
+    category: 'BASELINE_AND_MONITORING',
+    sectoralScope: 4, // Manufacturing industries
+    summary:
+      'Baseline = pre-retrofit specific energy consumption × production output. Project = post-retrofit actual consumption.',
+    referenceUrl:
+      'https://unfccc.int/process-and-meetings/bodies/constituted-bodies/article-64-supervisory-body/rules-and-regulations',
+    effectiveFrom: new Date('2025-01-01'),
+  },
+];
+
+async function seedA64Methodologies() {
+  console.log('\n── Article 6.4 Methodologies ──');
+  for (const m of A64_METHODOLOGIES) {
+    await prisma.methodology.upsert({
+      where: { code: m.code },
+      update: {
+        name: m.name,
+        version: m.version,
+        category: m.category as never,
+        sectoralScope: m.sectoralScope,
+        summary: m.summary,
+        referenceUrl: m.referenceUrl,
+        effectiveFrom: m.effectiveFrom,
+        isActive: true,
+      },
+      create: {
+        code: m.code,
+        name: m.name,
+        version: m.version,
+        category: m.category as never,
+        sectoralScope: m.sectoralScope,
+        summary: m.summary,
+        referenceUrl: m.referenceUrl,
+        effectiveFrom: m.effectiveFrom,
+        isActive: true,
+      },
+    });
+  }
+  console.log(`  Methodology: ${A64_METHODOLOGIES.length} rows upserted`);
+}
+
+/// Seed the three SB admin accounts required for the A6.4 levy mechanics.
+/// These are non-org, shared across the entire platform.
+async function seedA64AdminAccounts() {
+  console.log('\n── Article 6.4 SB admin accounts ──');
+  const accounts: Array<{
+    id: string;
+    accountType:
+      | 'ADAPTATION_FUND'
+      | 'OMGE_CANCELLATION'
+      | 'REVERSAL_BUFFER'
+      | 'RETIREMENT_NDC'
+      | 'RETIREMENT_OIMP'
+      | 'RETIREMENT_VOLUNTARY';
+    name: string;
+  }> = [
+    { id: 'a64a0000-0000-4000-8000-000000000001', accountType: 'ADAPTATION_FUND',      name: 'Adaptation Fund (SOP 5%)' },
+    { id: 'a64a0000-0000-4000-8000-000000000002', accountType: 'OMGE_CANCELLATION',    name: 'OMGE Cancellation (2%)' },
+    { id: 'a64a0000-0000-4000-8000-000000000003', accountType: 'REVERSAL_BUFFER',      name: 'Reversal Risk Buffer Pool' },
+    { id: 'a64a0000-0000-4000-8000-000000000004', accountType: 'RETIREMENT_NDC',       name: 'Retirement — NDC use' },
+    { id: 'a64a0000-0000-4000-8000-000000000005', accountType: 'RETIREMENT_OIMP',      name: 'Retirement — OIMP (CORSIA etc.)' },
+    { id: 'a64a0000-0000-4000-8000-000000000006', accountType: 'RETIREMENT_VOLUNTARY', name: 'Retirement — voluntary' },
+  ];
+  for (const a of accounts) {
+    await prisma.creditAccount.upsert({
+      where: { id: a.id },
+      update: { accountType: a.accountType as never, name: a.name, isActive: true },
+      create: { id: a.id, accountType: a.accountType as never, name: a.name, isActive: true },
+    });
+  }
+  console.log(`  CreditAccount (admin): ${accounts.length} rows upserted`);
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────
 
 async function main() {
@@ -715,6 +894,8 @@ async function main() {
   await seedBrsr();
   await seedCategoryMappings();
   await seedWorkflowRecipes();
+  await seedA64Methodologies();
+  await seedA64AdminAccounts();
   if (process.env.E2E_SEED === '1') {
     await seedE2eAdminUser();
   }

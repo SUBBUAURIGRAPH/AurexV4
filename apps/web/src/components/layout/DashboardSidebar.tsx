@@ -106,6 +106,24 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    label: 'Activities',
+    path: '/activities',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 3h18v18H3z" /><path d="M3 9h18" /><path d="M9 21V9" />
+      </svg>
+    ),
+  },
+  {
+    label: 'Credits',
+    path: '/credits',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" /><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" /><path d="M12 6v2" /><path d="M12 16v2" />
+      </svg>
+    ),
+  },
+  {
     label: 'BRSR',
     path: '/brsr',
     icon: (

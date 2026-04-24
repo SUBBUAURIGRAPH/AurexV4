@@ -27,12 +27,15 @@ export interface UserResult {
 // — the user was never created, surfacing as "can't log in."
 const ROLE_HIERARCHY: Record<string, number> = {
   VIEWER: 0,
+  SB_OBSERVER: 0, // A6.4: read-only registry view (lowest privilege)
   ANALYST: 1,
   MAKER: 1,
   CHECKER: 2,
   AUDITOR: 2,
   APPROVER: 2,
   MANAGER: 2,
+  DOE: 2,         // A6.4: Designated Operational Entity (validator/verifier)
+  DNA: 3,         // A6.4: Designated National Authority (host-country gov)
   ORG_ADMIN: 3,
   SUPER_ADMIN: 4,
 };

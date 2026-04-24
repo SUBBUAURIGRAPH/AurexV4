@@ -112,6 +112,10 @@ model Organization {
   categoryMappings   CategoryMapping[]
   workflowEnablements OrgWorkflowEnablement[]
 
+  // A6.4 (Paris Agreement Crediting Mechanism) back-relations
+  activities         Activity[]
+  creditAccounts     CreditAccount[]
+
   @@index([parentOrgId])
   @@map("organizations")
 }
@@ -370,6 +374,10 @@ enum Role {
   CHECKER     @map("checker")
   APPROVER    @map("approver")
   AUDITOR     @map("auditor")
+  // A6.4 / PACM actors (ADM-060 gap-analysis addition)
+  DOE         @map("doe")          // Designated Operational Entity (third-party validator/verifier)
+  DNA         @map("dna")          // Designated National Authority (host-country approver)
+  SB_OBSERVER @map("sb_observer")  // Supervisory Body observer (read-only registry view)
 }
 
 enum AuthEventType {
@@ -742,4 +750,456 @@ model SupplierDataRequest {
   @@index([orgId])
   @@index([status])
   @@map("supplier_data_requests")
+}
+
+// ─── Article 6.4 / PACM (Paris Agreement Crediting Mechanism) ───────────
+// Rulebook: FCCC/PA/CMA/2021/10/Add.1 (Decision 3/CMA.3) + SB standards.
+// Gap-analysis addition per /Users/subbujois/.claude/plans/tidy-soaring-pancake.md
+
+/// Approved methodology from UNFCCC Supervisory Body (A6.4-STAN-METH-*).
+/// Read-only catalogue seeded from UNFCCC registry; not user-editable.
+model Methodology {
+  id              String   @id @default(uuid()) @db.Uuid
+  code            String   @unique @db.VarChar(100) // e.g. "A6.4-STAN-METH-004"
+  name            String   @db.VarChar(255)
+  version         String   @db.VarChar(32)
+  category        MethodologyCategory
+  sectoralScope   Int? // 1-15 per UNFCCC sectoral scopes
+  summary         String?  @db.Text
+  referenceUrl    String?  @map("reference_url") @db.VarChar(500)
+  effectiveFrom   DateTime @map("effective_from")
+  supersededAt    DateTime? @map("superseded_at")
+  isActive        Boolean  @default(true) @map("is_active")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  activities Activity[]
+
+  @@index([category, isActive])
+  @@map("methodologies")
+}
+
+enum MethodologyCategory {
+  BASELINE_AND_MONITORING @map("baseline_and_monitoring")
+  REMOVAL                 @map("removal")
+  SMALL_SCALE             @map("small_scale")
+  CONSOLIDATED            @map("consolidated")
+  CDM_TRANSITION          @map("cdm_transition")
+}
+
+/// An A6.4 mitigation activity (project or programme of activities).
+/// Project-level, NOT org-level — this is the key distinction from
+/// EmissionsRecord which is an org-wide inventory entry.
+model Activity {
+  id                  String   @id @default(uuid()) @db.Uuid
+  orgId               String   @map("org_id") @db.Uuid
+  methodologyId       String   @map("methodology_id") @db.Uuid
+  title               String   @db.VarChar(255)
+  description         String?  @db.Text
+  hostCountry         String   @map("host_country") @db.VarChar(2) // ISO-3166 alpha-2
+  sectoralScope       Int      @map("sectoral_scope") // 1-15 per UNFCCC
+  technologyType      String   @map("technology_type") @db.VarChar(100)
+  geoBoundary         Json?    @map("geo_boundary") // GeoJSON polygon / MultiPolygon
+  gasesCovered        String[] @map("gases_covered") // ["CO2","CH4","N2O","HFCs","PFCs","SF6","NF3"]
+  creditingPeriodType ActivityCreditingPeriodType @map("crediting_period_type")
+  creditingPeriodStart DateTime? @map("crediting_period_start")
+  creditingPeriodEnd   DateTime? @map("crediting_period_end")
+  renewalCount         Int      @default(0) @map("renewal_count")
+  expectedAnnualEr     Decimal? @map("expected_annual_er") @db.Decimal(18, 3) // tCO2e/yr
+  status              ActivityStatus @default(DRAFT)
+  isRemoval           Boolean  @default(false) @map("is_removal") // triggers buffer pool reqs
+  cdmTransition       Boolean  @default(false) @map("cdm_transition") // legacy CDM migrating
+  cdmReference        String?  @map("cdm_reference") @db.VarChar(50) // e.g. "CDM-1234"
+  submittedAt         DateTime? @map("submitted_at")
+  registeredAt        DateTime? @map("registered_at")
+  closedAt            DateTime? @map("closed_at")
+  createdBy           String   @map("created_by") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  org            Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  methodology    Methodology         @relation(fields: [methodologyId], references: [id])
+  pdd            Pdd?
+  hostAuthorization HostAuthorization?
+  validationReport  ValidationReport?
+  monitoringPlan    MonitoringPlan?
+  monitoringPeriods MonitoringPeriod[]
+  issuances         Issuance[]
+  creditAccount     CreditAccount?
+
+  @@index([orgId, status])
+  @@index([methodologyId])
+  @@index([hostCountry])
+  @@map("activities")
+}
+
+enum ActivityCreditingPeriodType {
+  RENEWABLE_5YR  @map("renewable_5yr")   // up to 3 × 5yr (15yr max)
+  FIXED_10YR     @map("fixed_10yr")
+  REMOVAL_15YR   @map("removal_15yr")    // removals: up to 3 × 15yr (45yr max)
+}
+
+enum ActivityStatus {
+  DRAFT              @map("draft")
+  SUBMITTED          @map("submitted")
+  VALIDATING         @map("validating")
+  VALIDATED          @map("validated")
+  AWAITING_HOST      @map("awaiting_host")      // waiting on LoA
+  REGISTERED         @map("registered")
+  ISSUING            @map("issuing")
+  CLOSED             @map("closed")
+  REJECTED           @map("rejected")
+}
+
+/// Project Design Document (PDD) — narrative + technical spec per activity.
+model Pdd {
+  id            String   @id @default(uuid()) @db.Uuid
+  activityId    String   @unique @map("activity_id") @db.Uuid
+  version       Int      @default(1)
+  content       Json     // structured PDD: boundary, baseline narrative, add'y analysis, etc.
+  documentUrl   String?  @map("document_url") @db.VarChar(500)
+  submittedAt   DateTime? @map("submitted_at")
+  submittedBy   String?   @map("submitted_by") @db.Uuid
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@map("pdds")
+}
+
+/// Letter of Authorization (LoA) from host-country DNA.
+/// Authorization granularity per Article 6.4 is activity-level.
+model HostAuthorization {
+  id               String   @id @default(uuid()) @db.Uuid
+  activityId       String   @unique @map("activity_id") @db.Uuid
+  hostCountry      String   @map("host_country") @db.VarChar(2)
+  dnaName          String   @map("dna_name") @db.VarChar(255)
+  authorizedFor    AuthorizationScope @map("authorized_for")
+  authorizationScopeNotes String? @map("authorization_scope_notes") @db.Text
+  status           HostAuthorizationStatus @default(PENDING)
+  issuedAt         DateTime? @map("issued_at")
+  issuedBy         String?   @map("issued_by") @db.Uuid // the DNA user id who signed
+  documentUrl      String?   @map("document_url") @db.VarChar(500)
+  validFrom        DateTime? @map("valid_from")
+  validUntil       DateTime? @map("valid_until")
+  revokedAt        DateTime? @map("revoked_at")
+  revokedReason    String?   @map("revoked_reason") @db.Text
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@map("host_authorizations")
+}
+
+enum AuthorizationScope {
+  NDC_USE   @map("ndc_use")      // authorized for buyer NDC (→ CA applies on first transfer)
+  OIMP      @map("oimp")         // Other International Mitigation Purposes (e.g. CORSIA)
+  NDC_AND_OIMP @map("ndc_and_oimp")
+  MITIGATION_CONTRIBUTION @map("mitigation_contribution") // A6.4ER_MC — no international transfer, no CA
+}
+
+enum HostAuthorizationStatus {
+  PENDING   @map("pending")
+  ISSUED    @map("issued")
+  REVOKED   @map("revoked")    // only valid pre-first-transfer
+  EXPIRED   @map("expired")
+}
+
+/// DOE validation of a PDD — ex-ante check that the activity meets A6.4 rules.
+model ValidationReport {
+  id             String   @id @default(uuid()) @db.Uuid
+  activityId     String   @unique @map("activity_id") @db.Uuid
+  doeUserId      String   @map("doe_user_id") @db.Uuid
+  doeOrgName     String   @map("doe_org_name") @db.VarChar(255)
+  doeAccreditationId String? @map("doe_accreditation_id") @db.VarChar(100)
+  opinion        DoeOpinion
+  findings       Json?    // structured findings list
+  documentUrl    String?  @map("document_url") @db.VarChar(500)
+  validatedAt    DateTime @map("validated_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+
+  @@map("validation_reports")
+}
+
+enum DoeOpinion {
+  POSITIVE     @map("positive")
+  NEGATIVE     @map("negative")
+  CONDITIONAL  @map("conditional")
+}
+
+/// Monitoring plan — one per activity.
+model MonitoringPlan {
+  id          String   @id @default(uuid()) @db.Uuid
+  activityId  String   @unique @map("activity_id") @db.Uuid
+  version     Int      @default(1)
+  qaqcNotes   String?  @map("qaqc_notes") @db.Text
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  activity   Activity              @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  parameters MonitoringParameter[]
+
+  @@map("monitoring_plans")
+}
+
+model MonitoringParameter {
+  id             String   @id @default(uuid()) @db.Uuid
+  planId         String   @map("plan_id") @db.Uuid
+  code           String   @db.VarChar(64) // e.g. "EC_y" (electricity consumption year y)
+  name           String   @db.VarChar(255)
+  unit           String   @db.VarChar(32)
+  measurementMethod MeasurementMethod @map("measurement_method")
+  frequency      String   @db.VarChar(64) // "continuous" | "daily" | "monthly" | "annual" | campaign text
+  equipment      String?  @db.Text
+  uncertaintyPct Decimal? @map("uncertainty_pct") @db.Decimal(6, 3)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  plan       MonitoringPlan       @relation(fields: [planId], references: [id], onDelete: Cascade)
+  datapoints MonitoringDatapoint[]
+
+  @@unique([planId, code])
+  @@map("monitoring_parameters")
+}
+
+enum MeasurementMethod {
+  DIRECT      @map("direct")       // metered
+  CALCULATED  @map("calculated")   // derived from measured inputs
+  DEFAULT     @map("default")      // IPCC / grid default factor
+  ESTIMATED   @map("estimated")    // expert judgement
+}
+
+/// A period the activity is monitored over; one verification report per period.
+model MonitoringPeriod {
+  id          String   @id @default(uuid()) @db.Uuid
+  activityId  String   @map("activity_id") @db.Uuid
+  periodStart DateTime @map("period_start")
+  periodEnd   DateTime @map("period_end")
+  status      MonitoringPeriodStatus @default(OPEN)
+  submittedAt DateTime? @map("submitted_at")
+  submittedBy String?   @map("submitted_by") @db.Uuid
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  activity           Activity            @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  datapoints         MonitoringDatapoint[]
+  verificationReport VerificationReport?
+  issuance           Issuance?
+
+  @@index([activityId, periodStart])
+  @@map("monitoring_periods")
+}
+
+enum MonitoringPeriodStatus {
+  OPEN        @map("open")
+  SUBMITTED   @map("submitted")
+  VERIFYING   @map("verifying")
+  VERIFIED    @map("verified")
+  ISSUED      @map("issued")
+  REJECTED    @map("rejected")
+}
+
+/// Raw measurement within a monitoring period.
+model MonitoringDatapoint {
+  id           String   @id @default(uuid()) @db.Uuid
+  periodId     String   @map("period_id") @db.Uuid
+  parameterId  String   @map("parameter_id") @db.Uuid
+  timestamp    DateTime
+  rawValue     Decimal  @map("raw_value") @db.Decimal(24, 6)
+  adjustedValue Decimal? @map("adjusted_value") @db.Decimal(24, 6)
+  provenance   DataProvenance
+  sourceRef    String?  @map("source_ref") @db.VarChar(500) // meter-id / invoice-id / satellite-tile / form-id
+  uncertaintyPct Decimal? @map("uncertainty_pct") @db.Decimal(6, 3)
+  notes        String?  @db.Text
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  period    MonitoringPeriod   @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  parameter MonitoringParameter @relation(fields: [parameterId], references: [id])
+
+  @@index([periodId, timestamp])
+  @@map("monitoring_datapoints")
+}
+
+enum DataProvenance {
+  METER      @map("meter")
+  INVOICE    @map("invoice")
+  SATELLITE  @map("satellite")
+  SURVEY     @map("survey")
+  LABORATORY @map("laboratory")
+  CALCULATED @map("calculated")
+}
+
+/// DOE verification of a monitoring period — ex-post check of actual ER.
+model VerificationReport {
+  id                  String   @id @default(uuid()) @db.Uuid
+  periodId            String   @unique @map("period_id") @db.Uuid
+  doeUserId           String   @map("doe_user_id") @db.Uuid
+  doeOrgName          String   @map("doe_org_name") @db.VarChar(255)
+  doeAccreditationId  String?  @map("doe_accreditation_id") @db.VarChar(100)
+  methodologyVersion  String   @map("methodology_version") @db.VarChar(32)
+  baselineEmissions   Decimal  @map("baseline_emissions") @db.Decimal(18, 3) // tCO2e
+  projectEmissions    Decimal  @map("project_emissions") @db.Decimal(18, 3)
+  leakageEmissions    Decimal  @map("leakage_emissions") @db.Decimal(18, 3)
+  verifiedEr          Decimal  @map("verified_er") @db.Decimal(18, 3) // = baseline − project − leakage (or removal form)
+  conservativeness    Decimal? @map("conservativeness") @db.Decimal(6, 3) // discount %
+  opinion             DoeOpinion
+  findings            Json?
+  documentUrl         String?  @map("document_url") @db.VarChar(500)
+  verifiedAt          DateTime @map("verified_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  period MonitoringPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+
+  @@map("verification_reports")
+}
+
+/// Issuance request → mints A6.4ER units. Auto-levies SOP (5%) + OMGE (2%).
+/// Net to activity participant = gross × 0.93.
+model Issuance {
+  id                  String   @id @default(uuid()) @db.Uuid
+  activityId          String   @map("activity_id") @db.Uuid
+  periodId            String   @unique @map("period_id") @db.Uuid
+  grossUnits          Decimal  @map("gross_units") @db.Decimal(18, 3)   // = verifiedEr rounded down to whole tCO2e
+  sopLevyUnits        Decimal  @map("sop_levy_units") @db.Decimal(18, 3) // 5% SOP → Adaptation Fund
+  omgeCancelledUnits  Decimal  @map("omge_cancelled_units") @db.Decimal(18, 3) // 2% OMGE auto-cancel
+  netUnits            Decimal  @map("net_units") @db.Decimal(18, 3)     // = gross × 0.93
+  vintage             Int      // year of emission reductions
+  unitType            CreditUnitType @map("unit_type")
+  status              IssuanceStatus @default(REQUESTED)
+  requestedBy         String   @map("requested_by") @db.Uuid
+  requestedAt         DateTime @default(now()) @map("requested_at")
+  issuedAt            DateTime? @map("issued_at")
+  serialBlockId       String?  @map("serial_block_id") @db.Uuid
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  activity    Activity          @relation(fields: [activityId], references: [id])
+  period      MonitoringPeriod  @relation(fields: [periodId], references: [id])
+  serialBlock CreditUnitBlock?  @relation(fields: [serialBlockId], references: [id])
+
+  @@index([activityId, status])
+  @@map("issuances")
+}
+
+enum IssuanceStatus {
+  REQUESTED   @map("requested")
+  APPROVED    @map("approved")
+  ISSUED      @map("issued")
+  REJECTED    @map("rejected")
+}
+
+enum CreditUnitType {
+  A6_4ER      @map("a64er")       // authorized → carries CA on first transfer
+  A6_4ER_MC   @map("a64er_mc")    // mitigation contribution — no international transfer, no CA
+}
+
+/// A block of contiguous A6.4ER serials issued in a single issuance event.
+/// Range-compressed: one row represents many individual units.
+model CreditUnitBlock {
+  id            String   @id @default(uuid()) @db.Uuid
+  serialFirst   String   @map("serial_first") @db.VarChar(128)
+  serialLast    String   @map("serial_last") @db.VarChar(128)
+  unitCount     Decimal  @map("unit_count") @db.Decimal(18, 3)
+  unitType      CreditUnitType @map("unit_type")
+  vintage       Int
+  activityId    String   @map("activity_id") @db.Uuid
+  hostCountry   String   @map("host_country") @db.VarChar(2)
+  issuanceDate  DateTime @map("issuance_date")
+  holderAccountId String @map("holder_account_id") @db.Uuid
+  authorizationStatus AuthorizationScope @map("authorization_status")
+  caStatus      CorrespondingAdjustmentStatus @default(NOT_REQUIRED) @map("ca_status")
+  firstTransferAt DateTime? @map("first_transfer_at")
+  retirementStatus RetirementStatus @default(ACTIVE) @map("retirement_status")
+  retirementNarrative String? @map("retirement_narrative") @db.Text
+  retiredAt     DateTime? @map("retired_at")
+  retiredBy     String?   @map("retired_by") @db.Uuid
+  createdAt     DateTime  @default(now()) @map("created_at")
+  updatedAt     DateTime  @updatedAt @map("updated_at")
+
+  holderAccount CreditAccount @relation(fields: [holderAccountId], references: [id])
+  issuances     Issuance[]
+
+  @@index([activityId])
+  @@index([holderAccountId])
+  @@index([retirementStatus])
+  @@map("credit_unit_blocks")
+}
+
+enum CorrespondingAdjustmentStatus {
+  NOT_REQUIRED  @map("not_required")   // unit_type = A6_4ER_MC
+  PENDING       @map("pending")        // authorized, pre-first-transfer
+  APPLIED       @map("applied")        // CA emitted to host Party BTR
+  REVERSED      @map("reversed")
+}
+
+enum RetirementStatus {
+  ACTIVE              @map("active")
+  RETIRED_FOR_NDC     @map("retired_for_ndc")
+  RETIRED_FOR_OIMP    @map("retired_for_oimp")
+  RETIRED_VOLUNTARY   @map("retired_voluntary")
+  CANCELLED_OMGE      @map("cancelled_omge")     // at issuance
+  CANCELLED_SOP       @map("cancelled_sop")      // held by Adaptation Fund
+  CANCELLED_REVERSAL  @map("cancelled_reversal") // removal buffer pool draw
+  CANCELLED_OTHER     @map("cancelled_other")
+}
+
+/// Registry account. Activity participants + host Parties + SB admin accounts.
+model CreditAccount {
+  id          String   @id @default(uuid()) @db.Uuid
+  accountType CreditAccountType @map("account_type")
+  name        String   @db.VarChar(255)
+  orgId       String?  @map("org_id") @db.Uuid        // for ACTIVITY_PARTICIPANT + HOST_PARTY
+  activityId  String?  @unique @map("activity_id") @db.Uuid // for ACTIVITY_PARTICIPANT (1:1 with activity)
+  hostCountry String?  @map("host_country") @db.VarChar(2)
+  isActive    Boolean  @default(true) @map("is_active")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  org      Organization?      @relation(fields: [orgId], references: [id], onDelete: SetNull)
+  activity Activity?          @relation(fields: [activityId], references: [id], onDelete: SetNull)
+  holdings CreditUnitBlock[]
+
+  @@index([orgId])
+  @@index([accountType])
+  @@map("credit_accounts")
+}
+
+enum CreditAccountType {
+  ACTIVITY_PARTICIPANT   @map("activity_participant")
+  HOST_PARTY             @map("host_party")
+  ADAPTATION_FUND        @map("adaptation_fund")     // SOP destination
+  OMGE_CANCELLATION      @map("omge_cancellation")   // 2% auto-cancel destination
+  REVERSAL_BUFFER        @map("reversal_buffer")     // removal activities
+  RETIREMENT_NDC         @map("retirement_ndc")
+  RETIREMENT_OIMP        @map("retirement_oimp")
+  RETIREMENT_VOLUNTARY   @map("retirement_voluntary")
+}
+
+/// CA event emitted on first international transfer of an authorized A6.4ER block.
+/// Host Party applies the adjustment in its next Biennial Transparency Report.
+model CorrespondingAdjustmentEvent {
+  id              String   @id @default(uuid()) @db.Uuid
+  blockId         String   @map("block_id") @db.Uuid
+  hostCountry     String   @map("host_country") @db.VarChar(2)
+  buyerCountry    String?  @map("buyer_country") @db.VarChar(2)
+  units           Decimal  @db.Decimal(18, 3)
+  vintage         Int
+  triggeredAt     DateTime @default(now()) @map("triggered_at")
+  btrExportedAt   DateTime? @map("btr_exported_at")
+  status          CaEventStatus @default(PENDING_EXPORT)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([hostCountry, status])
+  @@index([blockId])
+  @@map("corresponding_adjustment_events")
+}
+
+enum CaEventStatus {
+  PENDING_EXPORT @map("pending_export")
+  EXPORTED       @map("exported")
+  ACKNOWLEDGED   @map("acknowledged") // host DNA confirmed in BTR
+  REVERSED       @map("reversed")
 }

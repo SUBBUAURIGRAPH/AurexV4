@@ -25,6 +25,13 @@ import { brsrRouter } from './routes/brsr.js';
 import { onboardingRouter } from './routes/onboarding.js';
 import { securityRouter } from './routes/security.js';
 import { suppliersRouter } from './routes/suppliers.js';
+// Article 6.4 / PACM routers (gap-analysis implementation)
+import { methodologiesRouter } from './routes/methodologies.js';
+import { activitiesRouter } from './routes/activities.js';
+import { monitoringRouter } from './routes/monitoring.js';
+import { verificationRouter } from './routes/verification.js';
+import { issuanceRouter } from './routes/issuance.js';
+import { creditsRouter } from './routes/credits.js';
 import { logger } from './lib/logger.js';
 
 const app: Express = express();
@@ -78,6 +85,13 @@ app.use('/api/v1/esg', esgRouter);
 app.use('/api/v1/brsr', brsrRouter);
 app.use('/api/v1/onboarding', onboardingRouter);
 app.use('/api/v1/suppliers', suppliersRouter);
+// Article 6.4 / Paris Agreement Crediting Mechanism
+app.use('/api/v1/methodologies', methodologiesRouter);
+app.use('/api/v1/activities', activitiesRouter);
+app.use('/api/v1/monitoring', monitoringRouter);
+app.use('/api/v1/verification', verificationRouter);
+app.use('/api/v1/issuances', issuanceRouter);
+app.use('/api/v1/credits', creditsRouter);
 
 // ADM-052: RFC 7807 error handler
 app.use(errorHandler);

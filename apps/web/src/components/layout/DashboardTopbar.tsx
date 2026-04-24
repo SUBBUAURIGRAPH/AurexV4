@@ -16,6 +16,8 @@ const pageTitles: Record<string, string> = {
   '/frameworks': 'ESG Frameworks',
   '/brsr': 'BRSR Builder',
   '/suppliers': 'Suppliers',
+  '/activities': 'Article 6.4 Activities',
+  '/credits': 'Credits & Registry',
   '/reports': 'Reports',
   '/teams': 'Teams and Access',
   '/integrations': 'Integrations',
