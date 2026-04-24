@@ -826,6 +826,8 @@ model Activity {
   monitoringPeriods MonitoringPeriod[]
   issuances         Issuance[]
   creditAccount     CreditAccount?
+  baselineScenarios BaselineScenario[]
+  sdContributions   SdContribution[]
 
   @@index([orgId, status])
   @@index([methodologyId])
@@ -988,6 +990,7 @@ model MonitoringPeriod {
   datapoints         MonitoringDatapoint[]
   verificationReport VerificationReport?
   issuance           Issuance?
+  sdContributions    SdContribution[]
 
   @@index([activityId, periodStart])
   @@map("monitoring_periods")
@@ -1202,4 +1205,119 @@ enum CaEventStatus {
   EXPORTED       @map("exported")
   ACKNOWLEDGED   @map("acknowledged") // host DNA confirmed in BTR
   REVERSED       @map("reversed")
+}
+
+// ─── A6.4 BaselineScenario (AV4-336, per A6.4-STAN-METH-004) ───────────
+// Structured per-activity baseline with per-year emissions and
+// downward-adjustment factor. DOE approves the scenario before it can
+// be used in verification.
+
+model BaselineScenario {
+  id                         String @id @default(uuid()) @db.Uuid
+  activityId                 String @map("activity_id") @db.Uuid
+  version                    Int    @default(1)
+  status                     BaselineScenarioStatus @default(DRAFT)
+  narrative                  String @db.Text
+  methodologyVersion         String @db.VarChar(32)
+  ndcAlignmentJustification  String? @db.Text
+  ltLedsReference            String? @db.VarChar(500)
+  suppressedDemandFlag       Boolean @default(false)
+  suppressedDemandNotes      String? @db.Text
+  approvedBy                 String? @db.Uuid
+  approvedAt                 DateTime?
+  supersededAt               DateTime?
+  createdBy                  String @db.Uuid
+  createdAt                  DateTime @default(now())
+  updatedAt                  DateTime @updatedAt
+
+  activity  Activity         @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  emissions BaselineEmission[]
+
+  @@unique([activityId, version])
+  @@index([status])
+  @@map("baseline_scenarios")
+}
+
+enum BaselineScenarioStatus {
+  DRAFT      @map("draft")
+  SUBMITTED  @map("submitted")
+  APPROVED   @map("approved")
+  SUPERSEDED @map("superseded")
+  REJECTED   @map("rejected")
+}
+
+model BaselineEmission {
+  id                        String @id @default(uuid()) @db.Uuid
+  scenarioId                String @map("scenario_id") @db.Uuid
+  year                      Int
+  emissionsTco2e            Decimal @db.Decimal(18,3)
+  downwardAdjustmentFactor  Decimal @default(1.0) @db.Decimal(6,4)
+  notes                     String? @db.Text
+  createdAt                 DateTime @default(now())
+
+  scenario BaselineScenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+
+  @@unique([scenarioId, year])
+  @@map("baseline_emissions")
+}
+
+// ─── A6.4 SD-Tool (AV4-337) ─────────────────────────────────────────────
+// Sustainable Development Tool — mandatory since 2024 for PACM activities.
+// Tracks contributions across the 17 UN SDGs via structured indicators,
+// distinguishing ex-ante (PDD-stage) from ex-post (per monitoring period).
+
+model Sdg {
+  code        String @id @db.VarChar(16)  // "SDG_1" .. "SDG_17"
+  name        String @db.VarChar(100)
+  description String @db.Text
+  iconUrl     String? @db.VarChar(500)
+  isActive    Boolean @default(true)
+
+  indicators SdIndicator[]
+
+  @@map("sdgs")
+}
+
+model SdIndicator {
+  code                String @id @db.VarChar(32)  // "SDG_7.1"
+  sdgCode             String @map("sdg_code") @db.VarChar(16)
+  name                String @db.VarChar(255)
+  description         String @db.Text
+  unit                String @db.VarChar(32)
+  measurementGuidance String? @db.Text
+  isActive            Boolean @default(true)
+
+  sdg          Sdg                @relation(fields: [sdgCode], references: [code])
+  contributions SdContribution[]
+
+  @@index([sdgCode])
+  @@map("sd_indicators")
+}
+
+model SdContribution {
+  id                String @id @default(uuid()) @db.Uuid
+  activityId        String @map("activity_id") @db.Uuid
+  indicatorCode     String @map("indicator_code") @db.VarChar(32)
+  contributionType  SdContributionType
+  monitoringPeriodId String? @map("monitoring_period_id") @db.Uuid
+  value             Decimal @db.Decimal(18,3)
+  unit              String @db.VarChar(32)
+  notes             String? @db.Text
+  evidenceUrl       String? @map("evidence_url") @db.VarChar(500)
+  updatedBy         String @map("updated_by") @db.Uuid
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  activity         Activity          @relation(fields: [activityId], references: [id], onDelete: Cascade)
+  indicator        SdIndicator       @relation(fields: [indicatorCode], references: [code])
+  monitoringPeriod MonitoringPeriod? @relation(fields: [monitoringPeriodId], references: [id], onDelete: Cascade)
+
+  @@unique([activityId, indicatorCode, contributionType, monitoringPeriodId])
+  @@index([activityId])
+  @@map("sd_contributions")
+}
+
+enum SdContributionType {
+  EX_ANTE @map("ex_ante")
+  EX_POST @map("ex_post")
 }

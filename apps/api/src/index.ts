@@ -32,6 +32,9 @@ import { monitoringRouter } from './routes/monitoring.js';
 import { verificationRouter } from './routes/verification.js';
 import { issuanceRouter } from './routes/issuance.js';
 import { creditsRouter } from './routes/credits.js';
+// A6.4 Deferred items (AAT-3): BaselineScenario + SD-Tool
+import { baselineScenariosRouter } from './routes/baseline-scenarios.js';
+import { sdToolRouter } from './routes/sd-tool.js';
 import { logger } from './lib/logger.js';
 
 const app: Express = express();
@@ -92,6 +95,9 @@ app.use('/api/v1/monitoring', monitoringRouter);
 app.use('/api/v1/verification', verificationRouter);
 app.use('/api/v1/issuances', issuanceRouter);
 app.use('/api/v1/credits', creditsRouter);
+// A6.4 Deferred items (AAT-3)
+app.use('/api/v1/baseline-scenarios', baselineScenariosRouter);
+app.use('/api/v1/sd-tool', sdToolRouter);
 
 // ADM-052: RFC 7807 error handler
 app.use(errorHandler);

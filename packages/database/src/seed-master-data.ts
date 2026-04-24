@@ -885,6 +885,134 @@ async function seedA64AdminAccounts() {
   console.log(`  CreditAccount (admin): ${accounts.length} rows upserted`);
 }
 
+// ─── A6.4 SD-Tool — 17 UN SDGs + indicators (AV4-337) ───────────────────
+// Source: UN General Assembly Res 70/1 — "Transforming our world: the 2030
+// Agenda for Sustainable Development" + UN Statistical Commission Tier I/II
+// indicator catalogue. Descriptions are the UN's official titles.
+
+const SDGS: Array<{ code: string; name: string; description: string }> = [
+  { code: 'SDG_1',  name: 'No Poverty',                       description: 'End poverty in all its forms everywhere.' },
+  { code: 'SDG_2',  name: 'Zero Hunger',                      description: 'End hunger, achieve food security and improved nutrition and promote sustainable agriculture.' },
+  { code: 'SDG_3',  name: 'Good Health and Well-being',       description: 'Ensure healthy lives and promote well-being for all at all ages.' },
+  { code: 'SDG_4',  name: 'Quality Education',                description: 'Ensure inclusive and equitable quality education and promote lifelong learning opportunities for all.' },
+  { code: 'SDG_5',  name: 'Gender Equality',                  description: 'Achieve gender equality and empower all women and girls.' },
+  { code: 'SDG_6',  name: 'Clean Water and Sanitation',       description: 'Ensure availability and sustainable management of water and sanitation for all.' },
+  { code: 'SDG_7',  name: 'Affordable and Clean Energy',      description: 'Ensure access to affordable, reliable, sustainable and modern energy for all.' },
+  { code: 'SDG_8',  name: 'Decent Work and Economic Growth',  description: 'Promote sustained, inclusive and sustainable economic growth, full and productive employment and decent work for all.' },
+  { code: 'SDG_9',  name: 'Industry, Innovation and Infrastructure', description: 'Build resilient infrastructure, promote inclusive and sustainable industrialization and foster innovation.' },
+  { code: 'SDG_10', name: 'Reduced Inequalities',             description: 'Reduce inequality within and among countries.' },
+  { code: 'SDG_11', name: 'Sustainable Cities and Communities', description: 'Make cities and human settlements inclusive, safe, resilient and sustainable.' },
+  { code: 'SDG_12', name: 'Responsible Consumption and Production', description: 'Ensure sustainable consumption and production patterns.' },
+  { code: 'SDG_13', name: 'Climate Action',                   description: 'Take urgent action to combat climate change and its impacts.' },
+  { code: 'SDG_14', name: 'Life Below Water',                 description: 'Conserve and sustainably use the oceans, seas and marine resources for sustainable development.' },
+  { code: 'SDG_15', name: 'Life on Land',                     description: 'Protect, restore and promote sustainable use of terrestrial ecosystems, sustainably manage forests, combat desertification, and halt and reverse land degradation and halt biodiversity loss.' },
+  { code: 'SDG_16', name: 'Peace, Justice and Strong Institutions', description: 'Promote peaceful and inclusive societies for sustainable development, provide access to justice for all and build effective, accountable and inclusive institutions at all levels.' },
+  { code: 'SDG_17', name: 'Partnerships for the Goals',       description: 'Strengthen the means of implementation and revitalize the global partnership for sustainable development.' },
+];
+
+/// At least 2-3 A6.4-relevant indicators per SDG, totalling ≥30.
+/// Codes follow the UN's SDG indicator convention (SDG_X.Y).
+const SD_INDICATORS: Array<{
+  code: string;
+  sdgCode: string;
+  name: string;
+  description: string;
+  unit: string;
+  measurementGuidance?: string;
+}> = [
+  // SDG 1
+  { code: 'SDG_1.1', sdgCode: 'SDG_1', name: 'Population below international poverty line', description: 'Proportion of activity-area population below the $2.15/day poverty line.', unit: '%', measurementGuidance: 'Use host-country household survey data or activity-specific household enumeration.' },
+  { code: 'SDG_1.4', sdgCode: 'SDG_1', name: 'Access to basic services', description: 'Share of households in the activity area with access to basic services (electricity, water, sanitation).', unit: '%' },
+  // SDG 2
+  { code: 'SDG_2.3', sdgCode: 'SDG_2', name: 'Small-holder agricultural productivity', description: 'Production volume per labour unit by classes of farming / pastoral / forestry enterprise size.', unit: 'kg/person/yr' },
+  { code: 'SDG_2.4', sdgCode: 'SDG_2', name: 'Sustainable agriculture area', description: 'Proportion of agricultural area under productive and sustainable agriculture.', unit: '%' },
+  // SDG 3
+  { code: 'SDG_3.9', sdgCode: 'SDG_3', name: 'Pollution-related mortality averted', description: 'Mortality rate attributed to household and ambient air pollution displaced by the activity.', unit: 'deaths/100k/yr' },
+  { code: 'SDG_3.d', sdgCode: 'SDG_3', name: 'Health workforce engagement', description: 'Health-sector workers (FTE) engaged by the activity.', unit: 'FTE' },
+  // SDG 4
+  { code: 'SDG_4.1', sdgCode: 'SDG_4', name: 'Education access', description: 'Number of learners receiving training or school-level instruction linked to the activity.', unit: 'learners' },
+  { code: 'SDG_4.4', sdgCode: 'SDG_4', name: 'Skills for decent work', description: 'Youth / adults with technical or vocational skills developed through the activity.', unit: 'persons' },
+  // SDG 5
+  { code: 'SDG_5.5', sdgCode: 'SDG_5', name: 'Women in leadership', description: 'Proportion of women in managerial / decision-making positions within the activity.', unit: '%' },
+  { code: 'SDG_5.a', sdgCode: 'SDG_5', name: 'Women with economic resources', description: 'Share of activity benefits (jobs, payments, land access) accruing to women.', unit: '%' },
+  // SDG 6
+  { code: 'SDG_6.1', sdgCode: 'SDG_6', name: 'Safely managed drinking water', description: 'Population with access to safely managed drinking-water services as a result of the activity.', unit: 'persons' },
+  { code: 'SDG_6.3', sdgCode: 'SDG_6', name: 'Water quality', description: 'Improvement in ambient water quality (e.g., BOD reduction, TDS).', unit: 'mg/L' },
+  // SDG 7
+  { code: 'SDG_7.1', sdgCode: 'SDG_7', name: 'Access to electricity', description: 'Population newly connected to reliable electricity supply via the activity.', unit: 'persons' },
+  { code: 'SDG_7.2', sdgCode: 'SDG_7', name: 'Renewable energy share', description: 'Renewable-energy share of the final energy mix supplied by the activity.', unit: '%' },
+  { code: 'SDG_7.3', sdgCode: 'SDG_7', name: 'Energy efficiency improvement', description: 'Energy-intensity reduction attributable to the activity.', unit: 'MJ/USD' },
+  // SDG 8
+  { code: 'SDG_8.2', sdgCode: 'SDG_8', name: 'Economic productivity', description: 'GDP-equivalent economic output uplift from the activity (local economy).', unit: 'USD' },
+  { code: 'SDG_8.5', sdgCode: 'SDG_8', name: 'Jobs created', description: 'Full-time-equivalent jobs created by the activity, disaggregated by gender.', unit: 'FTE' },
+  // SDG 9
+  { code: 'SDG_9.1', sdgCode: 'SDG_9', name: 'Infrastructure deployed', description: 'Length / capacity of resilient infrastructure deployed (roads, grids, pipelines).', unit: 'km or MW' },
+  { code: 'SDG_9.4', sdgCode: 'SDG_9', name: 'Industry emissions intensity', description: 'CO2 emissions per unit of value added in the activity-affected industry.', unit: 'tCO2e/USD' },
+  // SDG 10
+  { code: 'SDG_10.1', sdgCode: 'SDG_10', name: 'Income of bottom 40%', description: 'Income growth for the bottom 40% of the activity-area population.', unit: '%' },
+  { code: 'SDG_10.2', sdgCode: 'SDG_10', name: 'Inclusion of marginalised groups', description: 'Share of activity benefits accruing to indigenous / marginalised groups.', unit: '%' },
+  // SDG 11
+  { code: 'SDG_11.6', sdgCode: 'SDG_11', name: 'Urban air quality', description: 'Annual mean PM2.5 reduction in activity-area cities.', unit: 'µg/m³' },
+  { code: 'SDG_11.b', sdgCode: 'SDG_11', name: 'Climate-resilient settlements', description: 'Number of settlements adopting disaster-risk-reduction plans linked to the activity.', unit: 'count' },
+  // SDG 12
+  { code: 'SDG_12.2', sdgCode: 'SDG_12', name: 'Material footprint', description: 'Material footprint reduction attributable to the activity.', unit: 't' },
+  { code: 'SDG_12.5', sdgCode: 'SDG_12', name: 'Waste diverted', description: 'Waste diverted from landfill through recycling / reuse driven by the activity.', unit: 't/yr' },
+  // SDG 13
+  { code: 'SDG_13.1', sdgCode: 'SDG_13', name: 'Climate resilience strengthened', description: 'People whose climate resilience is strengthened (adaptation co-benefit).', unit: 'persons' },
+  { code: 'SDG_13.2', sdgCode: 'SDG_13', name: 'GHG reductions', description: 'Net tCO2e reduced / removed by the activity.', unit: 'tCO2e' },
+  // SDG 14
+  { code: 'SDG_14.1', sdgCode: 'SDG_14', name: 'Marine pollution reduced', description: 'Reduction in marine pollutant loading (plastic, nitrogen) attributable to the activity.', unit: 't/yr' },
+  { code: 'SDG_14.2', sdgCode: 'SDG_14', name: 'Coastal ecosystems protected', description: 'Area of coastal / marine ecosystems under effective protection.', unit: 'ha' },
+  // SDG 15
+  { code: 'SDG_15.1', sdgCode: 'SDG_15', name: 'Forest area', description: 'Forest area conserved / restored by the activity.', unit: 'ha' },
+  { code: 'SDG_15.3', sdgCode: 'SDG_15', name: 'Land degradation reversed', description: 'Area of degraded land restored through the activity.', unit: 'ha' },
+  { code: 'SDG_15.5', sdgCode: 'SDG_15', name: 'Biodiversity protected', description: 'Habitat area for threatened species maintained or improved.', unit: 'ha' },
+  // SDG 16
+  { code: 'SDG_16.7', sdgCode: 'SDG_16', name: 'Inclusive decision-making', description: 'Share of local-community members participating in activity governance / FPIC processes.', unit: '%' },
+  // SDG 17
+  { code: 'SDG_17.3', sdgCode: 'SDG_17', name: 'Climate finance mobilised', description: 'Additional climate finance (public + private) mobilised through the activity.', unit: 'USD' },
+  { code: 'SDG_17.9', sdgCode: 'SDG_17', name: 'Capacity-building delivered', description: 'Hours of technical assistance / capacity-building delivered by the activity.', unit: 'hours' },
+];
+
+async function seedSdgs() {
+  console.log('\n── SDGs (17 UN goals) ──');
+  for (const s of SDGS) {
+    await prisma.sdg.upsert({
+      where: { code: s.code },
+      update: { name: s.name, description: s.description, isActive: true },
+      create: { code: s.code, name: s.name, description: s.description, isActive: true },
+    });
+  }
+  console.log(`  Sdg: ${SDGS.length} rows upserted`);
+}
+
+async function seedSdIndicators() {
+  console.log('\n── SD Indicators (A6.4 SD-Tool) ──');
+  for (const i of SD_INDICATORS) {
+    await prisma.sdIndicator.upsert({
+      where: { code: i.code },
+      update: {
+        sdgCode: i.sdgCode,
+        name: i.name,
+        description: i.description,
+        unit: i.unit,
+        measurementGuidance: i.measurementGuidance,
+        isActive: true,
+      },
+      create: {
+        code: i.code,
+        sdgCode: i.sdgCode,
+        name: i.name,
+        description: i.description,
+        unit: i.unit,
+        measurementGuidance: i.measurementGuidance,
+        isActive: true,
+      },
+    });
+  }
+  console.log(`  SdIndicator: ${SD_INDICATORS.length} rows upserted`);
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────
 
 async function main() {
@@ -894,6 +1022,8 @@ async function main() {
   await seedBrsr();
   await seedCategoryMappings();
   await seedWorkflowRecipes();
+  await seedSdgs();
+  await seedSdIndicators();
   await seedA64Methodologies();
   await seedA64AdminAccounts();
   if (process.env.E2E_SEED === '1') {

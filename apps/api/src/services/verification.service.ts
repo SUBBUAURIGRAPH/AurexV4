@@ -3,6 +3,7 @@ import { AppError } from '../middleware/error-handler.js';
 import { recordAudit } from './audit-log.service.js';
 import { calculateEr } from './er-calc.service.js';
 import * as activityService from './activity.service.js';
+import * as baselineScenarioService from './baseline-scenario.service.js';
 
 /**
  * DOE verification + validation.
@@ -111,8 +112,34 @@ export async function submitVerificationReport(
     throw new AppError(409, 'Conflict', 'VerificationReport already submitted');
   }
 
+  // Prefer a structured APPROVED BaselineScenario over the raw input when available.
+  // Keeps backward compatibility: legacy callers without a scenario continue to work,
+  // scenarios that don't cover the period's year also fall back with an audit note.
+  const periodYear = period.periodEnd.getUTCFullYear();
+  let effectiveBaseline = data.baselineEmissions;
+  let baselineSource: 'scenario' | 'input' | 'fallback_to_input_baseline' = 'input';
+  let scenarioIdUsed: string | null = null;
+
+  const approvedScenario = await baselineScenarioService.getActiveForActivity(
+    period.activityId,
+  );
+  if (approvedScenario) {
+    try {
+      effectiveBaseline = await baselineScenarioService.computeForYear(
+        approvedScenario.id,
+        periodYear,
+      );
+      baselineSource = 'scenario';
+      scenarioIdUsed = approvedScenario.id;
+    } catch {
+      // Scenario exists but no entry for the period's year → fall back to input.
+      baselineSource = 'fallback_to_input_baseline';
+      scenarioIdUsed = approvedScenario.id;
+    }
+  }
+
   const er = calculateEr({
-    baselineEmissions: data.baselineEmissions,
+    baselineEmissions: effectiveBaseline,
     projectEmissions: data.projectEmissions,
     leakageEmissions: data.leakageEmissions,
     conservativenessPct: data.conservativenessPct,
@@ -126,7 +153,7 @@ export async function submitVerificationReport(
       doeOrgName: data.doeOrgName,
       doeAccreditationId: data.doeAccreditationId,
       methodologyVersion: data.methodologyVersion,
-      baselineEmissions: data.baselineEmissions,
+      baselineEmissions: effectiveBaseline,
       projectEmissions: data.projectEmissions,
       leakageEmissions: data.leakageEmissions,
       verifiedEr: er.netEr,
@@ -156,6 +183,11 @@ export async function submitVerificationReport(
       verifiedEr: er.netEr,
       grossEr: er.grossEr,
       conservativenessDiscount: er.conservativenessDiscount,
+      baselineSource,
+      scenarioId: scenarioIdUsed,
+      periodYear,
+      inputBaseline: data.baselineEmissions,
+      appliedBaseline: effectiveBaseline,
     },
   });
 
