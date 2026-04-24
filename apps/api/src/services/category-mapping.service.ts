@@ -29,14 +29,23 @@ export async function resolveMapping(
   scope: string,
   category: string,
 ): Promise<CategoryMappingResult | null> {
-  // Try org-scoped override first, then platform default.
-  const override = await prisma.categoryMapping.findUnique({
-    where: { orgId_scope_category: { orgId, scope: scope as never, category } },
+  // Normalise to the casing stored in the DB (Title Case per seed convention).
+  // Case-insensitive fallback so callers don't need to match exactly.
+  const override = await prisma.categoryMapping.findFirst({
+    where: {
+      orgId,
+      scope: scope as never,
+      category: { equals: category, mode: 'insensitive' },
+    },
   });
   if (override) return override as unknown as CategoryMappingResult;
 
   const fallback = await prisma.categoryMapping.findFirst({
-    where: { orgId: null, scope: scope as never, category },
+    where: {
+      orgId: null,
+      scope: scope as never,
+      category: { equals: category, mode: 'insensitive' },
+    },
   });
   return (fallback as unknown as CategoryMappingResult | null) ?? null;
 }

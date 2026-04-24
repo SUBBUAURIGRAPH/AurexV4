@@ -301,7 +301,7 @@ emissionsRouter.delete('/:id', requireOrgRole('MANAGER', 'ORG_ADMIN', 'SUPER_ADM
     await emissionsService.deleteEmission(id, req.orgId!);
 
     logger.info({ recordId: id, deletedBy: req.user!.sub }, 'Emission record deleted via API');
-    res.json({ message: 'Emission record deleted' });
+    res.status(204).send();
   } catch (err) {
     next(err);
   }

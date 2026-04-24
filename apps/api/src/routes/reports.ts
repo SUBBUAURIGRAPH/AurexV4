@@ -68,7 +68,19 @@ reportRouter.get('/', async (req, res, next) => {
 });
 
 /**
- * GET /:id/status — Poll report status
+ * GET /:id — Get full report including lifecycleStatus, timestamps, shareToken.
+ */
+reportRouter.get('/:id', async (req, res, next) => {
+  try {
+    const report = await reportService.getReport(req.params.id as string, req.orgId!);
+    res.json({ data: report });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /:id/status — Poll report generation status
  */
 reportRouter.get('/:id/status', async (req, res, next) => {
   try {

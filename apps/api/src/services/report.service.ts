@@ -256,6 +256,34 @@ export async function downloadReport(id: string, orgId: string) {
   return report;
 }
 
+export async function getReport(id: string, orgId: string) {
+  const report = await prisma.report.findFirst({
+    where: { id, orgId },
+    select: {
+      id: true,
+      type: true,
+      status: true,
+      lifecycleStatus: true,
+      parameters: true,
+      createdBy: true,
+      submittedAt: true,
+      approvedAt: true,
+      approvedBy: true,
+      publishedAt: true,
+      publishedBy: true,
+      archivedAt: true,
+      archivedBy: true,
+      shareToken: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+  if (!report) {
+    throw new AppError(404, 'Not Found', 'Report not found');
+  }
+  return report;
+}
+
 export async function listReports(orgId: string) {
   return prisma.report.findMany({
     where: { orgId },
