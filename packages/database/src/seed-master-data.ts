@@ -635,6 +635,77 @@ async function seedWorkflowRecipes() {
   console.log(`  WorkflowRecipe: ${WORKFLOW_RECIPES.length} rows upserted`);
 }
 
+// ─── E2E Admin Test User ────────────────────────────────────────────────
+// Idempotent: upsert on email. Password is bcrypt hash of "E2eAdmin@2026!"
+// PBKDF: bcrypt cost 12. Only seeded in non-production or when E2E_SEED=1.
+async function seedE2eAdminUser() {
+  // Pre-computed bcrypt hash of "E2eAdmin@2026!" (rounds=12)
+  // Generated offline to avoid a bcrypt dependency in this script.
+  const ADMIN_EMAIL = 'e2e_admin@aurex.in';
+  const ADMIN_PASSWORD_HASH = '$2b$12$LQv3c1yqBWVHxkd0LHAkCOYz6TiGrmZEJ3.gy5eZUYI2LKqeWBQu2'; // placeholder — see below
+
+  // Use node bcrypt at runtime if available
+  let bcrypt: { hash: (p: string, r: number) => Promise<string> } | null = null;
+  try {
+    bcrypt = (await import('bcrypt')) as { hash: (p: string, r: number) => Promise<string> };
+  } catch { /* bcrypt not available */ }
+
+  const hash = bcrypt
+    ? await bcrypt.hash('E2eAdmin@2026!', 12)
+    : ADMIN_PASSWORD_HASH;
+
+  const ORG_NAME = 'E2E Test Organisation';
+  const ORG_ID = 'e2e00000-0000-4000-8000-000000000001';
+  const USER_ID = 'e2e00000-0000-4000-8000-000000000002';
+
+  // Upsert org
+  await prisma.organization.upsert({
+    where: { id: ORG_ID },
+    update: { name: ORG_NAME, isActive: true },
+    create: { id: ORG_ID, name: ORG_NAME, isActive: true },
+  });
+
+  // Upsert user
+  const existing = await prisma.user.findUnique({ where: { email: ADMIN_EMAIL } });
+  let userId: string;
+  if (existing) {
+    userId = existing.id;
+    await prisma.user.update({
+      where: { id: userId },
+      data: { role: 'ORG_ADMIN', isActive: true, passwordHash: hash },
+    });
+  } else {
+    const u = await prisma.user.create({
+      data: {
+        id: USER_ID,
+        email: ADMIN_EMAIL,
+        name: 'E2E Admin',
+        passwordHash: hash,
+        role: 'ORG_ADMIN',
+        isActive: true,
+      },
+    });
+    userId = u.id;
+  }
+
+  // Upsert org membership
+  const membership = await prisma.orgMember.findFirst({
+    where: { userId, orgId: ORG_ID },
+  });
+  if (!membership) {
+    await prisma.orgMember.create({
+      data: { userId, orgId: ORG_ID, role: 'ORG_ADMIN', isActive: true },
+    });
+  } else {
+    await prisma.orgMember.update({
+      where: { id: membership.id },
+      data: { role: 'ORG_ADMIN', isActive: true },
+    });
+  }
+
+  console.log(`  E2E admin user seeded: ${ADMIN_EMAIL}`);
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────
 
 async function main() {
@@ -644,6 +715,9 @@ async function main() {
   await seedBrsr();
   await seedCategoryMappings();
   await seedWorkflowRecipes();
+  if (process.env.E2E_SEED === '1') {
+    await seedE2eAdminUser();
+  }
   console.log('\n✓ Master data seed complete.\n');
 }
 
