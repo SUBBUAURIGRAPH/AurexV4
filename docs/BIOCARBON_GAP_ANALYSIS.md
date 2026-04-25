@@ -8,11 +8,37 @@
 
 ## Executive scope verdict
 
-| Platform | Repo | Domain | Tokenization role | Verdict |
-|---|---|---|---|---|
-| **Aurex** | `Aurex-V4` | Corporate carbon accounting + A6.4 PACM | Primary tokenizer + marketplace | **In scope — most work** |
-| **AWD2** | `AWD2` | Agricultural carbon credits (VM0042, farmer-onboarded), ERC-721 NFTs deployed to Polygon | Origination + has its own contracts | **In scope — needs BCR alignment migration** |
-| **HCE2** | `HCE2` | **Hybrid** — CLAUDE.md describes HIPAA/EHR; code has `contracts/carbon_credits/AurigraphCarbonToken.sol` (ERC-20) + `app/agents/carbon_estimation_agent.py` + Project/Parcel/Forest3D models | **Conflicting signals — needs user decision** | **CONDITIONAL — see §0** |
+*Word / PDF exports: a single very wide 5-column table is often clipped. Per-platform 2-column tables keep every column within the page width.*
+
+### Aurex
+
+| Field | Details |
+| --- | --- |
+| **Platform** | Aurex |
+| **Repo** | `Aurex-V4` |
+| **Domain** | Corporate carbon accounting + A6.4 PACM |
+| **Tokenization role** | Primary tokenizer + marketplace |
+| **Verdict** | **In scope — most work** |
+
+### AWD2
+
+| Field | Details |
+| --- | --- |
+| **Platform** | AWD2 |
+| **Repo** | `AWD2` |
+| **Domain** | Agricultural carbon credits (VM0042, farmer-onboarded), ERC-721 NFTs deployed to Polygon |
+| **Tokenization role** | Origination + has its own contracts |
+| **Verdict** | **In scope — needs BCR alignment migration** |
+
+### HCE2
+
+| Field | Details |
+| --- | --- |
+| **Platform** | HCE2 |
+| **Repo** | `HCE2` |
+| **Domain** | **Hybrid** — CLAUDE.md describes HIPAA/EHR; code has `contracts/carbon_credits/AurigraphCarbonToken.sol` (ERC-20) + `app/agents/carbon_estimation_agent.py` + Project/Parcel/Forest3D models |
+| **Tokenization role** | **Conflicting signals — needs user decision** |
+| **Verdict** | **CONDITIONAL — see §0** |
 
 ### §0 — HCE2 scope conflict (resolution required before Sprint 1)
 
