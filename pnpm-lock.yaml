@@ -44,6 +44,9 @@ importers:
       '@aurex/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@aurigraph/dlt-sdk':
+        specifier: workspace:*
+        version: link:../../packages/aurigraph-dlt-sdk
       '@aws-sdk/client-s3':
         specifier: ^3.658.0
         version: 3.1036.0
@@ -173,6 +176,15 @@ importers:
       '@types/react':
         specifier: ^18.3.0
         version: 18.3.28
+
+  packages/aurigraph-dlt-sdk:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.0.0
+        version: 22.19.17
+      typescript:
+        specifier: ^5.7.0
+        version: 5.9.3
 
   packages/database:
     dependencies:

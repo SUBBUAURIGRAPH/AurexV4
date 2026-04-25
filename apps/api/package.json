@@ -14,9 +14,11 @@
     "clean": "rm -rf dist coverage",
     "restore-archive": "tsx scripts/restore-archive.ts"
   },
+  "//": "AV4-370: @aurigraph/dlt-sdk@1.2.0 is vendored as a workspace package at packages/aurigraph-dlt-sdk (source upstream: github.com/Aurigraph-DLT-Corp/Aurigraph-Developer-Toolkit-and-SDK/typescript). The package is not yet published to npm; switch to a registry version (e.g. ^1.2.0) when it lands.",
   "dependencies": {
     "@aurex/shared": "workspace:*",
     "@aurex/database": "workspace:*",
+    "@aurigraph/dlt-sdk": "workspace:*",
     "@aws-sdk/client-s3": "^3.658.0",
     "bullmq": "^5.20.0",
     "express": "^4.21.0",
