@@ -8,6 +8,12 @@ import {
 } from '../../../hooks/useBrsr';
 import { IndicatorField } from '../../../components/brsr/IndicatorField';
 import { useToast } from '../../../contexts/ToastContext';
+import {
+  BRSR_RENDER_FORMATS,
+  buildBrsrRenderUrl,
+  fiscalYearToYearNumber,
+  type BrsrRenderFormat,
+} from '../../../hooks/useBrsrRender';
 
 // Default BRSR fiscal year options (India: Apr-Mar).
 function getFiscalYears(): string[] {
@@ -67,6 +73,70 @@ export function BRSRBuilderPage() {
 
   const upsert = useUpsertBrsrResponse();
   const { success: toastSuccess, error: toastError } = useToast();
+
+  // ─── AAT-10D (Wave 10d): Generate PDF / XBRL ─────────────────────────
+  const [renderFormat, setRenderFormat] = useState<BrsrRenderFormat>(
+    BRSR_RENDER_FORMATS[0]?.value ?? 'pdf',
+  );
+  const [generating, setGenerating] = useState(false);
+
+  const handleGenerate = async (): Promise<void> => {
+    if (generating) return;
+    const year = fiscalYearToYearNumber(fiscalYear);
+    if (year === null) {
+      toastError(`Cannot parse fiscal year "${fiscalYear}"`);
+      return;
+    }
+    setGenerating(true);
+    try {
+      const url = buildBrsrRenderUrl(year, renderFormat);
+      const token = localStorage.getItem('aurex_token');
+      const headers: Record<string, string> = token
+        ? { Authorization: `Bearer ${token}` }
+        : {};
+
+      // HEAD-check before downloading. Browsers don't pass bearer
+      // tokens on `window.open`, so we fetch with auth + blob the body
+      // for an in-page download.
+      const probe = await fetch(url, { method: 'HEAD', headers });
+      if (probe.status === 403) {
+        toastError(
+          'You need writer (MAKER / APPROVER) or admin access to generate BRSR exports.',
+        );
+        return;
+      }
+      if (!probe.ok) {
+        toastError(`Generate failed (HTTP ${probe.status}). Please try again.`);
+        return;
+      }
+
+      const dl = await fetch(url, { method: 'GET', headers });
+      if (!dl.ok) {
+        toastError(`Generate failed (HTTP ${dl.status}).`);
+        return;
+      }
+      const blob = await dl.blob();
+      const cd = dl.headers.get('Content-Disposition') ?? '';
+      const match = /filename="([^"]+)"/.exec(cd);
+      const filename =
+        match?.[1] ??
+        `brsr-${year}.${renderFormat === 'pdf' ? 'pdf' : 'xbrl'}`;
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+      toastSuccess(`Generated ${renderFormat.toUpperCase()}`);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Network error';
+      toastError(`BRSR ${renderFormat.toUpperCase()} export failed: ${msg}`);
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   // Completion % across indicators currently visible
   const completion = useMemo(() => {
@@ -200,30 +270,60 @@ export function BRSRBuilderPage() {
             </p>
           </div>
           {/*
-            AAT-WORKFLOW (Wave 9a): explicit Generate PDF affordance with
-            disabled state + tooltip. PDF / XBRL output isn't wired yet
-            (Wave 10) — but rendering the button as disabled tells the user
-            the path exists rather than leaving them hunting for it.
+            AAT-10D (Wave 10d): live Generate button — fetches a PDF
+            or XBRL export of the BRSR Core responses for the selected
+            fiscal year. Format dropdown sits inline next to the button
+            so the writer can pick output without leaving the page.
           */}
-          <button
-            type="button"
-            disabled
-            title="Coming soon — PDF / XBRL export wired in Wave 10"
-            style={{
-              fontFamily: 'inherit',
-              fontSize: '0.8125rem',
-              fontWeight: 600,
-              padding: '0.5rem 1rem',
-              borderRadius: '0.5rem',
-              border: '1.5px solid var(--border-primary)',
-              backgroundColor: 'var(--bg-card)',
-              color: 'var(--text-tertiary)',
-              cursor: 'not-allowed',
-              opacity: 0.7,
-            }}
-          >
-            Generate PDF
-          </button>
+          <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.5rem' }}>
+            <select
+              value={renderFormat}
+              onChange={(e) =>
+                setRenderFormat(e.target.value as BrsrRenderFormat)
+              }
+              aria-label="BRSR export format"
+              data-testid="brsr-render-format"
+              disabled={generating}
+              style={{
+                fontFamily: 'inherit',
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+                padding: '0.5rem 0.625rem',
+                borderRadius: '0.5rem',
+                border: '1.5px solid var(--border-primary)',
+                backgroundColor: 'var(--bg-card)',
+                color: 'var(--text-primary)',
+              }}
+            >
+              {BRSR_RENDER_FORMATS.map((f) => (
+                <option key={f.value} value={f.value}>
+                  {f.label}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              onClick={handleGenerate}
+              disabled={generating}
+              data-testid="brsr-generate-button"
+              style={{
+                fontFamily: 'inherit',
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+                padding: '0.5rem 1rem',
+                borderRadius: '0.5rem',
+                border: '1.5px solid #1a5d3d',
+                backgroundColor: generating ? 'var(--bg-card)' : '#1a5d3d',
+                color: generating ? 'var(--text-tertiary)' : '#fff',
+                cursor: generating ? 'wait' : 'pointer',
+                opacity: generating ? 0.7 : 1,
+              }}
+            >
+              {generating
+                ? 'Generating…'
+                : `Generate ${renderFormat.toUpperCase()}`}
+            </button>
+          </div>
         </div>
 
         {/* Section header + progress */}
