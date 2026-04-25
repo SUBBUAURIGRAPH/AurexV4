@@ -21,6 +21,7 @@ import {
   type ListMarketplaceQuery,
   type PublicListingStatus,
 } from '../services/biocarbon-public.service.js';
+import { getCatalogue } from '../services/methodology.service.js';
 import { rateLimiter } from '../middleware/rate-limiter.js';
 
 export const biocarbonPublicRouter: IRouter = Router();
@@ -60,6 +61,38 @@ biocarbonPublicRouter.get('/marketplace', async (req, res, next) => {
 
 const detailParamsSchema = z.object({
   bcrSerialId: z.string().min(1).max(255),
+});
+
+/**
+ * AAT-π / AV4-368 — Methodology catalogue: single source of truth.
+ *
+ * GET /methodologies — public, no auth. Returns the full catalogue with
+ *   ETag + Cache-Control. Honours `If-None-Match` for 304 short-circuit.
+ *
+ * Consumers: AWD2 import client, BCR live adapter, Aurigraph DLT SDK.
+ */
+biocarbonPublicRouter.get('/methodologies', async (req, res, next) => {
+  try {
+    const { entries, etag, generatedAt } = await getCatalogue();
+    // Use a strong validator (no W/ prefix) — payload is materialised
+    // server-side and identical bytes-for-bytes when ETag matches.
+    const quotedEtag = `"${etag}"`;
+
+    const ifNoneMatch = req.header('If-None-Match');
+    if (ifNoneMatch && ifNoneMatch === quotedEtag) {
+      res.status(304);
+      res.setHeader('ETag', quotedEtag);
+      res.setHeader('Cache-Control', 'public, max-age=60');
+      res.end();
+      return;
+    }
+
+    res.setHeader('ETag', quotedEtag);
+    res.setHeader('Cache-Control', 'public, max-age=60');
+    res.json({ entries, etag, generatedAt });
+  } catch (err) {
+    next(err);
+  }
 });
 
 biocarbonPublicRouter.get('/tokens/:bcrSerialId', async (req, res, next) => {

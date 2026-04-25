@@ -764,10 +764,20 @@ model Methodology {
   name            String   @db.VarChar(255)
   version         String   @db.VarChar(32)
   category        MethodologyCategory
+  /// AAT-π / AV4-368: registry-grouping classifier exposed to external
+  /// consumers (AWD2 / BCR / Aurigraph SDK). The legacy `category` column
+  /// classifies the methodology *type* (baseline/removal/etc.); this field
+  /// classifies the *registry of origin* so cross-system clients can pick
+  /// out e.g. "BCR-eligible Verra-style" vs "A6.4 SB-issued".
+  registryCategory MethodologyRegistryCategory @default(A6_4) @map("registry_category")
   sectoralScope   Int? // 1-15 per UNFCCC sectoral scopes
   summary         String?  @db.Text
   referenceUrl    String?  @map("reference_url") @db.VarChar(500)
   effectiveFrom   DateTime @map("effective_from")
+  /// AAT-π / AV4-368: optional sunset date — null = currently active
+  /// (and `isActive` is the canonical truth). Set when a methodology is
+  /// superseded by a newer version or formally deprecated by the registry.
+  effectiveUntil  DateTime? @map("effective_until")
   supersededAt    DateTime? @map("superseded_at")
   isActive        Boolean  @default(true) @map("is_active")
   /// BioCarbon Registry (BCR) Third-Party tokenisation eligibility flag.
@@ -775,12 +785,19 @@ model Methodology {
   /// BCR's lock-then-mint flow (B6 of BIOCARBON_TOKENIZATION_GUIDELINES_RESEARCH).
   /// Read-only; toggled via the master-data seed.
   isBcrEligible   Boolean  @default(false) @map("is_bcr_eligible")
+  /// AAT-π / AV4-368: GHGs covered by this methodology — defaults to
+  /// ["CO2"] for the common case. Mirrors `Activity.gasesCovered`.
+  gases           String[] @default(["CO2"])
+  /// AAT-π / AV4-368: free-text notes for the catalogue surface. Visible
+  /// to external consumers via the public catalogue endpoint.
+  notes           String?  @db.Text
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   activities Activity[]
 
   @@index([category, isActive])
+  @@index([registryCategory, isActive])
   @@map("methodologies")
 }
 
@@ -790,6 +807,16 @@ enum MethodologyCategory {
   SMALL_SCALE             @map("small_scale")
   CONSOLIDATED            @map("consolidated")
   CDM_TRANSITION          @map("cdm_transition")
+}
+
+/// AAT-π / AV4-368: registry-of-origin grouping for the methodology
+/// catalogue. Distinct from `MethodologyCategory` (which classifies the
+/// *type* of methodology). This is the field external consumers (AWD2,
+/// BCR live adapter, Aurigraph DLT SDK) read off the public catalogue.
+enum MethodologyRegistryCategory {
+  A6_4             @map("a6_4")
+  BCR              @map("bcr")
+  VOLUNTARY_OTHER  @map("voluntary_other")
 }
 
 /// An A6.4 mitigation activity (project or programme of activities).

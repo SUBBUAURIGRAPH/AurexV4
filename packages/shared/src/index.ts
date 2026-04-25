@@ -156,5 +156,13 @@ export {
   type RetirementPurpose,
   type VerifyRetirementOptions,
 } from './schemas/biocarbon-retirement-payload.js';
+export {
+  METHODOLOGY_CATEGORIES,
+  methodologyCatalogueEntrySchema,
+  methodologyCatalogueResponseSchema,
+  type MethodologyCategory,
+  type MethodologyCatalogueEntry,
+  type MethodologyCatalogueResponse,
+} from './schemas/methodology-catalogue.js';
 export { type ProblemDetail, type PaginatedResponse, type ApiResponse } from './types/api.js';
 export { ROLES, type Role, type Permission } from './types/rbac.js';

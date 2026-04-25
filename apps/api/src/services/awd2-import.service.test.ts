@@ -9,6 +9,8 @@ const { mockPrisma } = vi.hoisted(() => ({
     },
     methodology: {
       findFirst: vi.fn(),
+      findUnique: vi.fn(),
+      findMany: vi.fn(),
     },
     organization: {
       findUnique: vi.fn(),
@@ -88,10 +90,36 @@ function makeMethodology(overrides: Record<string, unknown> = {}) {
     id: METHODOLOGY_ID,
     code: 'VM0042',
     name: 'Improved Agricultural Land Management',
+    version: '2.0',
+    category: 'BASELINE_AND_MONITORING',
+    registryCategory: 'BCR',
+    sectoralScope: 14,
+    summary: null,
+    referenceUrl: 'https://verra.org/',
+    effectiveFrom: new Date('2023-09-26T00:00:00.000Z'),
+    effectiveUntil: null,
     isActive: true,
     isBcrEligible: true,
+    gases: ['CO2'],
+    notes: null,
     ...overrides,
   };
+}
+
+/**
+ * AAT-π / AV4-368: stage both reads the awd2 service now performs:
+ *   1. methodology.service.findByCode → prisma.methodology.findMany
+ *   2. awd2-import.service local id lookup → prisma.methodology.findUnique
+ * Returning null from either is the "missing" path.
+ */
+function stageMethodologyLookup(
+  result: ReturnType<typeof makeMethodology> | null,
+): void {
+  mockPrisma.methodology.findMany.mockResolvedValue(result ? [result] : []);
+  mockPrisma.methodology.findUnique.mockResolvedValue(result);
+  // Keep findFirst staged for legacy assertions in tests that still
+  // reference it directly. Returns same row.
+  mockPrisma.methodology.findFirst.mockResolvedValue(result);
 }
 
 function makeOrg(overrides: Record<string, unknown> = {}) {
@@ -116,6 +144,8 @@ beforeEach(() => {
   mockPrisma.awd2Handoff.findUnique.mockReset();
   mockPrisma.awd2Handoff.update.mockReset();
   mockPrisma.methodology.findFirst.mockReset();
+  mockPrisma.methodology.findUnique.mockReset();
+  mockPrisma.methodology.findMany.mockReset();
   mockPrisma.organization.findUnique.mockReset();
   mockPrisma.activity.findFirst.mockReset();
   mockPrisma.activity.create.mockReset();
@@ -142,7 +172,7 @@ beforeEach(() => {
 describe('importAwd2Handoff — happy path', () => {
   it('creates a synthetic Activity, MonitoringPeriod and Issuance with MINTED + AWD2 contract ref', async () => {
     mockPrisma.awd2Handoff.findUnique.mockResolvedValue(makeHandoffRow());
-    mockPrisma.methodology.findFirst.mockResolvedValue(makeMethodology());
+    stageMethodologyLookup(makeMethodology());
     mockPrisma.organization.findUnique.mockResolvedValue(makeOrg());
     mockPrisma.activity.findFirst.mockResolvedValue(null); // first import
     mockPrisma.activity.create.mockResolvedValue(makeActivity());
@@ -205,7 +235,7 @@ describe('importAwd2Handoff — happy path', () => {
 describe('importAwd2Handoff — methodology eligibility', () => {
   it('throws MethodologyNotEligibleError when methodology not found', async () => {
     mockPrisma.awd2Handoff.findUnique.mockResolvedValue(makeHandoffRow());
-    mockPrisma.methodology.findFirst.mockResolvedValue(null);
+    stageMethodologyLookup(null);
     mockPrisma.awd2Handoff.update.mockResolvedValue({});
 
     await expect(importAwd2Handoff(makeInput())).rejects.toBeInstanceOf(
@@ -227,9 +257,7 @@ describe('importAwd2Handoff — methodology eligibility', () => {
 
   it('throws MethodologyNotEligibleError when methodology found but isBcrEligible=false', async () => {
     mockPrisma.awd2Handoff.findUnique.mockResolvedValue(makeHandoffRow());
-    mockPrisma.methodology.findFirst.mockResolvedValue(
-      makeMethodology({ isBcrEligible: false }),
-    );
+    stageMethodologyLookup(makeMethodology({ isBcrEligible: false }));
     mockPrisma.awd2Handoff.update.mockResolvedValue({});
 
     await expect(importAwd2Handoff(makeInput())).rejects.toBeInstanceOf(
@@ -248,7 +276,7 @@ describe('importAwd2Handoff — methodology eligibility', () => {
 describe('importAwd2Handoff — org existence', () => {
   it('throws HolderOrgNotFoundError when org does not exist', async () => {
     mockPrisma.awd2Handoff.findUnique.mockResolvedValue(makeHandoffRow());
-    mockPrisma.methodology.findFirst.mockResolvedValue(makeMethodology());
+    stageMethodologyLookup(makeMethodology());
     mockPrisma.organization.findUnique.mockResolvedValue(null);
     mockPrisma.awd2Handoff.update.mockResolvedValue({});
 
@@ -287,6 +315,8 @@ describe('importAwd2Handoff — idempotent re-import', () => {
 
     // No reads or writes downstream of the dedup check.
     expect(mockPrisma.methodology.findFirst).not.toHaveBeenCalled();
+    expect(mockPrisma.methodology.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.methodology.findUnique).not.toHaveBeenCalled();
     expect(mockPrisma.organization.findUnique).not.toHaveBeenCalled();
     expect(mockPrisma.activity.findFirst).not.toHaveBeenCalled();
     expect(mockPrisma.activity.create).not.toHaveBeenCalled();
@@ -315,6 +345,8 @@ describe('importAwd2Handoff — whole-ton defence in depth', () => {
 
     // Methodology / org checks should not have been reached.
     expect(mockPrisma.methodology.findFirst).not.toHaveBeenCalled();
+    expect(mockPrisma.methodology.findMany).not.toHaveBeenCalled();
+    expect(mockPrisma.methodology.findUnique).not.toHaveBeenCalled();
     expect(mockPrisma.issuance.create).not.toHaveBeenCalled();
   });
 
@@ -340,7 +372,7 @@ describe('importAwd2Handoff — whole-ton defence in depth', () => {
 describe('importAwd2Handoff — Activity find-or-create', () => {
   it('creates a new Activity when no row matches awd2ProjectRef', async () => {
     mockPrisma.awd2Handoff.findUnique.mockResolvedValue(makeHandoffRow());
-    mockPrisma.methodology.findFirst.mockResolvedValue(makeMethodology());
+    stageMethodologyLookup(makeMethodology());
     mockPrisma.organization.findUnique.mockResolvedValue(makeOrg());
     mockPrisma.activity.findFirst.mockResolvedValue(null); // ← no existing
     mockPrisma.activity.create.mockResolvedValue(makeActivity());
@@ -362,7 +394,7 @@ describe('importAwd2Handoff — Activity find-or-create', () => {
 
   it('reuses an existing Activity when one already matches awd2ProjectRef', async () => {
     mockPrisma.awd2Handoff.findUnique.mockResolvedValue(makeHandoffRow());
-    mockPrisma.methodology.findFirst.mockResolvedValue(makeMethodology());
+    stageMethodologyLookup(makeMethodology());
     mockPrisma.organization.findUnique.mockResolvedValue(makeOrg());
     // ← existing Activity returned by findFirst
     mockPrisma.activity.findFirst.mockResolvedValue(makeActivity());
@@ -384,7 +416,7 @@ describe('importAwd2Handoff — Activity find-or-create', () => {
 describe('importAwd2Handoff — composite AWD2 contract ref', () => {
   it('encodes contractAddress + tokenId into tokenizationContractId', async () => {
     mockPrisma.awd2Handoff.findUnique.mockResolvedValue(makeHandoffRow());
-    mockPrisma.methodology.findFirst.mockResolvedValue(makeMethodology());
+    stageMethodologyLookup(makeMethodology());
     mockPrisma.organization.findUnique.mockResolvedValue(makeOrg());
     mockPrisma.activity.findFirst.mockResolvedValue(makeActivity());
     mockPrisma.monitoringPeriod.create.mockResolvedValue({ id: PERIOD_ID });

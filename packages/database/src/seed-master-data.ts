@@ -1007,31 +1007,34 @@ const BCR_METHODOLOGIES: Array<{
 async function seedA64Methodologies() {
   console.log('\n── Article 6.4 Methodologies ──');
   for (const m of A64_METHODOLOGIES) {
+    // AAT-π / AV4-368: populate the catalogue-surface fields:
+    //   registryCategory = A6_4 (UNFCCC Supervisory Body)
+    //   gases default to ["CO2"] except cookstoves/landfill which add CH4
+    //   notes mirrors the summary so the public catalogue carries it
+    const gases = m.code.includes('LANDFILL')
+      ? ['CO2', 'CH4']
+      : m.code.includes('COOKSTOVE')
+        ? ['CO2', 'CH4', 'N2O']
+        : ['CO2'];
+    const sharedFields = {
+      name: m.name,
+      version: m.version,
+      category: m.category as never,
+      registryCategory: 'A6_4' as never,
+      sectoralScope: m.sectoralScope,
+      summary: m.summary,
+      referenceUrl: m.referenceUrl,
+      effectiveFrom: m.effectiveFrom,
+      effectiveUntil: null,
+      isActive: true,
+      isBcrEligible: m.isBcrEligible ?? false,
+      gases,
+      notes: m.summary,
+    };
     await prisma.methodology.upsert({
       where: { code: m.code },
-      update: {
-        name: m.name,
-        version: m.version,
-        category: m.category as never,
-        sectoralScope: m.sectoralScope,
-        summary: m.summary,
-        referenceUrl: m.referenceUrl,
-        effectiveFrom: m.effectiveFrom,
-        isActive: true,
-        isBcrEligible: m.isBcrEligible ?? false,
-      },
-      create: {
-        code: m.code,
-        name: m.name,
-        version: m.version,
-        category: m.category as never,
-        sectoralScope: m.sectoralScope,
-        summary: m.summary,
-        referenceUrl: m.referenceUrl,
-        effectiveFrom: m.effectiveFrom,
-        isActive: true,
-        isBcrEligible: m.isBcrEligible ?? false,
-      },
+      update: sharedFields,
+      create: { code: m.code, ...sharedFields },
     });
   }
   const bcrEligibleCount = A64_METHODOLOGIES.filter(
@@ -1049,31 +1052,33 @@ async function seedA64Methodologies() {
 async function seedBcrMethodologies() {
   console.log('\n── BCR-Eligible Methodologies (Verra-style) ──');
   for (const m of BCR_METHODOLOGIES) {
+    // AAT-π / AV4-368: every BCR seed row is a BCR-registry methodology
+    // (registryCategory = BCR), AFOLU sectoral scope (14), and carries
+    // CO2 by default. VM0007 (REDD+) and VM0033 (wetland restoration)
+    // also include CH4 + N2O because soil/peat fluxes are non-CO2 dominant.
+    const gases =
+      m.code === 'VM0007' || m.code === 'VM0033'
+        ? ['CO2', 'CH4', 'N2O']
+        : ['CO2'];
+    const sharedFields = {
+      name: m.name,
+      version: m.version,
+      category: m.category as never,
+      registryCategory: 'BCR' as never,
+      sectoralScope: m.sectoralScope,
+      summary: m.summary,
+      referenceUrl: m.referenceUrl,
+      effectiveFrom: m.effectiveFrom,
+      effectiveUntil: null,
+      isActive: true,
+      isBcrEligible: true,
+      gases,
+      notes: m.summary,
+    };
     await prisma.methodology.upsert({
       where: { code: m.code },
-      update: {
-        name: m.name,
-        version: m.version,
-        category: m.category as never,
-        sectoralScope: m.sectoralScope,
-        summary: m.summary,
-        referenceUrl: m.referenceUrl,
-        effectiveFrom: m.effectiveFrom,
-        isActive: true,
-        isBcrEligible: true,
-      },
-      create: {
-        code: m.code,
-        name: m.name,
-        version: m.version,
-        category: m.category as never,
-        sectoralScope: m.sectoralScope,
-        summary: m.summary,
-        referenceUrl: m.referenceUrl,
-        effectiveFrom: m.effectiveFrom,
-        isActive: true,
-        isBcrEligible: true,
-      },
+      update: sharedFields,
+      create: { code: m.code, ...sharedFields },
     });
   }
   console.log(

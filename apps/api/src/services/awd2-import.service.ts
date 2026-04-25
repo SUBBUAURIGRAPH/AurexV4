@@ -44,6 +44,11 @@ import { prisma } from '@aurex/database';
 import { AppError } from '../middleware/error-handler.js';
 import { logger } from '../lib/logger.js';
 import { recordAudit } from './audit-log.service.js';
+import {
+  assertBcrEligible,
+  MethodologyNotBcrEligibleError,
+  MethodologyNotFoundError,
+} from './methodology.service.js';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -276,13 +281,36 @@ export async function importAwd2Handoff(
   }
 
   // ── Step 2: methodology eligibility ────────────────────────────────
-  const methodology = await prisma.methodology.findFirst({
+  // AAT-π / AV4-368: route via the methodology catalogue (single source of
+  // truth) instead of an inline prisma.methodology.findFirst. The catalogue
+  // throws typed errors; we translate them into the legacy
+  // MethodologyNotEligibleError so the route's RFC 7807 mapping is preserved.
+  try {
+    await assertBcrEligible(input.methodologyCode);
+  } catch (err) {
+    if (
+      err instanceof MethodologyNotFoundError ||
+      err instanceof MethodologyNotBcrEligibleError
+    ) {
+      await markHandoffFailed(
+        input.awd2HandoffId,
+        `Methodology ${input.methodologyCode} is not BCR-eligible (or does not exist)`,
+      );
+      throw new MethodologyNotEligibleError(input.methodologyCode);
+    }
+    throw err;
+  }
+  // Fetch the row again to get the database id (catalogue entry omits id
+  // by design — external consumers don't need it). Cheap follow-up read
+  // gated by the catalogue's eligibility check above.
+  const methodology = await prisma.methodology.findUnique({
     where: { code: input.methodologyCode },
   });
-  if (!methodology || !methodology.isBcrEligible) {
+  if (!methodology) {
+    // Defensive — assertBcrEligible just succeeded, so this is a race.
     await markHandoffFailed(
       input.awd2HandoffId,
-      `Methodology ${input.methodologyCode} is not BCR-eligible (or does not exist)`,
+      `Methodology ${input.methodologyCode} disappeared between catalogue check and id lookup`,
     );
     throw new MethodologyNotEligibleError(input.methodologyCode);
   }
