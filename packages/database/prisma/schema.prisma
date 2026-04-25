@@ -1105,6 +1105,9 @@ model Issuance {
   serialBlock CreditUnitBlock?  @relation(fields: [serialBlockId], references: [id])
   aurigraphProcessedEvents AurigraphProcessedEvent[]
   retirements Retirement[]
+  // AAT-κ / AV4-357 — at most one in-flight delist per issuance (enforced by
+  // the @@unique([issuanceId]) on DelistRequest).
+  delistRequest DelistRequest?
 
   @@index([activityId, status])
   @@index([tokenizationContractId])
@@ -1663,4 +1666,51 @@ model AurigraphProcessedEvent {
   @@index([status, createdAt])
   @@index([issuanceId])
   @@map("aurigraph_processed_events")
+}
+
+// ─── AAT-κ / AV4-357 — Marketplace delist (two-way bridge initiator) ───────
+//
+// `DelistRequest` is the marketplace-side trigger for binding requirement
+// B18 of `docs/BIOCARBON_TOKENIZATION_GUIDELINES_RESEARCH.md`:
+//
+//   token holder requests delist
+//     → Aurex burns the chain asset with `{ delist: true }` metadata
+//     → events worker picks up the BURN_FOR_DELIST event
+//     → worker calls BCR `unlockVCC` (locked → free on the BCR side)
+//     → worker flips DelistRequest.status to BCR_UNLOCKED + sets bcrUnlockedAt
+//
+// Initiator (`delist.service.ts`) only persists CHAIN_BURNED. The worker
+// (`aurigraph-events.worker.ts`) reconciles to BCR_UNLOCKED.
+//
+// Idempotency: `@@unique([issuanceId])` enforces one in-flight delist per
+// issuance — re-call returns the existing row's values.
+
+enum DelistStatus {
+  INITIATED    @map("initiated")
+  CHAIN_BURNED @map("chain_burned")
+  BCR_UNLOCKED @map("bcr_unlocked")
+  FAILED       @map("failed")
+}
+
+/// Marketplace-side delist request — see `apps/api/src/services/delist.service.ts`.
+/// Closes the two-way bridge with BCR (B18). One in-flight delist per
+/// issuance is enforced via the @@unique([issuanceId]) index.
+model DelistRequest {
+  id                String       @id @default(uuid()) @db.Uuid
+  issuanceId        String       @map("issuance_id") @db.Uuid
+  issuance          Issuance     @relation(fields: [issuanceId], references: [id])
+  bcrSerialId       String       @map("bcr_serial_id") @db.VarChar(255)
+  requestedByUserId String       @map("requested_by_user_id") @db.Uuid
+  requestedByOrgId  String       @map("requested_by_org_id") @db.Uuid
+  reason            String?      @db.Text
+  txHash            String?      @map("tx_hash") @db.VarChar(255)
+  status            DelistStatus @default(INITIATED)
+  bcrUnlockedAt     DateTime?    @map("bcr_unlocked_at")
+  createdAt         DateTime     @default(now()) @map("created_at")
+  updatedAt         DateTime     @updatedAt @map("updated_at")
+
+  @@unique([issuanceId])
+  @@index([status])
+  @@index([bcrSerialId])
+  @@map("delist_requests")
 }

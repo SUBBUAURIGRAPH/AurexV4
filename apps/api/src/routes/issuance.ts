@@ -5,6 +5,7 @@ import { requireOrgScope } from '../middleware/org-scope.js';
 import { requireOrgRole } from '../middleware/org-role.js';
 import * as issuanceService from '../services/issuance.service.js';
 import { tokenizeIssuance } from '../services/tokenization.service.js';
+import { delistIssuance } from '../services/delist.service.js';
 
 export const issuanceRouter: IRouter = Router();
 
@@ -16,6 +17,10 @@ const APPROVE_ROLES = ['ORG_ADMIN', 'SUPER_ADMIN'];
 // (alias of MANAGER) all carry the right to mint; SUPER_ADMIN keeps the
 // platform-level break-glass capability.
 const TOKENIZE_ROLES = ['ORG_ADMIN', 'MAKER', 'APPROVER', 'MANAGER', 'SUPER_ADMIN'];
+// AAT-κ / AV4-357 — delist gates to ORG_ADMIN + APPROVER only. APPROVER is
+// the alias for MANAGER (matches `tokenization` route comment); SUPER_ADMIN
+// keeps the platform-level break-glass capability.
+const DELIST_ROLES = ['ORG_ADMIN', 'APPROVER', 'MANAGER', 'SUPER_ADMIN'];
 
 /** POST /periods/:periodId/issuance — request issuance (manager+) */
 issuanceRouter.post('/periods/:periodId', requireOrgRole(...WRITE_ROLES), async (req, res, next) => {
@@ -86,6 +91,33 @@ issuanceRouter.post('/:id/tokenize', requireOrgRole(...TOKENIZE_ROLES), async (r
     const result = await tokenizeIssuance({
       issuanceId: req.params.id as string,
       userId: req.user!.sub,
+    });
+    res.status(200).json({ data: result });
+  } catch (err) {
+    next(err);
+  }
+});
+
+const delistSchema = z.object({
+  reason: z.string().min(1).max(2000).optional(),
+});
+
+/**
+ * POST /:id/delist — biocarbon two-way bridge initiator (AAT-κ / AV4-357).
+ * Burns the chain token with `{ delist: true }` metadata and persists a
+ * `DelistRequest` row at status=CHAIN_BURNED. The events worker reconciles
+ * to BCR_UNLOCKED asynchronously by calling `bcrAdapter.unlockVcc`.
+ * Idempotent: re-call returns the existing `delistRequestId` / `txHash`.
+ */
+issuanceRouter.post('/:id/delist', requireOrgRole(...DELIST_ROLES), async (req, res, next) => {
+  try {
+    const { reason } = delistSchema.parse(req.body ?? {});
+    const result = await delistIssuance({
+      issuanceId: req.params.id as string,
+      userId: req.user!.sub,
+      orgId: req.orgId!,
+      role: req.orgRole,
+      reason,
     });
     res.status(200).json({ data: result });
   } catch (err) {

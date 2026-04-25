@@ -426,6 +426,48 @@ async function processSingleEvent(
             txHash: event.txHash,
           },
         });
+
+        // AAT-κ / AV4-357 — flip the matching DelistRequest row to
+        // BCR_UNLOCKED so the marketplace-side initiator knows the BCR
+        // round-trip closed. If no row exists (direct chain delist via SDK
+        // bypassing the Aurex initiator), warn but proceed — we don't fail
+        // the worker tick on a missing initiator row.
+        if (bcrOk) {
+          try {
+            const updated = await prisma.delistRequest.updateMany({
+              where: {
+                issuanceId: event.issuanceId,
+                status: { in: ['INITIATED', 'CHAIN_BURNED'] },
+              },
+              data: {
+                status: 'BCR_UNLOCKED',
+                bcrUnlockedAt: new Date(),
+              },
+            });
+            if (updated.count === 0) {
+              logger.warn(
+                {
+                  txHash: event.txHash,
+                  issuanceId: event.issuanceId,
+                  bcrSerialId: event.bcrSerialId,
+                },
+                'BURN_FOR_DELIST: no matching DelistRequest row to flip — chain delist proceeded without Aurex initiator',
+              );
+            }
+          } catch (err) {
+            // Don't fail the tick if the DelistRequest update errors — the
+            // BCR side is already unlocked, the chain side is already burned,
+            // and the worker must keep advancing. Log loudly for ops.
+            logger.error(
+              {
+                err: err instanceof Error ? err.message : String(err),
+                txHash: event.txHash,
+                issuanceId: event.issuanceId,
+              },
+              'BURN_FOR_DELIST: DelistRequest reconciliation update threw — non-fatal',
+            );
+          }
+        }
       }
     }
   } catch (err) {

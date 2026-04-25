@@ -73,6 +73,15 @@ export interface AssetBurnSpec {
   /** Audit narrative — required so the burn shows up in the public ledger. */
   reason: string;
   retiredBy?: string;
+  /**
+   * Optional structured metadata baked into the burn `terms`. Used by the
+   * AAT-κ delist initiator (AV4-357) to emit `{ delist: true, bcrSerialId,
+   * bcrLockId, aurexIssuanceId, … }` so the events worker can classify the
+   * resulting on-ledger burn as `BURN_FOR_DELIST` (no `retiredFor`/`retiredBy`)
+   * and call `bcrAdapter.unlockVcc`. Merged into the chain-template `terms`;
+   * top-level retire fields take precedence.
+   */
+  metadata?: Record<string, unknown>;
 }
 
 /** Common surface every chain adapter implements. */
@@ -414,16 +423,21 @@ export class AurigraphDltAdapter implements ChainAdapter {
             'SDK_DEPLOY_UNAVAILABLE',
           );
         }
+        // Merge optional structured metadata (AAT-κ / AV4-357 delist payload)
+        // UNDER the canonical retire fields so a misbehaving caller cannot
+        // silently overwrite assetId/amount/reason/retiredBy via metadata.
+        const terms: Record<string, unknown> = {
+          ...(spec.metadata ?? {}),
+          assetId: spec.assetId,
+          amount: spec.amount,
+          reason: spec.reason,
+          retiredBy: spec.retiredBy,
+        };
         return deployFn.call(this.client.contracts, {
           templateId: 'RETIREMENT',
           useCaseId: 'RETIREMENT',
           channelId: this.channelId,
-          terms: {
-            assetId: spec.assetId,
-            amount: spec.amount,
-            reason: spec.reason,
-            retiredBy: spec.retiredBy,
-          },
+          terms,
         });
       });
 
