@@ -129,5 +129,13 @@ export {
   type OnboardingStep4Input,
   type SkipOnboardingInput,
 } from './schemas/onboarding.js';
+export {
+  bcrSerialIdSchema,
+  biocarbonAssetMetadataSchema,
+  POST_MINT_MUTABLE_FIELDS,
+  assertMetadataImmutable,
+  hashBcrSerialId,
+  type BioCarbonAssetMetadata,
+} from './schemas/biocarbon-asset-metadata.js';
 export { type ProblemDetail, type PaginatedResponse, type ApiResponse } from './types/api.js';
 export { ROLES, type Role, type Permission } from './types/rbac.js';
