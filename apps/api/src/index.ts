@@ -51,6 +51,8 @@ import { complianceRouter } from './routes/compliance.js';
 // AAT-V3PORT: HEF voucher / coupon trial-signup (ported from V3).
 import { couponsRouter } from './routes/coupons.js';
 import { adminCouponsRouter } from './routes/admin-coupons.js';
+// AAT-RZP / Wave 7: Razorpay-backed subscription billing.
+import { billingRouter } from './routes/billing.js';
 // AV4-338 / AAT-7: retention header + nightly archival worker
 import { retentionHeaderMiddleware } from './middleware/retention-header.js';
 import { startRetentionWorker } from './workers/retention-archival.worker.js';
@@ -141,6 +143,10 @@ app.use('/api/v1/compliance', complianceRouter);
 // admin CRUD gated to SUPER_ADMIN / ORG_ADMIN.
 app.use('/api/v1/coupons', couponsRouter);
 app.use('/api/v1/admin/coupons', adminCouponsRouter);
+// AAT-RZP / Wave 7: Razorpay billing — checkout + webhook + subscription reads.
+// The webhook endpoint inside billingRouter overrides express.json with
+// express.raw so HMAC verification sees the exact bytes Razorpay signed.
+app.use('/api/v1/billing', billingRouter);
 
 // ADM-052: RFC 7807 error handler
 app.use(errorHandler);

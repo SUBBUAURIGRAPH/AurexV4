@@ -116,6 +116,9 @@ model Organization {
   activities         Activity[]
   creditAccounts     CreditAccount[]
 
+  // AAT-RZP / Wave 7: Razorpay billing back-relation.
+  subscriptions      Subscription[]
+
   @@index([parentOrgId])
   @@map("organizations")
 }
@@ -1963,4 +1966,156 @@ enum TrialStatus {
   EXPIRED   @map("expired")
   CONVERTED @map("converted")
   CANCELLED @map("cancelled")
+}
+
+// ─── Razorpay billing (AAT-RZP / Wave 7) ──────────────────────────────
+// Razorpay is the single payment gateway for both INR (India) and USD
+// (international) — it supports both via multi-currency settlement, so
+// we deliberately DO NOT bring in Stripe (out of scope per 2026-04-25
+// product spec).
+//
+// Money is stored as integer "minor units" everywhere:
+//   - INR: paise. ₹4,999 → amountMinor = 499900.
+//   - USD: cents. $999   → amountMinor = 99900.
+// Never use Decimal/Float for billing — integer-only avoids the standard
+// floating-point money pitfalls.
+//
+// Lifecycle: Subscription(PENDING) + RazorpayOrder(CREATED) created in
+// the same Prisma transaction inside SubscriptionService.startCheckout.
+// On Razorpay capture (webhook + client-side success callback),
+// Subscription flips ACTIVE, RazorpayOrder flips CAPTURED, and an
+// Invoice is issued. Both webhook + client callback are idempotent —
+// the webhook is the authoritative source of truth (Razorpay retries
+// for up to 24h on non-2xx).
+
+model Subscription {
+  id                  String              @id @default(uuid()) @db.Uuid
+  organizationId      String              @map("organization_id") @db.Uuid
+  organization        Organization        @relation(fields: [organizationId], references: [id])
+  plan                SubscriptionPlan
+  region              SubscriptionRegion
+  status              SubscriptionStatus  @default(PENDING)
+  currency            String              @db.VarChar(3) // INR / USD
+  amountMinor         Int                 @map("amount_minor") // ₹4999 = 499900 paise; $999 = 99900 cents
+  perSiteCount        Int                 @default(1) @map("per_site_count")
+  totalAmountMinor    Int                 @map("total_amount_minor") // amountMinor * perSiteCount (post-discount)
+  startsAt            DateTime?           @map("starts_at")
+  endsAt              DateTime?           @map("ends_at")
+  cancelAt            DateTime?           @map("cancel_at")
+  cancelledAt         DateTime?           @map("cancelled_at")
+  trialEndsAt         DateTime?           @map("trial_ends_at")
+  appliedCouponCode   String?             @map("applied_coupon_code") @db.VarChar(64)
+  couponRedemptionId  String?             @map("coupon_redemption_id") @db.Uuid
+  metadata            Json?
+  createdAt           DateTime            @default(now()) @map("created_at")
+  updatedAt           DateTime            @updatedAt @map("updated_at")
+
+  invoices            Invoice[]
+  razorpayOrders      RazorpayOrder[]
+
+  @@index([organizationId, status])
+  @@index([status, endsAt])
+  @@index([appliedCouponCode])
+  @@map("subscriptions")
+}
+
+model Invoice {
+  id                String           @id @default(uuid()) @db.Uuid
+  subscriptionId    String           @map("subscription_id") @db.Uuid
+  subscription      Subscription     @relation(fields: [subscriptionId], references: [id])
+  invoiceNumber     String           @unique @map("invoice_number") @db.VarChar(64) // INV-2026-000001
+  currency          String           @db.VarChar(3)
+  subtotalMinor     Int              @map("subtotal_minor")
+  discountMinor     Int              @default(0) @map("discount_minor")
+  taxMinor          Int              @default(0) @map("tax_minor") // GST/VAT
+  totalMinor        Int              @map("total_minor")
+  status            InvoiceStatus    @default(DRAFT)
+  issuedAt          DateTime?        @map("issued_at")
+  paidAt            DateTime?        @map("paid_at")
+  metadata          Json?
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  @@index([subscriptionId])
+  @@index([status])
+  @@map("invoices")
+}
+
+model RazorpayOrder {
+  id                String              @id @default(uuid()) @db.Uuid
+  razorpayOrderId   String              @unique @map("razorpay_order_id") @db.VarChar(128)
+  subscriptionId    String              @map("subscription_id") @db.Uuid
+  subscription      Subscription        @relation(fields: [subscriptionId], references: [id])
+  amountMinor       Int                 @map("amount_minor")
+  currency          String              @db.VarChar(3)
+  status            RazorpayOrderStatus @default(CREATED)
+  razorpayPaymentId String?             @map("razorpay_payment_id") @db.VarChar(128)
+  razorpaySignature String?             @map("razorpay_signature") @db.VarChar(255)
+  attemptedAt       DateTime?           @map("attempted_at")
+  capturedAt        DateTime?           @map("captured_at")
+  webhookPayload    Json?               @map("webhook_payload")
+  failureReason     String?             @map("failure_reason") @db.Text
+  createdAt         DateTime            @default(now()) @map("created_at")
+  updatedAt         DateTime            @updatedAt @map("updated_at")
+
+  @@index([subscriptionId])
+  @@index([status, createdAt])
+  @@map("razorpay_orders")
+}
+
+// Idempotency log for Razorpay webhook deliveries. Razorpay retries
+// non-2xx responses for up to 24 hours, so we MUST de-dup on the event
+// id (X-Razorpay-Event-Id header / payload.id). Stored regardless of
+// signature validity so we can audit forged-signature attempts.
+model RazorpayWebhookEvent {
+  id              String    @id @default(uuid()) @db.Uuid
+  razorpayEventId String    @unique @map("razorpay_event_id") @db.VarChar(128) // X-Razorpay-Event-Id
+  eventType       String    @map("event_type") @db.VarChar(64) // payment.captured / payment.failed / refund.processed
+  payload         Json
+  signatureValid  Boolean   @map("signature_valid")
+  processed       Boolean   @default(false)
+  processingError String?   @map("processing_error") @db.Text
+  receivedAt      DateTime  @default(now()) @map("received_at")
+  processedAt     DateTime? @map("processed_at")
+
+  @@index([eventType, receivedAt])
+  @@index([processed, receivedAt])
+  @@map("razorpay_webhook_events")
+}
+
+enum SubscriptionPlan {
+  MSME_INDIA          @map("msme_india")              // ₹4,999/yr Scope 1+2
+  ENTERPRISE_INDIA    @map("enterprise_india")        // ₹9,999/site/yr Scope 1+2
+  SME_INTERNATIONAL   @map("sme_international")       // $999/yr Scope 1+2
+  ENTERPRISE_INTL     @map("enterprise_international") // $1,999/site/yr Scope 1+2
+}
+
+enum SubscriptionRegion {
+  INDIA          @map("india")
+  INTERNATIONAL  @map("international")
+}
+
+enum SubscriptionStatus {
+  PENDING        @map("pending")        // checkout started, awaiting payment
+  ACTIVE         @map("active")         // payment captured, service granted
+  TRIAL          @map("trial")          // voucher trial in flight, no payment yet
+  PAYMENT_FAILED @map("payment_failed")
+  CANCELLED      @map("cancelled")
+  EXPIRED        @map("expired")
+}
+
+enum InvoiceStatus {
+  DRAFT      @map("draft")
+  ISSUED     @map("issued")
+  PAID       @map("paid")
+  REFUNDED   @map("refunded")
+  CANCELLED  @map("cancelled")
+}
+
+enum RazorpayOrderStatus {
+  CREATED    @map("created")
+  ATTEMPTED  @map("attempted")
+  CAPTURED   @map("captured")
+  FAILED     @map("failed")
+  REFUNDED   @map("refunded")
 }

@@ -70,3 +70,69 @@ After the trial ends or the discount period expires, customers are billed at the
 
 - Voucher questions: `contact@aurex.in`
 - HEF chapter liaison: TBD (placeholder — Aurex Compliance to confirm)
+
+## Payment processing
+
+Aurex uses **Razorpay** as the single payment gateway for both INR and
+USD checkouts. Razorpay's multi-currency settlement covers both markets,
+so we deliberately do **not** integrate Stripe — one gateway, one set of
+keys, one webhook surface.
+
+### Endpoints
+
+| Endpoint | Auth | Purpose |
+|---|---|---|
+| `POST /api/v1/billing/checkout` | JWT (ORG_ADMIN) | Create a subscription + Razorpay order; returns `{ orderId, keyId, amount, currency }` for the client-side Checkout modal |
+| `POST /api/v1/billing/checkout/success` | JWT | Verify the client-side payment signature + activate (belt-and-braces) |
+| `POST /api/v1/billing/webhook/razorpay` | None (HMAC-signed) | Authoritative payment-state source; idempotent on `X-Razorpay-Event-Id` |
+| `GET /api/v1/billing/subscriptions/me` | JWT | Caller-org's active subscription |
+| `GET /api/v1/billing/invoices` | JWT | Caller-org's invoices |
+
+### Webhook URL
+
+Production: `https://aurex.in/api/v1/billing/webhook/razorpay`
+
+The handler verifies `X-Razorpay-Signature` (HMAC-SHA256 of the raw body
+with `RAZORPAY_WEBHOOK_SECRET`) before any state change. **Always
+returns HTTP 200** even on processing failures — Razorpay retries
+non-2xx for up to 24 hours, and we already persist every event for
+audit. Idempotency is enforced on `razorpayEventId`.
+
+### Money handling
+
+All amounts stored as integer minor units:
+- INR → paise. ₹4,999 = `499900`.
+- USD → cents. $999 = `99900`.
+
+INR plans add 18% GST at checkout; international plans defer tax to the
+customer's invoicing jurisdiction.
+
+### Coupon integration
+
+When `couponCode` is supplied to `/checkout`:
+1. The coupon is validated (existence, active, valid-window, dedup).
+2. `couponService.redeemCoupon` runs atomically and increments `currentRedemptions`.
+3. The post-increment redemption count picks the matching tier in `metadata.discount_tiers`.
+4. The discount is applied to the subtotal; tax is recomputed on the discounted amount.
+5. **Edge case** — when the resulting total is `0` (e.g. HEF first-100 free tier),
+   the service short-circuits past Razorpay (which rejects `amount=0` orders),
+   activates the subscription directly, and issues a `₹0` PAID invoice. The
+   `/checkout` response carries `skippedRazorpay: true` so the client renders a
+   confirmation instead of opening the Razorpay modal.
+6. On payment capture (or short-circuit), `couponService.markConverted` is called,
+   flipping the redemption row to `CONVERTED`.
+
+### Production keys
+
+The following env vars are managed via the deploy environment and
+**never** committed:
+
+```
+RAZORPAY_KEY_ID         # rzp_live_… or rzp_test_…
+RAZORPAY_KEY_SECRET     # server-side secret (do NOT expose to web)
+RAZORPAY_WEBHOOK_SECRET # HMAC secret for webhook verification
+```
+
+In test / CI the keys are stubbed via vitest fixtures. If any of the
+three is missing in non-test runtime, the API throws at first checkout
+attempt — billing routes refuse to silently launch with empty creds.
