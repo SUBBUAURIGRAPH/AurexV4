@@ -275,6 +275,32 @@ const { fakeDb } = vi.hoisted(() => {
           return null;
         },
       ),
+      // Catalogue (AAT-π / AV4-368) reads the full active set via findMany
+      // and orders by (registryCategory, code, version).
+      findMany: vi.fn(
+        async (args?: { where?: { isActive?: boolean; code?: string } }) => {
+          const all = [...methodologies.values()].map((m) => ({ ...m }));
+          const filtered = args?.where
+            ? all.filter((m) => {
+                if (args.where!.isActive !== undefined && m.isActive !== args.where!.isActive) return false;
+                if (args.where!.code !== undefined && m.code !== args.where!.code) return false;
+                return true;
+              })
+            : all;
+          return filtered;
+        },
+      ),
+      // awd2-import does a findUnique({ where: { code }}) post-eligibility to
+      // resolve methodologyId for Activity creation.
+      findUnique: vi.fn(
+        async (args: { where: { code?: string; id?: string } }) => {
+          for (const m of methodologies.values()) {
+            if (args.where.code !== undefined && m.code === args.where.code) return { ...m };
+            if (args.where.id !== undefined && m.id === args.where.id) return { ...m };
+          }
+          return null;
+        },
+      ),
     },
 
     // ── Activity ─────────────────────────────────────────────────────
@@ -575,6 +601,13 @@ function seedReferenceData(): void {
     isActive: true,
     isBcrEligible: true,
     referenceUrl: null,
+    // AAT-π / AV4-368: catalogue fields
+    registryCategory: 'BCR',
+    gases: ['CO2'],
+    sectoralScope: 14,
+    effectiveFrom: new Date('2024-01-01'),
+    effectiveUntil: null,
+    notes: null,
   });
   // Seeded but NOT BCR-eligible — used by the rejection test.
   fakeDb.methodologies.set(METHODOLOGY_ID_NON_BCR, {
@@ -586,6 +619,13 @@ function seedReferenceData(): void {
     isActive: true,
     isBcrEligible: false,
     referenceUrl: null,
+    // AAT-π / AV4-368: catalogue fields
+    registryCategory: 'A6_4',
+    gases: ['CH4'],
+    sectoralScope: 15,
+    effectiveFrom: new Date('2020-01-01'),
+    effectiveUntil: null,
+    notes: null,
   });
 }
 
@@ -713,7 +753,7 @@ async function httpRequest<T = unknown>(args: {
 
 // ── Setup ─────────────────────────────────────────────────────────────────
 
-beforeEach(() => {
+beforeEach(async () => {
   fakeDb.orgs.clear();
   fakeDb.methodologies.clear();
   fakeDb.activities.clear();
@@ -722,6 +762,11 @@ beforeEach(() => {
   fakeDb.handoffs.clear();
   fakeDb.auditLogs.clear();
   vi.clearAllMocks();
+  // AAT-π / AV4-368: drop the methodology catalogue's in-memory cache so
+  // each test sees a freshly-seeded methodology set rather than the prior
+  // test's cached entries.
+  const { _resetCatalogueCacheForTests } = await import('./services/methodology.service.js');
+  _resetCatalogueCacheForTests();
   // Re-attach the $transaction passthrough after clearAllMocks resets call
   // history (the implementation itself survives clearAllMocks but we want
   // to be defensive).
