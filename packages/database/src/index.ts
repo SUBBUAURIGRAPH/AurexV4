@@ -18,3 +18,11 @@ export type {
   InvoiceStatus,
   RazorpayOrderStatus,
 } from '@prisma/client';
+
+// AAT-EMAIL / Wave 8b: re-export OutboundEmail audit model + EmailStatus
+// enum so api can persist send attempts without depending on
+// @prisma/client directly.
+export type {
+  OutboundEmail,
+  EmailStatus,
+} from '@prisma/client';

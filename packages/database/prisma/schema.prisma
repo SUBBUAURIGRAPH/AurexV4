@@ -2145,3 +2145,36 @@ enum RazorpayOrderStatus {
   FAILED     @map("failed")
   REFUNDED   @map("refunded")
 }
+
+// ─── Outbound email (AAT-EMAIL / Wave 8b) ──────────────────────────────
+// Audit trail for every transactional email handed to AWS SES (or the
+// in-memory test queue). One row per send attempt: PENDING → SENT or
+// PENDING → FAILED. A future retry worker can re-process FAILED rows by
+// replaying the templated body from `templateKey` + persisted recipient.
+// We do NOT persist the rendered HTML body — the template can be
+// re-rendered from a future Outbox-pattern store when needed; keeping
+// only the metadata avoids leaking PII through the audit log.
+
+model OutboundEmail {
+  id            String       @id @default(uuid()) @db.Uuid
+  to            String       @db.VarChar(255)
+  subject       String       @db.VarChar(255)
+  templateKey   String       @map("template_key") @db.VarChar(64) // 'verification' / 'welcome' / 'payment-receipt'
+  status        EmailStatus  @default(PENDING)
+  messageId     String?      @map("message_id") @db.VarChar(255)
+  errorMessage  String?      @map("error_message") @db.Text
+  attemptCount  Int          @default(0) @map("attempt_count")
+  sentAt        DateTime?    @map("sent_at")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@index([to, createdAt])
+  @@map("outbound_emails")
+}
+
+enum EmailStatus {
+  PENDING @map("pending")
+  SENT    @map("sent")
+  FAILED  @map("failed")
+}

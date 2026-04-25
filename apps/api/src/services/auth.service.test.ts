@@ -21,6 +21,7 @@ const { mockPrisma } = vi.hoisted(() => {
     },
     couponRedemption: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       create: vi.fn(),
     },
     emailVerification: {
@@ -31,6 +32,11 @@ const { mockPrisma } = vi.hoisted(() => {
     },
     authEvent: {
       create: vi.fn(),
+    },
+    // AAT-EMAIL: emailService.sendEmail writes audit rows on every call.
+    outboundEmail: {
+      create: vi.fn().mockResolvedValue({ id: 'oe-1' }),
+      update: vi.fn().mockResolvedValue({ id: 'oe-1' }),
     },
     $transaction: vi.fn(),
   };
@@ -125,9 +131,10 @@ describe('register (no coupon)', () => {
     expect(result.name).toBe('Alice');
     expect(result.trial).toBeUndefined();
     expect(result.couponWarning).toBeUndefined();
-    // Dev-mode plaintext token surfaced when NODE_ENV !== 'production'.
-    expect(typeof result._devVerificationToken).toBe('string');
-    expect(result._devVerificationToken!.length).toBeGreaterThan(32);
+    // AAT-EMAIL: the plaintext verification token is NEVER returned in
+    // the response. Delivery is via SES; tests assert on the email
+    // queue / audit row.
+    expect((result as { _devVerificationToken?: string })._devVerificationToken).toBeUndefined();
 
     // Audit row tagged couponApplied:false.
     expect(mockPrisma.authEvent.create).toHaveBeenCalledWith(
@@ -140,7 +147,7 @@ describe('register (no coupon)', () => {
     );
   });
 
-  it('omits the plaintext verification token in production', async () => {
+  it('does NOT leak a plaintext verification token in production either', async () => {
     process.env.NODE_ENV = 'production';
     mockPrisma.user.findUnique.mockResolvedValue(null);
     mockPrisma.user.create.mockResolvedValue({ id: 'u1', email: 'a@b.com', name: 'Alice' });
@@ -148,7 +155,7 @@ describe('register (no coupon)', () => {
 
     const result = await register('a@b.com', 'Sup3rPass!', 'Alice');
 
-    expect(result._devVerificationToken).toBeUndefined();
+    expect((result as { _devVerificationToken?: string })._devVerificationToken).toBeUndefined();
   });
 
   it('throws 409 when the email already exists', async () => {

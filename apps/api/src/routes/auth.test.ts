@@ -23,6 +23,15 @@ const { mockPrisma } = vi.hoisted(() => {
     authEvent: {
       create: vi.fn(),
     },
+    couponRedemption: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
+    // AAT-EMAIL: emailService.sendEmail (test mode) writes a PENDING
+    // row, then patches it to SENT.
+    outboundEmail: {
+      create: vi.fn().mockResolvedValue({ id: 'oe-1' }),
+      update: vi.fn().mockResolvedValue({ id: 'oe-1' }),
+    },
     $transaction: vi.fn(),
   };
   mock.$transaction.mockImplementation(async (arg: unknown): Promise<unknown> => {

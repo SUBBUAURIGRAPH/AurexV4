@@ -41,6 +41,8 @@ import {
 import { AppError } from '../../middleware/error-handler.js';
 import { logger } from '../../lib/logger.js';
 import * as couponService from '../coupon.service.js';
+import * as emailService from '../email/email.service.js';
+import { renderPaymentReceiptEmail } from '../email/templates/payment-receipt.js';
 import {
   PLAN_PRICING,
   INR_GST_RATE_BPS,
@@ -52,6 +54,15 @@ import {
   type CreateOrderInput,
   type RazorpayClient,
 } from './razorpay-client.js';
+
+// Human-friendly labels for the payment-receipt email subject + body.
+// Kept here (not in plans.ts) because they're a presentation concern.
+const PLAN_LABELS: Record<SubscriptionPlan, string> = {
+  MSME_INDIA: 'Aurex MSME India (Scope 1+2)',
+  ENTERPRISE_INDIA: 'Aurex Enterprise India (per-site)',
+  SME_INTERNATIONAL: 'Aurex SME International (Scope 1+2)',
+  ENTERPRISE_INTL: 'Aurex Enterprise International (per-site)',
+};
 
 // ─── Public types ──────────────────────────────────────────────────────
 
@@ -595,6 +606,19 @@ export async function processPaymentSuccess(
     'Razorpay payment captured + subscription ACTIVE',
   );
 
+  // AAT-EMAIL: best-effort payment-receipt email. Fired AFTER the
+  // transaction commits so a failed send cannot revert the payment.
+  await sendPaymentReceiptBestEffort({
+    subscriptionId: result.subscription.id,
+    invoiceNumber: result.invoice.invoiceNumber,
+    totalMinor: result.invoice.totalMinor,
+    currency: result.invoice.currency,
+    plan: result.subscription.plan,
+    periodStart: result.subscription.startsAt,
+    periodEnd: result.subscription.endsAt,
+    organizationId: result.subscription.organizationId,
+  });
+
   return { ...result, alreadyActive: false };
 }
 
@@ -702,10 +726,21 @@ async function handlePaymentCaptured(payload: RazorpayWebhookPayload): Promise<v
     return;
   }
 
-  // Idempotent re-entry — same payment id already captured.
+  // Idempotent re-entry — same payment id already captured. Razorpay
+  // retries webhooks for up to 24h, so this guard is essential to keep
+  // us from sending a duplicate receipt email.
   if (orderRow.status === 'CAPTURED' && orderRow.razorpayPaymentId === entity.id) {
     return;
   }
+
+  // We capture the freshly-issued invoice + subscription out of the
+  // transaction so we can fire the receipt email AFTER commit. TS infers
+  // `never` if we narrow inside the callback, so we hold them in a
+  // mutable wrapper object that survives the closure.
+  const captured: { invoice: Invoice | null; sub: Subscription | null } = {
+    invoice: null,
+    sub: null,
+  };
 
   await prisma.$transaction(async (tx) => {
     await tx.razorpayOrder.update({
@@ -722,7 +757,7 @@ async function handlePaymentCaptured(payload: RazorpayWebhookPayload): Promise<v
     if (!sub) return;
     if (sub.status === 'ACTIVE') return;
 
-    await tx.subscription.update({
+    const updatedSub = await tx.subscription.update({
       where: { id: sub.id },
       data: {
         status: 'ACTIVE',
@@ -730,8 +765,11 @@ async function handlePaymentCaptured(payload: RazorpayWebhookPayload): Promise<v
         endsAt: sub.endsAt ?? addOneYear(new Date()),
       },
     });
+    captured.sub = updatedSub;
 
-    // Issue invoice if none exists yet.
+    // Issue invoice if none exists yet. We only fire the receipt email
+    // when this branch executes — re-entrant calls find an existing
+    // invoice and skip issuance + email.
     const existingInvoice = await tx.invoice.findFirst({
       where: { subscriptionId: sub.id, status: { in: ['PAID', 'ISSUED'] } },
     });
@@ -739,7 +777,7 @@ async function handlePaymentCaptured(payload: RazorpayWebhookPayload): Promise<v
       const subtotal = (sub.metadata as { subtotalMinor?: number } | null)?.subtotalMinor ?? sub.totalAmountMinor;
       const discount = (sub.metadata as { discountMinor?: number } | null)?.discountMinor ?? 0;
       const tax = (sub.metadata as { taxMinor?: number } | null)?.taxMinor ?? 0;
-      await issueInvoiceTx(tx, sub.id, {
+      captured.invoice = await issueInvoiceTx(tx, sub.id, {
         currency: sub.currency,
         subtotalMinor: subtotal,
         discountMinor: discount,
@@ -760,6 +798,21 @@ async function handlePaymentCaptured(payload: RazorpayWebhookPayload): Promise<v
       }
     }
   });
+
+  // Fire receipt email only when a NEW invoice was issued by this
+  // webhook delivery — keeps it idempotent across Razorpay's retries.
+  if (captured.invoice && captured.sub) {
+    await sendPaymentReceiptBestEffort({
+      subscriptionId: captured.sub.id,
+      invoiceNumber: captured.invoice.invoiceNumber,
+      totalMinor: captured.invoice.totalMinor,
+      currency: captured.invoice.currency,
+      plan: captured.sub.plan,
+      periodStart: captured.sub.startsAt,
+      periodEnd: captured.sub.endsAt,
+      organizationId: captured.sub.organizationId,
+    });
+  }
 }
 
 async function handlePaymentFailed(payload: RazorpayWebhookPayload): Promise<void> {
@@ -887,6 +940,91 @@ function addOneYear(d: Date): Date {
   const out = new Date(d);
   out.setUTCFullYear(out.getUTCFullYear() + 1);
   return out;
+}
+
+// ─── Receipt email ─────────────────────────────────────────────────────
+
+/**
+ * Best-effort payment-receipt email. Fires after the Invoice row is
+ * issued PAID. NEVER throws — a failed send must NOT roll back the
+ * payment / subscription state. Caller logs the warning.
+ *
+ * Recipient resolution: pick the first ACTIVE OrgMember of the
+ * subscription's organization in role precedence (OWNER → ADMIN →
+ * anyone). If no eligible member exists we skip silently.
+ */
+export async function sendPaymentReceiptBestEffort(args: {
+  subscriptionId: string;
+  invoiceNumber: string;
+  totalMinor: number;
+  currency: string;
+  plan: SubscriptionPlan;
+  periodStart: Date | null;
+  periodEnd: Date | null;
+  organizationId: string;
+}): Promise<void> {
+  try {
+    // We need an addressee. Pull all active members and pick the
+    // highest-rank one. Roles ordered: OWNER, ADMIN, EDITOR, VIEWER.
+    const members = await prisma.orgMember.findMany({
+      where: { orgId: args.organizationId, isActive: true },
+      include: { user: { select: { name: true, email: true } } },
+    });
+    if (members.length === 0) {
+      logger.info(
+        { subscriptionId: args.subscriptionId, organizationId: args.organizationId },
+        'Payment-receipt skipped: no active org members',
+      );
+      return;
+    }
+
+    const ROLE_RANK: Record<string, number> = {
+      OWNER: 0,
+      ADMIN: 1,
+      EDITOR: 2,
+      AUDITOR: 3,
+      VIEWER: 4,
+    };
+    const sorted = [...members].sort((a, b) => {
+      const ra = ROLE_RANK[a.role] ?? 99;
+      const rb = ROLE_RANK[b.role] ?? 99;
+      return ra - rb;
+    });
+    const recipient = sorted[0];
+    if (!recipient || !recipient.user.email) return;
+
+    const start = args.periodStart ?? new Date();
+    const end = args.periodEnd ?? addOneYear(start);
+
+    const rendered = renderPaymentReceiptEmail({
+      recipientName: recipient.user.name ?? recipient.user.email,
+      planLabel: PLAN_LABELS[args.plan] ?? args.plan,
+      currencyMinorAmount: args.totalMinor,
+      currency: args.currency,
+      invoiceNumber: args.invoiceNumber,
+      periodStart: start,
+      periodEnd: end,
+    });
+
+    const result = await emailService.sendEmail({
+      to: recipient.user.email,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
+      templateKey: 'payment-receipt',
+    });
+    if (!result.ok) {
+      logger.warn(
+        { subscriptionId: args.subscriptionId, error: result.error },
+        'Payment-receipt email failed to send (best-effort)',
+      );
+    }
+  } catch (err) {
+    logger.warn(
+      { err, subscriptionId: args.subscriptionId },
+      'Payment-receipt email errored (swallowed — best-effort)',
+    );
+  }
 }
 
 // Forward-declare types we re-export so route handlers don't need to

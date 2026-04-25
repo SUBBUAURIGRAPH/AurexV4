@@ -2,35 +2,40 @@
  * AAT-ONBOARD: email-verification scaffold.
  *
  * The DB stores SHA-256 hashes of the random token; the plaintext value
- * is delivered out-of-band (email in production, returned in the dev
- * response in NODE_ENV !== 'production' so dev/test can complete the
- * flow without an SMTP server).
+ * is delivered out-of-band via the SES-backed email service (AAT-EMAIL).
  *
  * Flow:
  *   1. issueToken(userId, email) — called from registration. Generates a
- *      32-byte random secret, stores its sha256, expires in 24h.
+ *      32-byte random secret, stores its sha256, expires in 24h, sends
+ *      the verification email via emailService.sendEmail.
  *   2. verifyToken(plaintext)    — flips both EmailVerification.verifiedAt
  *      and User.emailVerifiedAt. Idempotent: a row already verified just
- *      no-ops with success.
+ *      no-ops with success. On the FIRST verification it also fires a
+ *      welcome email to the user.
  *   3. resendForUser(userId)     — invalidates prior tokens for this user
  *      (sets expiresAt to now) and issues a fresh one.
  *
- * Email send is stubbed via logger.info — replace with a real provider
- * (SES, Postmark) when one is wired.
+ * Email send is best-effort — a failure here MUST NOT roll back the
+ * verification row or the user row. The caller relies on that to keep
+ * registration / verify flows working even if SES is degraded.
  */
 
 import { createHash, randomBytes } from 'node:crypto';
 import { prisma } from '@aurex/database';
 import { AppError } from '../middleware/error-handler.js';
 import { logger } from '../lib/logger.js';
+import * as emailService from './email/email.service.js';
+import { renderVerificationEmail } from './email/templates/verification.js';
+import { renderWelcomeEmail } from './email/templates/welcome.js';
 
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000; // 24h
+const TOKEN_TTL_HOURS = 24;
 const TOKEN_BYTES = 32;
 
 export interface IssueResult {
   /** SHA-256 hex stored in the DB (also the row's primary key). */
   token: string;
-  /** Plaintext token. NEVER persist. Email this to the user. */
+  /** Plaintext token. NEVER persist. NEVER surface in API responses. */
   plaintextToken: string;
   expiresAt: Date;
 }
@@ -40,14 +45,20 @@ function hashToken(plaintext: string): string {
 }
 
 function buildVerificationUrl(plaintext: string): string {
-  const base = process.env.WEB_PUBLIC_URL ?? 'https://app.aurex.in';
+  // AUREX_PUBLIC_URL is the canonical web origin for v4; we keep the
+  // legacy WEB_PUBLIC_URL fallback so existing deploy envs don't break.
+  const base =
+    process.env.AUREX_PUBLIC_URL ??
+    process.env.WEB_PUBLIC_URL ??
+    'https://aurex.in';
   return `${base.replace(/\/$/, '')}/verify-email?token=${plaintext}`;
 }
 
 /**
  * Issue a new verification token for the given user. Returns both the
- * stored hash (so callers can audit) and the plaintext (so dev/test can
- * complete the flow).
+ * stored hash (for audit) and the plaintext (so internal callers like
+ * `resendForUser` can chain). The plaintext MUST NOT be returned by HTTP
+ * routes — it's delivered to the user via email.
  */
 export async function issueToken(userId: string, email: string): Promise<IssueResult> {
   const plaintext = randomBytes(TOKEN_BYTES).toString('hex');
@@ -58,16 +69,59 @@ export async function issueToken(userId: string, email: string): Promise<IssueRe
     data: { userId, email, token, expiresAt },
   });
 
-  // Stubbed email send. In production this would push to SES/Postmark.
-  logger.info(
-    {
-      userId,
-      email,
-      verificationUrl: buildVerificationUrl(plaintext),
-      expiresAt,
-    },
-    'Email verification link issued (email stub)',
-  );
+  const verificationUrl = buildVerificationUrl(plaintext);
+
+  // Look up the user so we can personalise the email body. If the
+  // lookup fails (race with deletion, etc.) we fall back to a generic
+  // greeting — the email itself must still go out.
+  let recipientName = email;
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true },
+    });
+    if (user?.name) recipientName = user.name;
+  } catch (err) {
+    logger.warn({ err, userId }, 'Failed to fetch user name for verification email');
+  }
+
+  const rendered = renderVerificationEmail({
+    recipientName,
+    verificationUrl,
+    expiresInHours: TOKEN_TTL_HOURS,
+  });
+
+  // Fire-and-don't-throw. emailService.sendEmail is already best-effort,
+  // but defence-in-depth: we wrap in try/catch so a programmer error in
+  // the service never breaks registration.
+  try {
+    const result = await emailService.sendEmail({
+      to: email,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
+      templateKey: 'verification',
+    });
+    if (!result.ok) {
+      // Surface a clear ops signal: SES failed but we did NOT throw.
+      logger.warn(
+        { userId, email, error: result.error },
+        'Verification email failed to send (best-effort)',
+      );
+    }
+  } catch (err) {
+    logger.error({ err, userId }, 'Verification email send threw unexpectedly');
+  }
+
+  // Belt-and-braces dev hint: when SES isn't wired up locally an operator
+  // running the API in dev can still complete the flow by reading the
+  // log line. NEVER surface this URL in HTTP responses.
+  if (process.env.NODE_ENV !== 'production') {
+    logger.info(
+      { userId, email, verificationUrl, expiresAt },
+      'dev-only: verification URL (also delivered by SES)',
+    );
+  }
 
   return { token, plaintextToken: plaintext, expiresAt };
 }
@@ -129,6 +183,13 @@ export async function verifyToken(plaintext: string): Promise<{
   ]);
 
   logger.info({ userId: row.userId, email: row.email }, 'Email verified');
+
+  // Fire welcome email AFTER the transaction commits so a failed send
+  // never blocks the verification. The lookup pulls the user's name +
+  // org membership + any active coupon trial so the welcome email can
+  // surface a "trial active" card when relevant.
+  await sendWelcomeEmailBestEffort(row.userId, row.email);
+
   return {
     userId: row.userId,
     email: row.email,
@@ -138,9 +199,79 @@ export async function verifyToken(plaintext: string): Promise<{
 }
 
 /**
+ * Best-effort welcome email send. Looks up the user + first org + any
+ * active coupon redemption to populate the trial card. NEVER throws.
+ */
+async function sendWelcomeEmailBestEffort(
+  userId: string,
+  email: string,
+): Promise<void> {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        name: true,
+        email: true,
+        orgMembers: {
+          where: { isActive: true },
+          take: 1,
+          include: { org: { select: { name: true } } },
+        },
+      },
+    });
+
+    const recipientName = user?.name ?? email;
+    const orgName = user?.orgMembers?.[0]?.org?.name;
+
+    // Pull the most recent ACTIVE redemption for this user's email so
+    // we can render the trial card. If there are no redemptions or the
+    // table is missing (older migrations) we just skip.
+    let trialActiveCoupon:
+      | { couponCode: string; trialEndLabel: string; trialTier: string }
+      | undefined;
+    try {
+      const redemption = await prisma.couponRedemption.findFirst({
+        where: { userEmail: email, trialStatus: 'ACTIVE' },
+        orderBy: { createdAt: 'desc' },
+        include: { coupon: { select: { couponCode: true, trialTier: true } } },
+      });
+      if (redemption) {
+        trialActiveCoupon = {
+          couponCode: redemption.coupon.couponCode,
+          trialEndLabel: redemption.trialEnd.toISOString().slice(0, 10),
+          trialTier: redemption.coupon.trialTier,
+        };
+      }
+    } catch (err) {
+      logger.debug({ err, userId }, 'No coupon redemption lookup for welcome email');
+    }
+
+    const rendered = renderWelcomeEmail({
+      recipientName,
+      ...(orgName ? { orgName } : {}),
+      ...(trialActiveCoupon ? { trialActiveCoupon } : {}),
+    });
+
+    const result = await emailService.sendEmail({
+      to: email,
+      subject: rendered.subject,
+      html: rendered.html,
+      text: rendered.text,
+      templateKey: 'welcome',
+    });
+    if (!result.ok) {
+      logger.warn({ userId, email, error: result.error }, 'Welcome email failed to send');
+    }
+  } catch (err) {
+    // Never throw — verification was already committed above.
+    logger.error({ err, userId }, 'Welcome email send threw unexpectedly');
+  }
+}
+
+/**
  * Invalidate all prior tokens for the user (set expiresAt = now()) and
- * issue a fresh one. Returns the new IssueResult so the caller can
- * surface the dev plaintext payload in non-prod.
+ * issue a fresh one. The plaintext is NEVER returned to HTTP callers —
+ * delivery happens via emailService.sendEmail.
  *
  * Errors:
  *   - 404 when the user does not exist

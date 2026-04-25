@@ -112,10 +112,6 @@ export interface RegisterResult {
    *  user is still created. Front-end surfaces "Account created, but
    *  voucher couldn't be applied: <reason>". */
   couponWarning?: string;
-  /** Email-verification plaintext token, only emitted when
-   *  NODE_ENV !== 'production' so dev/test can complete the flow without
-   *  an SMTP server wired up. */
-  _devVerificationToken?: string;
 }
 
 export interface RegisterOptions {
@@ -145,14 +141,12 @@ export async function register(
   logger.info({ userId: user.id, email }, 'User registered');
 
   // Issue email-verification token (best-effort — failure here must NOT
-  // roll back user creation). We surface the plaintext only outside of
-  // production so dev/test can complete the flow.
-  let devVerificationToken: string | undefined;
+  // roll back user creation). The plaintext token is delivered to the
+  // user via SES (AAT-EMAIL); it is NEVER returned in this response,
+  // not even in dev. Operators in dev can pick the URL out of the API
+  // logs (see emailVerificationService.issueToken).
   try {
-    const issued = await emailVerificationService.issueToken(user.id, email);
-    if (process.env.NODE_ENV !== 'production') {
-      devVerificationToken = issued.plaintextToken;
-    }
+    await emailVerificationService.issueToken(user.id, email);
   } catch (err) {
     logger.error({ err, userId: user.id }, 'Failed to issue verification token');
   }
@@ -198,7 +192,6 @@ export async function register(
   const result: RegisterResult = { id: user.id, email: user.email, name: user.name };
   if (trial) result.trial = trial;
   if (couponWarning) result.couponWarning = couponWarning;
-  if (devVerificationToken) result._devVerificationToken = devVerificationToken;
   return result;
 }
 

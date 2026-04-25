@@ -51,6 +51,14 @@ const { mockPrisma } = vi.hoisted(() => {
       create: vi.fn(),
       update: vi.fn(),
     },
+    // AAT-EMAIL: payment-receipt email is fired AFTER the txn commits.
+    orgMember: {
+      findMany: vi.fn().mockResolvedValue([]),
+    },
+    outboundEmail: {
+      create: vi.fn().mockResolvedValue({ id: 'oe-1' }),
+      update: vi.fn().mockResolvedValue({ id: 'oe-1' }),
+    },
     $transaction: vi.fn(),
   };
   mock.$transaction.mockImplementation(
@@ -71,6 +79,7 @@ import {
   pickDiscountTier,
 } from './subscription.service.js';
 import { _resetValidateBurstForTests } from '../coupon.service.js';
+import { _testEmailQueue, _resetTestEmailQueue } from '../email/email.service.js';
 import type { RazorpayClient } from './razorpay-client.js';
 
 // ─── Fake Razorpay client ──────────────────────────────────────────────
@@ -193,6 +202,8 @@ function makeRazorpayOrder(overrides: Record<string, unknown> = {}) {
 beforeEach(() => {
   vi.clearAllMocks();
   _resetValidateBurstForTests();
+  _resetTestEmailQueue();
+  process.env.NODE_ENV = 'test';
   mockPrisma.$transaction.mockImplementation(
     async (cb: (tx: typeof mockPrisma) => unknown) => cb(mockPrisma),
   );
@@ -201,12 +212,18 @@ beforeEach(() => {
   mockPrisma.invoice.create.mockImplementation(async (args) => ({
     id: 'inv-1',
     invoiceNumber: 'INV-2026-000001',
+    totalMinor: args.data.totalMinor,
+    currency: args.data.currency,
     ...args.data,
     createdAt: new Date(),
     updatedAt: new Date(),
   }));
   mockPrisma.invoice.findFirst.mockResolvedValue(null);
   mockPrisma.razorpayWebhookEvent.findUnique.mockResolvedValue(null);
+  // Default: no org members → receipt email is silently skipped.
+  mockPrisma.orgMember.findMany.mockResolvedValue([]);
+  mockPrisma.outboundEmail.create.mockResolvedValue({ id: 'oe-1' });
+  mockPrisma.outboundEmail.update.mockResolvedValue({ id: 'oe-1' });
 });
 
 // ─── pickDiscountTier ──────────────────────────────────────────────────
@@ -770,5 +787,221 @@ describe('processWebhook', () => {
 
     expect(result.processed).toBe(true);
     expect(mockPrisma.razorpayOrder.update).not.toHaveBeenCalled();
+  });
+});
+
+// ─── AAT-EMAIL: payment-receipt email ──────────────────────────────────
+
+describe('processPaymentSuccess + payment-receipt email', () => {
+  it('enqueues a payment-receipt email after a successful capture', async () => {
+    const ORDER_ID = 'order_email_1';
+    const PAYMENT_ID = 'pay_email_1';
+    const sig = createHmac('sha256', KEY_SECRET).update(`${ORDER_ID}|${PAYMENT_ID}`).digest('hex');
+
+    mockPrisma.razorpayOrder.findUnique.mockResolvedValue(
+      makeRazorpayOrder({ razorpayOrderId: ORDER_ID }),
+    );
+    mockPrisma.razorpayOrder.update.mockResolvedValue({});
+    mockPrisma.subscription.update.mockResolvedValue(
+      makeSubscription({
+        status: 'ACTIVE',
+        startsAt: new Date('2026-04-25T00:00:00Z'),
+        endsAt: new Date('2027-04-25T00:00:00Z'),
+      }),
+    );
+    mockPrisma.orgMember.findMany.mockResolvedValue([
+      {
+        role: 'OWNER',
+        isActive: true,
+        user: { name: 'Org Owner', email: 'owner@example.com' },
+      },
+    ]);
+
+    const client = makeFakeClient();
+    await processPaymentSuccess(
+      { razorpayOrderId: ORDER_ID, razorpayPaymentId: PAYMENT_ID, razorpaySignature: sig },
+      client,
+    );
+
+    expect(_testEmailQueue).toHaveLength(1);
+    const queued = _testEmailQueue[0]!;
+    expect(queued.to).toBe('owner@example.com');
+    expect(queued.templateKey).toBe('payment-receipt');
+    expect(queued.subject).toContain('INV-2026-000001');
+  });
+
+  it('picks the OWNER over a VIEWER when both are active', async () => {
+    const ORDER_ID = 'order_email_2';
+    const PAYMENT_ID = 'pay_email_2';
+    const sig = createHmac('sha256', KEY_SECRET).update(`${ORDER_ID}|${PAYMENT_ID}`).digest('hex');
+
+    mockPrisma.razorpayOrder.findUnique.mockResolvedValue(
+      makeRazorpayOrder({ razorpayOrderId: ORDER_ID }),
+    );
+    mockPrisma.razorpayOrder.update.mockResolvedValue({});
+    mockPrisma.subscription.update.mockResolvedValue(makeSubscription({ status: 'ACTIVE' }));
+    mockPrisma.orgMember.findMany.mockResolvedValue([
+      { role: 'VIEWER', isActive: true, user: { name: 'V', email: 'viewer@example.com' } },
+      { role: 'OWNER', isActive: true, user: { name: 'O', email: 'owner@example.com' } },
+    ]);
+
+    const client = makeFakeClient();
+    await processPaymentSuccess(
+      { razorpayOrderId: ORDER_ID, razorpayPaymentId: PAYMENT_ID, razorpaySignature: sig },
+      client,
+    );
+
+    expect(_testEmailQueue).toHaveLength(1);
+    expect(_testEmailQueue[0]!.to).toBe('owner@example.com');
+  });
+
+  it('email send failure does NOT roll back the payment', async () => {
+    const ORDER_ID = 'order_email_3';
+    const PAYMENT_ID = 'pay_email_3';
+    const sig = createHmac('sha256', KEY_SECRET).update(`${ORDER_ID}|${PAYMENT_ID}`).digest('hex');
+
+    mockPrisma.razorpayOrder.findUnique.mockResolvedValue(
+      makeRazorpayOrder({ razorpayOrderId: ORDER_ID }),
+    );
+    mockPrisma.razorpayOrder.update.mockResolvedValue({});
+    mockPrisma.subscription.update.mockResolvedValue(makeSubscription({ status: 'ACTIVE' }));
+    // No members → email is silently skipped, but payment still succeeds.
+    mockPrisma.orgMember.findMany.mockResolvedValue([]);
+
+    const client = makeFakeClient();
+    const result = await processPaymentSuccess(
+      { razorpayOrderId: ORDER_ID, razorpayPaymentId: PAYMENT_ID, razorpaySignature: sig },
+      client,
+    );
+
+    expect(result.subscription.status).toBe('ACTIVE');
+    expect(result.invoice).toBeDefined();
+    expect(_testEmailQueue).toHaveLength(0);
+  });
+});
+
+describe('processWebhook payment.captured + payment-receipt email', () => {
+  it('webhook payment.captured → enqueues exactly one payment-receipt email', async () => {
+    const envelope = makeWebhookEnvelope('evt_email_1', 'payment.captured', {
+      id: 'pay_wb_1',
+      order_id: 'order_wb_1',
+      status: 'captured',
+    });
+    const rawBody = JSON.stringify(envelope);
+    const signature = signWebhook(rawBody);
+
+    mockPrisma.razorpayWebhookEvent.findUnique.mockResolvedValue(null);
+    mockPrisma.razorpayWebhookEvent.create.mockResolvedValue({
+      id: 'evtrow-email-1',
+      razorpayEventId: 'evt_email_1',
+      processed: false,
+      signatureValid: true,
+    });
+    mockPrisma.razorpayWebhookEvent.update.mockResolvedValue({ id: 'evtrow-email-1' });
+    mockPrisma.razorpayOrder.findUnique.mockResolvedValue(
+      makeRazorpayOrder({ razorpayOrderId: 'order_wb_1' }),
+    );
+    mockPrisma.subscription.findUnique.mockResolvedValue(makeSubscription());
+    mockPrisma.subscription.update.mockResolvedValue(
+      makeSubscription({
+        status: 'ACTIVE',
+        startsAt: new Date('2026-04-25T00:00:00Z'),
+        endsAt: new Date('2027-04-25T00:00:00Z'),
+      }),
+    );
+    mockPrisma.razorpayOrder.update.mockResolvedValue({});
+    mockPrisma.orgMember.findMany.mockResolvedValue([
+      { role: 'ADMIN', isActive: true, user: { name: 'Admin', email: 'admin@example.com' } },
+    ]);
+
+    const client = makeFakeClient();
+    await processWebhook(
+      { rawBody, signature, payload: envelope as Parameters<typeof processWebhook>[0]['payload'] },
+      client,
+    );
+
+    expect(_testEmailQueue).toHaveLength(1);
+    expect(_testEmailQueue[0]!.to).toBe('admin@example.com');
+    expect(_testEmailQueue[0]!.templateKey).toBe('payment-receipt');
+  });
+
+  it('webhook payment.captured re-entry (same payment id, already CAPTURED) → no duplicate email', async () => {
+    const envelope = makeWebhookEnvelope('evt_email_dup', 'payment.captured', {
+      id: 'pay_wb_dup',
+      order_id: 'order_wb_dup',
+      status: 'captured',
+    });
+    const rawBody = JSON.stringify(envelope);
+    const signature = signWebhook(rawBody);
+
+    // First time through: not duplicate at the webhook log level, but the
+    // order is ALREADY CAPTURED with the same payment id → handler short
+    // circuits before issuing an invoice.
+    mockPrisma.razorpayWebhookEvent.findUnique.mockResolvedValue(null);
+    mockPrisma.razorpayWebhookEvent.create.mockResolvedValue({
+      id: 'evtrow-email-dup',
+      razorpayEventId: 'evt_email_dup',
+      processed: false,
+      signatureValid: true,
+    });
+    mockPrisma.razorpayWebhookEvent.update.mockResolvedValue({ id: 'evtrow-email-dup' });
+    mockPrisma.razorpayOrder.findUnique.mockResolvedValue(
+      makeRazorpayOrder({
+        razorpayOrderId: 'order_wb_dup',
+        status: 'CAPTURED',
+        razorpayPaymentId: 'pay_wb_dup',
+      }),
+    );
+
+    const client = makeFakeClient();
+    await processWebhook(
+      { rawBody, signature, payload: envelope as Parameters<typeof processWebhook>[0]['payload'] },
+      client,
+    );
+
+    expect(_testEmailQueue).toHaveLength(0);
+  });
+
+  it('webhook payment.captured re-entry (existing PAID invoice) → no duplicate email', async () => {
+    const envelope = makeWebhookEnvelope('evt_email_paid', 'payment.captured', {
+      id: 'pay_wb_paid',
+      order_id: 'order_wb_paid',
+      status: 'captured',
+    });
+    const rawBody = JSON.stringify(envelope);
+    const signature = signWebhook(rawBody);
+
+    mockPrisma.razorpayWebhookEvent.findUnique.mockResolvedValue(null);
+    mockPrisma.razorpayWebhookEvent.create.mockResolvedValue({
+      id: 'evtrow-email-paid',
+      razorpayEventId: 'evt_email_paid',
+      processed: false,
+      signatureValid: true,
+    });
+    mockPrisma.razorpayWebhookEvent.update.mockResolvedValue({ id: 'evtrow-email-paid' });
+    mockPrisma.razorpayOrder.findUnique.mockResolvedValue(
+      makeRazorpayOrder({ razorpayOrderId: 'order_wb_paid', status: 'CREATED' }),
+    );
+    mockPrisma.subscription.findUnique.mockResolvedValue(makeSubscription({ status: 'PENDING' }));
+    mockPrisma.subscription.update.mockResolvedValue(makeSubscription({ status: 'ACTIVE' }));
+    mockPrisma.razorpayOrder.update.mockResolvedValue({});
+    // An invoice is ALREADY PAID — the handler's idempotency guard
+    // skips invoice issuance, which suppresses the email.
+    mockPrisma.invoice.findFirst.mockResolvedValue({
+      id: 'inv-existing',
+      invoiceNumber: 'INV-2026-000099',
+      status: 'PAID',
+    });
+    mockPrisma.orgMember.findMany.mockResolvedValue([
+      { role: 'OWNER', isActive: true, user: { name: 'O', email: 'o@example.com' } },
+    ]);
+
+    const client = makeFakeClient();
+    await processWebhook(
+      { rawBody, signature, payload: envelope as Parameters<typeof processWebhook>[0]['payload'] },
+      client,
+    );
+
+    expect(_testEmailQueue).toHaveLength(0);
   });
 });

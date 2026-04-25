@@ -107,9 +107,11 @@ authRouter.post('/register', async (req, res, next) => {
       };
     }
     if (result.couponWarning) payload.couponWarning = result.couponWarning;
-    if (result._devVerificationToken) {
-      payload._devVerificationToken = result._devVerificationToken;
-    }
+
+    // AAT-EMAIL: the plaintext verification token is NEVER returned in
+    // the API response. It is delivered to the user via SES; operators
+    // running the API in dev can read it from the structured log line
+    // emitted by email-verification.service when NODE_ENV !== 'production'.
 
     res.status(201).json(payload);
   } catch (err) {
@@ -147,13 +149,9 @@ authRouter.post('/resend-verification', requireAuth, async (req, res, next) => {
       getClientIP(req),
       req.headers['user-agent'],
     );
-    const payload: Record<string, unknown> = {
-      data: { expiresAt: issued.expiresAt.toISOString() },
-    };
-    if (process.env.NODE_ENV !== 'production') {
-      payload._devVerificationToken = issued.plaintextToken;
-    }
-    res.json(payload);
+    // AAT-EMAIL: the plaintext token is delivered via SES — never
+    // returned in this response, even in dev.
+    res.json({ data: { expiresAt: issued.expiresAt.toISOString() } });
   } catch (err) {
     next(err);
   }

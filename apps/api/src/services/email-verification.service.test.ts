@@ -23,6 +23,14 @@ const { mockPrisma } = vi.hoisted(() => {
       update: vi.fn(),
       updateMany: vi.fn(),
     },
+    couponRedemption: {
+      findFirst: vi.fn().mockResolvedValue(null),
+    },
+    // AAT-EMAIL: emailService.sendEmail writes audit rows on every send.
+    outboundEmail: {
+      create: vi.fn().mockResolvedValue({ id: 'oe-1' }),
+      update: vi.fn().mockResolvedValue({ id: 'oe-1' }),
+    },
     $transaction: vi.fn(),
   };
   mock.$transaction.mockImplementation(async (arg: unknown): Promise<unknown> => {
@@ -42,6 +50,7 @@ import {
   verifyToken,
   resendForUser,
 } from './email-verification.service.js';
+import { _testEmailQueue, _resetTestEmailQueue } from './email/email.service.js';
 
 function sha256(s: string): string {
   return createHash('sha256').update(s, 'utf8').digest('hex');
@@ -49,6 +58,10 @@ function sha256(s: string): string {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  _resetTestEmailQueue();
+  mockPrisma.outboundEmail.create.mockResolvedValue({ id: 'oe-1' });
+  mockPrisma.outboundEmail.update.mockResolvedValue({ id: 'oe-1' });
+  mockPrisma.couponRedemption.findFirst.mockResolvedValue(null);
   mockPrisma.$transaction.mockImplementation(async (arg: unknown): Promise<unknown> => {
     if (Array.isArray(arg)) return Promise.all(arg);
     if (typeof arg === 'function') {
@@ -204,5 +217,111 @@ describe('resendForUser', () => {
     });
     await expect(resendForUser('u1')).rejects.toMatchObject({ status: 409 });
     expect(mockPrisma.emailVerification.create).not.toHaveBeenCalled();
+  });
+});
+
+// ── AAT-EMAIL integration: issueToken + verifyToken email side-effects ────
+
+describe('issueToken — AAT-EMAIL integration', () => {
+  it('enqueues a verification email in test mode (NODE_ENV=test)', async () => {
+    process.env.NODE_ENV = 'test';
+    mockPrisma.emailVerification.create.mockResolvedValue({ id: 'ev1' });
+    mockPrisma.user.findUnique.mockResolvedValue({ name: 'Alice' });
+
+    await issueToken('u1', 'alice@example.com');
+
+    expect(_testEmailQueue).toHaveLength(1);
+    const queued = _testEmailQueue[0]!;
+    expect(queued.to).toBe('alice@example.com');
+    expect(queued.templateKey).toBe('verification');
+    expect(queued.subject).toMatch(/verify/i);
+    // The email body must contain a verification URL whose token is the
+    // plaintext (NOT the stored hash).
+    expect(queued.html).toMatch(/verify-email\?token=/);
+  });
+
+  it('does NOT throw when the email service errors (best-effort)', async () => {
+    process.env.NODE_ENV = 'test';
+    mockPrisma.emailVerification.create.mockResolvedValue({ id: 'ev1' });
+    // Make the audit row fail. emailService catches this.
+    mockPrisma.outboundEmail.create.mockRejectedValueOnce(new Error('db down'));
+
+    // Must not throw — registration depends on this.
+    const result = await issueToken('u1', 'safe@example.com');
+    expect(result.plaintextToken).toBeTruthy();
+  });
+});
+
+describe('verifyToken — AAT-EMAIL welcome email', () => {
+  it('enqueues a welcome email after a successful first-time verify', async () => {
+    process.env.NODE_ENV = 'test';
+    const plaintext = 'e'.repeat(64);
+    mockPrisma.emailVerification.findUnique.mockResolvedValue({
+      id: 'ev1',
+      userId: 'u1',
+      email: 'welcome@example.com',
+      token: sha256(plaintext),
+      verifiedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    mockPrisma.user.findUnique.mockResolvedValue({
+      name: 'Eve',
+      email: 'welcome@example.com',
+      orgMembers: [{ org: { name: 'Eve LLC' } }],
+    });
+
+    await verifyToken(plaintext);
+
+    expect(_testEmailQueue).toHaveLength(1);
+    const queued = _testEmailQueue[0]!;
+    expect(queued.to).toBe('welcome@example.com');
+    expect(queued.templateKey).toBe('welcome');
+    expect(queued.html).toContain('Eve LLC');
+  });
+
+  it('renders the trial card when the user has an active CouponRedemption', async () => {
+    process.env.NODE_ENV = 'test';
+    const plaintext = 'f'.repeat(64);
+    mockPrisma.emailVerification.findUnique.mockResolvedValue({
+      id: 'ev1',
+      userId: 'u1',
+      email: 'trial@example.com',
+      token: sha256(plaintext),
+      verifiedAt: null,
+      expiresAt: new Date(Date.now() + 60_000),
+    });
+    mockPrisma.user.findUnique.mockResolvedValue({
+      name: 'Trial User',
+      email: 'trial@example.com',
+      orgMembers: [],
+    });
+    mockPrisma.couponRedemption.findFirst.mockResolvedValue({
+      coupon: { couponCode: 'HEF-PUNE-2026', trialTier: 'PROFESSIONAL' },
+      trialEnd: new Date('2027-04-25T00:00:00Z'),
+    });
+
+    await verifyToken(plaintext);
+
+    expect(_testEmailQueue).toHaveLength(1);
+    const welcome = _testEmailQueue[0]!;
+    expect(welcome.html).toContain('Trial active');
+    expect(welcome.html).toContain('HEF-PUNE-2026');
+    expect(welcome.html).toContain('PROFESSIONAL');
+  });
+
+  it('does NOT enqueue a welcome email on idempotent re-verify', async () => {
+    process.env.NODE_ENV = 'test';
+    const plaintext = 'g'.repeat(64);
+    mockPrisma.emailVerification.findUnique.mockResolvedValue({
+      id: 'ev1',
+      userId: 'u1',
+      email: 'idempotent@example.com',
+      token: sha256(plaintext),
+      verifiedAt: new Date('2026-04-01T00:00:00Z'),
+      expiresAt: new Date('2027-01-01T00:00:00Z'),
+    });
+
+    await verifyToken(plaintext);
+    expect(_testEmailQueue).toHaveLength(0);
   });
 });
