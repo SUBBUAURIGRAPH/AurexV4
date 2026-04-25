@@ -806,6 +806,10 @@ const A64_METHODOLOGIES: Array<{
   summary: string;
   referenceUrl: string;
   effectiveFrom: Date;
+  /** True when the methodology is eligible for BioCarbon Registry (BCR)
+   *  Third-Party tokenisation (binding requirement B6 of
+   *  `docs/BIOCARBON_TOKENIZATION_GUIDELINES_RESEARCH.md`). */
+  isBcrEligible?: boolean;
 }> = [
   {
     code: 'A6.4-STAN-METH-004',
@@ -817,6 +821,7 @@ const A64_METHODOLOGIES: Array<{
       'Core A6.4 methodology standard: additionality, conservative baselines with mandatory downward adjustment, NDC alignment, leakage treatment, conservativeness principle.',
     referenceUrl: 'https://unfccc.int/sites/default/files/resource/A6.4-STAN-METH-004.pdf',
     effectiveFrom: new Date('2024-10-09'),
+    isBcrEligible: false, // standards-of-standards row, not a project methodology
   },
   {
     code: 'A6.4-STAN-METH-005',
@@ -828,6 +833,7 @@ const A64_METHODOLOGIES: Array<{
       'Requirements for removal activities: reversal-risk rating, buffer-pool contribution, long-term monitoring obligations, liability on reversal.',
     referenceUrl: 'https://unfccc.int/sites/default/files/resource/A6.4-STAN-METH-005.pdf',
     effectiveFrom: new Date('2024-10-09'),
+    isBcrEligible: false, // standards-of-standards row, not a project methodology
   },
   {
     code: 'A6.4-AM-GRID-RE-001',
@@ -876,6 +882,7 @@ const A64_METHODOLOGIES: Array<{
     referenceUrl:
       'https://unfccc.int/process-and-meetings/bodies/constituted-bodies/article-64-supervisory-body/rules-and-regulations',
     effectiveFrom: new Date('2025-01-01'),
+    isBcrEligible: true, // BCR accepts AFOLU AR projects via Third-Party flow
   },
   {
     code: 'A6.4-AM-DAC-001',
@@ -903,6 +910,100 @@ const A64_METHODOLOGIES: Array<{
   },
 ];
 
+// ─── BioCarbon Registry (BCR) — eligible methodologies ────────────────
+// BCR's Standard Operating Procedure §5.2.a accepts VCS / Verra-style
+// methodology codes (VM*, AR-AM*, AR-AMS*) for Third-Party tokenisation.
+// The codes below are the MOST WIDELY USED nature-based methodologies on
+// BCR's pipeline as of 2026 — extend as BCR publishes additional ones.
+//
+// Reference docs:
+//   - docs/BIOCARBON_TOKENIZATION_GUIDELINES_RESEARCH.md (binding B6)
+//   - docs/BIOCARBON_SPARC_PLAN.md (Sprint 1)
+//   - https://biocarbonstandard.com/wp-content/uploads/BCR_Standard-Operating-Procedures.pdf
+
+const BCR_METHODOLOGIES: Array<{
+  code: string;
+  name: string;
+  version: string;
+  category:
+    | 'BASELINE_AND_MONITORING'
+    | 'REMOVAL'
+    | 'SMALL_SCALE'
+    | 'CONSOLIDATED'
+    | 'CDM_TRANSITION';
+  sectoralScope: number | null;
+  summary: string;
+  referenceUrl: string;
+  effectiveFrom: Date;
+}> = [
+  {
+    code: 'VM0042',
+    name: 'Methodology for improved agricultural land management',
+    version: '2.0',
+    category: 'BASELINE_AND_MONITORING',
+    sectoralScope: 14, // AFOLU
+    summary:
+      'Soil organic carbon sequestration on cropland and grassland through improved management practices (cover cropping, reduced tillage, rotational grazing). BCR Third-Party eligible.',
+    referenceUrl: 'https://verra.org/methodologies/vm0042-methodology-for-improved-agricultural-land-management/',
+    effectiveFrom: new Date('2023-09-26'),
+  },
+  {
+    code: 'VM0007',
+    name: 'REDD+ Methodology Framework (REDD-MF)',
+    version: '1.6',
+    category: 'REMOVAL',
+    sectoralScope: 14, // AFOLU
+    summary:
+      'Reduced emissions from deforestation and forest degradation. Project-level baseline + leakage discount + permanence buffer. BCR Third-Party eligible nature-based programme.',
+    referenceUrl: 'https://verra.org/methodologies/vm0007-redd-methodology-framework-redd-mf-v1-6/',
+    effectiveFrom: new Date('2020-10-13'),
+  },
+  {
+    code: 'VM0033',
+    name: 'Methodology for tidal wetland and seagrass restoration',
+    version: '2.1',
+    category: 'REMOVAL',
+    sectoralScope: 14, // AFOLU
+    summary:
+      'Blue-carbon coastal ecosystem restoration: mangroves, salt marshes, seagrass meadows. Above + below-ground biomass + sediment carbon. BCR Third-Party eligible.',
+    referenceUrl: 'https://verra.org/methodologies/vm0033-methodology-for-tidal-wetland-and-seagrass-restoration-v2-1/',
+    effectiveFrom: new Date('2023-09-21'),
+  },
+  {
+    code: 'AR-AMS0007',
+    name: 'Small-scale afforestation and reforestation on agricultural lands',
+    version: '03.1',
+    category: 'SMALL_SCALE',
+    sectoralScope: 14, // AFOLU
+    summary:
+      'Small-scale (≤16 kt CO2e/yr) AR on currently agricultural / grazing land. Simplified monitoring + default biomass factors per IPCC AFOLU. BCR Third-Party eligible.',
+    referenceUrl: 'https://cdm.unfccc.int/methodologies/DB/CB7P0VPHHZQ4SHFG3K1OMJYG6X1RIH',
+    effectiveFrom: new Date('2014-09-26'),
+  },
+  {
+    code: 'AR-AMS0003',
+    name: 'Small-scale afforestation and reforestation on wetlands',
+    version: '02.0',
+    category: 'SMALL_SCALE',
+    sectoralScope: 14, // AFOLU
+    summary:
+      'Small-scale AR on degraded wetlands (excluding peatlands). Conservative biomass factors + minimum 15-year crediting period. BCR Third-Party eligible.',
+    referenceUrl: 'https://cdm.unfccc.int/methodologies/DB/2HNAYQF6F22VV2XJTHHJI8C5JLEK77',
+    effectiveFrom: new Date('2013-04-26'),
+  },
+  {
+    code: 'AR-AMS0001',
+    name: 'Simplified baseline and monitoring for small-scale A/R',
+    version: '06.0',
+    category: 'SMALL_SCALE',
+    sectoralScope: 14, // AFOLU
+    summary:
+      'Default-tier biomass and SOC factors for small-scale AR on land that has been non-forested for ≥10 years. Optional baseline simplification. BCR Third-Party eligible.',
+    referenceUrl: 'https://cdm.unfccc.int/methodologies/DB/G2EGV0G84HE7AYV2DOO48L97IRL3OK',
+    effectiveFrom: new Date('2013-04-26'),
+  },
+];
+
 async function seedA64Methodologies() {
   console.log('\n── Article 6.4 Methodologies ──');
   for (const m of A64_METHODOLOGIES) {
@@ -917,6 +1018,7 @@ async function seedA64Methodologies() {
         referenceUrl: m.referenceUrl,
         effectiveFrom: m.effectiveFrom,
         isActive: true,
+        isBcrEligible: m.isBcrEligible ?? false,
       },
       create: {
         code: m.code,
@@ -928,10 +1030,56 @@ async function seedA64Methodologies() {
         referenceUrl: m.referenceUrl,
         effectiveFrom: m.effectiveFrom,
         isActive: true,
+        isBcrEligible: m.isBcrEligible ?? false,
       },
     });
   }
-  console.log(`  Methodology: ${A64_METHODOLOGIES.length} rows upserted`);
+  const bcrEligibleCount = A64_METHODOLOGIES.filter(
+    (m) => m.isBcrEligible,
+  ).length;
+  console.log(
+    `  Methodology: ${A64_METHODOLOGIES.length} A6.4 rows upserted ` +
+      `(${bcrEligibleCount} BCR-eligible)`,
+  );
+}
+
+/// Seed Verra-style methodologies (VM00xx, AR-AMS00xx) that BCR accepts
+/// for Third-Party tokenisation. Mirrors `seedA64Methodologies` and runs
+/// idempotently via upsert. Sets `isBcrEligible=true` on every row.
+async function seedBcrMethodologies() {
+  console.log('\n── BCR-Eligible Methodologies (Verra-style) ──');
+  for (const m of BCR_METHODOLOGIES) {
+    await prisma.methodology.upsert({
+      where: { code: m.code },
+      update: {
+        name: m.name,
+        version: m.version,
+        category: m.category as never,
+        sectoralScope: m.sectoralScope,
+        summary: m.summary,
+        referenceUrl: m.referenceUrl,
+        effectiveFrom: m.effectiveFrom,
+        isActive: true,
+        isBcrEligible: true,
+      },
+      create: {
+        code: m.code,
+        name: m.name,
+        version: m.version,
+        category: m.category as never,
+        sectoralScope: m.sectoralScope,
+        summary: m.summary,
+        referenceUrl: m.referenceUrl,
+        effectiveFrom: m.effectiveFrom,
+        isActive: true,
+        isBcrEligible: true,
+      },
+    });
+  }
+  console.log(
+    `  Methodology: ${BCR_METHODOLOGIES.length} BCR-eligible rows upserted ` +
+      `(VM0042 / VM0007 / VM0033 / AR-AMS series)`,
+  );
 }
 
 /// Seed the three SB admin accounts required for the A6.4 levy mechanics.
@@ -1147,6 +1295,7 @@ async function main() {
   await seedSdgs();
   await seedSdIndicators();
   await seedA64Methodologies();
+  await seedBcrMethodologies();
   await seedA64AdminAccounts();
   await seedRetentionPolicies();
   if (process.env.E2E_SEED === '1') {

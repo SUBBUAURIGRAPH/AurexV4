@@ -770,6 +770,11 @@ model Methodology {
   effectiveFrom   DateTime @map("effective_from")
   supersededAt    DateTime? @map("superseded_at")
   isActive        Boolean  @default(true) @map("is_active")
+  /// BioCarbon Registry (BCR) Third-Party tokenisation eligibility flag.
+  /// Set to true for methodologies whose VCC issuances may participate in
+  /// BCR's lock-then-mint flow (B6 of BIOCARBON_TOKENIZATION_GUIDELINES_RESEARCH).
+  /// Read-only; toggled via the master-data seed.
+  isBcrEligible   Boolean  @default(false) @map("is_bcr_eligible")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -1431,4 +1436,49 @@ model UnfcccRegistrySyncEvent {
   @@index([resourceKind, resourceId])
   @@index([synced, createdAt])
   @@map("unfccc_registry_sync_events")
+}
+
+// ─── BioCarbon Registry adapter sync events (AV4-345) ──────────────────────
+// Append-only audit trail for every call into the BCR registry adapter
+// (lock / confirm-lock / notify-mint / notify-transfer / notify-burn /
+// unlock / retire / get-status). Mirrors the UNFCCC-adapter audit pattern
+// from AAT-5 so the operator has a single observability surface for all
+// external-registry sync activity.
+//
+// The default adapter is `disabled` (BCR Third-Party authorisation pending
+// per binding requirement B1). Calls land here with `synced=false` and a
+// reason. When the operator flips `BCR_REGISTRY_ADAPTER` to a live adapter,
+// successful calls land with `bcrSerialId` / `bcrLockId` / `externalRef`
+// populated so the lock-then-mint chain is fully reconstructible.
+
+model BcrRegistrySyncEvent {
+  id              String           @id @default(uuid()) @db.Uuid
+  eventType       BcrSyncEventType @map("event_type")
+  resourceKind    String           @map("resource_kind") @db.VarChar(64)   // "issuance" | "block" | "transaction" | "lock"
+  resourceId      String           @map("resource_id") @db.Uuid
+  adapterName     String           @map("adapter_name") @db.VarChar(64)
+  bcrSerialId     String?          @map("bcr_serial_id") @db.VarChar(255)
+  bcrLockId       String?          @map("bcr_lock_id") @db.VarChar(255)
+  externalRef     String?          @map("external_ref") @db.VarChar(255)
+  synced          Boolean          @default(false)
+  reason          String?          @db.Text
+  requestPayload  Json?            @map("request_payload")
+  responsePayload Json?            @map("response_payload")
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  @@index([resourceKind, resourceId])
+  @@index([synced, createdAt])
+  @@index([bcrSerialId])
+  @@map("bcr_registry_sync_events")
+}
+
+enum BcrSyncEventType {
+  LOCK_VCC        @map("lock_vcc")
+  CONFIRM_LOCK    @map("confirm_lock")
+  NOTIFY_MINT     @map("notify_mint")
+  NOTIFY_TRANSFER @map("notify_transfer")
+  NOTIFY_BURN     @map("notify_burn")
+  UNLOCK_VCC      @map("unlock_vcc")
+  RETIRE_VCC      @map("retire_vcc")
+  GET_STATUS      @map("get_status")
 }
