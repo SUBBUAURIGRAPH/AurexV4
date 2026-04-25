@@ -1103,6 +1103,7 @@ model Issuance {
   activity    Activity          @relation(fields: [activityId], references: [id])
   period      MonitoringPeriod  @relation(fields: [periodId], references: [id])
   serialBlock CreditUnitBlock?  @relation(fields: [serialBlockId], references: [id])
+  aurigraphProcessedEvents AurigraphProcessedEvent[]
 
   @@index([activityId, status])
   @@index([tokenizationContractId])
@@ -1115,6 +1116,7 @@ enum IssuanceStatus {
   APPROVED    @map("approved")
   ISSUED      @map("issued")
   REJECTED    @map("rejected")
+  RETIRED     @map("retired")    // AAT-ζ / AV4-375: set on burn-for-retirement event
 }
 
 /// Biocarbon SDK tokenization lifecycle (AAT-ε / AV4-373). Populated on
@@ -1540,4 +1542,65 @@ model AurigraphCallLog {
   @@index([method, createdAt])
   @@index([status])
   @@map("aurigraph_call_logs")
+}
+
+// ─── Biocarbon Sprint 2 — Aurigraph events worker (AAT-ζ / AV4-375) ────────
+// Async side of the lock-then-mint loop. The Aurigraph events worker
+// (apps/api/src/workers/aurigraph-events.worker.ts) polls the Aurigraph
+// public ledger for burn / retire / delist events on UC_CARBON contracts
+// owned by Aurex, classifies them via metadata, and forwards the action
+// to the BCR adapter (retireVCC for retirement burns, unlockVCC for delist
+// burns).
+//
+// Two singleton-ish models support that loop:
+//
+//   - AurigraphEventCursor (id="default" row) — last-processed pointer so
+//     restarts don't re-replay the entire ledger.
+//   - AurigraphProcessedEvent (txHash PK) — per-event idempotency guard +
+//     retry counter + permanent-failure marker for dead-letter handling.
+
+enum AurigraphEventType {
+  BURN_FOR_RETIREMENT @map("burn_for_retirement")
+  BURN_FOR_DELIST     @map("burn_for_delist")
+}
+
+enum AurigraphProcessedEventStatus {
+  PENDING          @map("pending")
+  PROCESSED        @map("processed")
+  FAILED_PERMANENT @map("failed_permanent")
+}
+
+/// Singleton-row cursor tracking the last burn/retire/delist event the
+/// worker has consumed from Aurigraph's public ledger. Always queried by
+/// id = "default".
+model AurigraphEventCursor {
+  id              String   @id @db.VarChar(64) // sentinel "default" row
+  lastTxHash      String?  @map("last_tx_hash") @db.VarChar(255)
+  lastProcessedAt DateTime? @map("last_processed_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("aurigraph_event_cursors")
+}
+
+/// One row per Aurigraph burn/retire/delist tx the worker has seen.
+/// `txHash` is the natural primary key — re-processing the same tx is a
+/// no-op. `retryCount` tracks at-least-once delivery to the BCR adapter;
+/// after exceeding the operator-configured limit the row flips to
+/// FAILED_PERMANENT and the worker advances the cursor past it for human
+/// review (alert log emitted).
+model AurigraphProcessedEvent {
+  txHash      String                        @id @map("tx_hash") @db.VarChar(255)
+  eventType   AurigraphEventType            @map("event_type")
+  issuanceId  String?                       @map("issuance_id") @db.Uuid
+  retryCount  Int                           @default(0) @map("retry_count")
+  status      AurigraphProcessedEventStatus @default(PENDING)
+  lastError   String?                       @map("last_error") @db.Text
+  createdAt   DateTime                      @default(now()) @map("created_at")
+  updatedAt   DateTime                      @updatedAt @map("updated_at")
+
+  issuance Issuance? @relation(fields: [issuanceId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([issuanceId])
+  @@map("aurigraph_processed_events")
 }

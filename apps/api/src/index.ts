@@ -43,6 +43,8 @@ import { correspondingAdjustmentsRouter } from './routes/corresponding-adjustmen
 // AV4-338 / AAT-7: retention header + nightly archival worker
 import { retentionHeaderMiddleware } from './middleware/retention-header.js';
 import { startRetentionWorker } from './workers/retention-archival.worker.js';
+// AAT-ζ / AV4-375: Aurigraph events worker (burn/retire/delist → BCR sync)
+import { startAurigraphEventsWorker } from './workers/aurigraph-events.worker.js';
 import { logger } from './lib/logger.js';
 
 const app: Express = express();
@@ -133,6 +135,15 @@ if (process.env.NODE_ENV !== 'test') {
   if (process.env.RETENTION_WORKER_ENABLED === '1') {
     startRetentionWorker().catch((err) => {
       logger.error({ err }, 'Failed to start retention archival worker');
+    });
+  }
+
+  // AAT-ζ / AV4-375: opt-in Aurigraph events worker (burn/retire/delist).
+  // Default OFF in test env regardless of the env var; in non-test env the
+  // operator must explicitly opt in by setting AURIGRAPH_EVENTS_WORKER_ENABLED=1.
+  if (process.env.AURIGRAPH_EVENTS_WORKER_ENABLED === '1') {
+    startAurigraphEventsWorker().catch((err) => {
+      logger.error({ err }, 'Failed to start Aurigraph events worker');
     });
   }
 }
