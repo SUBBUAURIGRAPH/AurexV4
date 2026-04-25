@@ -1104,6 +1104,7 @@ model Issuance {
   period      MonitoringPeriod  @relation(fields: [periodId], references: [id])
   serialBlock CreditUnitBlock?  @relation(fields: [serialBlockId], references: [id])
   aurigraphProcessedEvents AurigraphProcessedEvent[]
+  retirements Retirement[]
 
   @@index([activityId, status])
   @@index([tokenizationContractId])
@@ -1509,6 +1510,65 @@ enum BcrSyncEventType {
   UNLOCK_VCC      @map("unlock_vcc")
   RETIRE_VCC      @map("retire_vcc")
   GET_STATUS      @map("get_status")
+}
+
+// ─── Biocarbon Sprint 3 — Retirement payload (AAT-ι / AV4-358) ─────────────
+// Records the marketplace-side retirement initiation: payload validated +
+// chain burn fired. The events worker (AAT-ζ) reconciles the BCR side once
+// the burn settles (BURN_FOR_RETIREMENT event → bcrAdapter.retireVCC), and
+// flips status here from CHAIN_BURNED → BCR_SYNCED.
+//
+// Idempotency: `(issuanceId, kycVerificationId)` is unique. Re-calling the
+// retirement service with the same KYC + issuance returns the existing row
+// instead of double-burning.
+
+model Retirement {
+  id                       String                  @id @default(uuid()) @db.Uuid
+  issuanceId               String                  @map("issuance_id") @db.Uuid
+  issuance                 Issuance                @relation(fields: [issuanceId], references: [id])
+  kycVerificationId        String                  @map("kyc_verification_id") @db.Uuid
+  bcrSerialId              String                  @map("bcr_serial_id") @db.VarChar(255)
+  tonnesRetired            Int                     @map("tonnes_retired")
+  vintage                  Int
+  purpose                  RetirementPurpose
+  purposeNarrative         String?                 @map("purpose_narrative") @db.Text
+  retiredFor               Json                    @map("retired_for")
+  retiredByUserId          String                  @map("retired_by_user_id") @db.Uuid
+  retiredByOrgId           String                  @map("retired_by_org_id") @db.Uuid
+  retirementCertificateUrl String?                 @map("retirement_certificate_url") @db.VarChar(2048)
+  txHash                   String?                 @map("tx_hash") @db.VarChar(255)
+  status                   RetirementInitiationStatus @default(INITIATED)
+  bcrSyncedAt              DateTime?               @map("bcr_synced_at")
+  createdAt                DateTime                @default(now()) @map("created_at")
+  updatedAt                DateTime                @updatedAt @map("updated_at")
+
+  @@unique([issuanceId, kycVerificationId])
+  @@index([bcrSerialId])
+  @@index([status])
+  @@map("retirements")
+}
+
+enum RetirementPurpose {
+  CSR          @map("csr")
+  NDC_OFFSET   @map("ndc_offset")
+  CORSIA
+  PROGRAMMATIC
+  OTHER
+}
+
+/// Lifecycle of a marketplace-initiated retirement (AAT-ι / AV4-358).
+/// Distinct from the existing `RetirementStatus` enum (which describes a
+/// CreditUnitBlock's terminal state under A6.4 accounting).
+///
+///   INITIATED    — payload accepted + persisted; chain burn pending
+///   CHAIN_BURNED — aurigraphAdapter.burnAsset returned txHash
+///   BCR_SYNCED   — events worker forwarded retire to BCR; statement issued
+///   FAILED       — chain burn failed or unrecoverable error
+enum RetirementInitiationStatus {
+  INITIATED    @map("initiated")
+  CHAIN_BURNED @map("chain_burned")
+  BCR_SYNCED   @map("bcr_synced")
+  FAILED       @map("failed")
 }
 
 // ─── Biocarbon Sprint 2 — Aurigraph DLT SDK call audit log ─────────────────

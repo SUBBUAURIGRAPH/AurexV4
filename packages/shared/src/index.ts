@@ -137,5 +137,24 @@ export {
   hashBcrSerialId,
   type BioCarbonAssetMetadata,
 } from './schemas/biocarbon-asset-metadata.js';
+export {
+  biocarbonRetirementPayloadSchema,
+  bcrPassthroughPayloadSchema,
+  retirementBeneficiarySchema,
+  retiringActorSchema,
+  retirementPurposeSchema,
+  buildBcrPassthroughPayload,
+  verifyRetirementCompleteness,
+  RetirementCompletenessError,
+  MissingKycError,
+  MissingBeneficiaryFieldsError,
+  WholeTonViolationError,
+  type BiocarbonRetirementPayload,
+  type BcrPassthroughPayload,
+  type RetirementBeneficiary,
+  type RetiringActor,
+  type RetirementPurpose,
+  type VerifyRetirementOptions,
+} from './schemas/biocarbon-retirement-payload.js';
 export { type ProblemDetail, type PaginatedResponse, type ApiResponse } from './types/api.js';
 export { ROLES, type Role, type Permission } from './types/rbac.js';
