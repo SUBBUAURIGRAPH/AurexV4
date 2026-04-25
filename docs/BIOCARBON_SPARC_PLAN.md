@@ -85,9 +85,13 @@ interface BcrRegistryAdapter {
 
 ---
 
-## Sprint 2 — Smart Contracts + Lock-Then-Mint Orchestration (Weeks 5–8)
+## Sprint 2 — Aurigraph DLT SDK Integration + Lock-Then-Mint Orchestration (Weeks 5–8)
 
-**Goal:** mint a real ERC-1155 SFT on Polygon Amoy testnet (or LACChain testnet), driven by Aurex's Issuance flow with BCR mock confirming the lock.
+> **PIVOT:** The Aurigraph DLT v1.2.0 SDK (`@aurigraph/dlt-sdk`, available at `git@github.com:Aurigraph-DLT-Corp/Aurigraph-Developer-Toolkit-and-SDK.git`) ships `UC_CARBON` as a first-class use case with `client.contracts.deploy({templateId:'UC_CARBON', terms})` for atomic mint + first-class `compliance` / `dmrv` / `tier` / `assets` / `wallet` namespaces. This **replaces** the originally planned ERC-1155 + Foundry + viem path on Polygon — Polygon stays only as a fallback chain. Aurigraph DLT V12 is non-PoW (B19 ✓) and a dedicated sustainability platform (B23 ✓).
+>
+> See SDK integration tickets: AV4-370..381 (BCR/SDK stream). Sprint 2 superseded tickets AV4-349/350/351/353 are reduced in scope to "Polygon fallback only".
+
+**Goal:** mint a real `UC_CARBON` asset on the Aurigraph DLT V12 sandbox tenant (`marketplace-channel-sbx`), driven by Aurex's Issuance flow with BCR mock confirming the lock. Polygon ERC-1155 fallback path stays available behind `CHAIN_ADAPTER=polygon`.
 
 ### Specification
 - **B5, B6, B7, B8** — ERC-1155 contract `BioCarbonVCCToken.sol` with:
@@ -133,13 +137,16 @@ contract BioCarbonVCCToken is ERC1155, AccessControl, Pausable {
 - Contract artifacts versioned + deployed via deterministic CREATE2 for chain portability.
 - Indexer (BullMQ + viem `watchContractEvent`) listens for `BcrBurnRequested` and triggers the `bcr-adapter.notifyBurn()` API call (closing the loop).
 
-### Refinement (parallel AAT wave)
-| AAT | Files | Asserts |
-|---|---|---|
-| **AAT-B1** | `packages/contracts/contracts/BioCarbonVCCToken.sol` + Foundry tests | Contract invariants |
-| **AAT-B2** | `services/tokenization.service.ts` + `services/chain.service.ts` (viem wrapper) | Lock-then-mint orchestrator |
-| **AAT-B3** | `workers/burn-event.worker.ts` (BullMQ) | On-chain → BCR API roundtrip |
-| **AAT-B4** | `routes/tokenization.ts` — POST `/issuances/:id/tokenize` | Public tokenization trigger |
+### Refinement (parallel AAT wave — SDK-primary)
+| AAT | Files | Asserts | Jira |
+|---|---|---|---|
+| **AAT-B1 (SDK)** | `apps/api/src/lib/aurigraph-client.ts` + `services/chains/aurigraph-dlt-adapter.ts` | SDK client singleton + adapter | AV4-370 + AV4-372 |
+| **AAT-B2 (SDK)** | `services/tokenization.service.ts` calling `aurigraphAdapter.deployContract(UC_CARBON, terms)` | Lock-then-mint orchestrator | AV4-373 |
+| **AAT-B3 (SDK)** | `workers/aurigraph-events.worker.ts` (SDK native event stream) | On-chain → BCR API loop | AV4-375 |
+| **AAT-B4** | `routes/tokenization.ts` — POST `/issuances/:id/tokenize` | Public trigger | AV4-352 |
+| **AAT-B5 (SDK)** | `services/asset-metadata.schema.ts` — BCR Serial ID embed | Round-trip metadata test | AV4-374 |
+| **AAT-B6 (fallback)** | `packages/contracts/contracts/BioCarbonVCCToken.sol` + Foundry tests | Polygon fallback only | AV4-349 (narrowed) |
+| **AAT-B7 (fallback)** | `services/chains/polygon-adapter.ts` (viem wrapper) | Polygon fallback only | AV4-350 (narrowed) |
 
 ### TDD test suite — Sprint 2
 

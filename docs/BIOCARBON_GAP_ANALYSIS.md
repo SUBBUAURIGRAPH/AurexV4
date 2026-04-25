@@ -40,6 +40,33 @@ The rest of this analysis covers Aurex + AWD2 in detail; HCE2 references appear 
 
 ---
 
+## §0.5 Aurigraph DLT SDK pivot (2026-04-25)
+
+After the initial gap analysis, the **Aurigraph DLT V12 SDK** was identified as the canonical chain integration. Repo: `git@github.com:Aurigraph-DLT-Corp/Aurigraph-Developer-Toolkit-and-SDK.git` — version `1.2.0` production for both Java + TypeScript.
+
+**What the SDK ships out of the box:**
+- `client.contracts.deploy({templateId:'UC_CARBON', terms})` — atomic mint with carbon-credit Ricardian template
+- `client.assets.listByUseCase('UC_CARBON')` / `client.assets.getPublicLedger('UC_CARBON')` — covers B14 (public registry transparency)
+- `client.compliance.assess({assetId, frameworks:['VCM','EU_ETS','CBAM']})` — built-in regulatory framework assessment
+- `client.dmrv.*` — DMRV verification primitives
+- `client.tier.getQuota()` — tenant quota gating before mint
+- `client.wallet.*` — balance / transfer / history
+- `client.governance.*` — proposals, voting, treasury (cross-cutting)
+- Channel-based multi-tenancy (`enterprise-channel`, `marketplace-channel`)
+- Hosted at `https://dlt.aurigraph.io` — non-PoW (B19 ✓), purpose-built for sustainability (B23 ✓)
+
+**Effect on the plan:**
+- **Sprint 2 reframed.** Original Foundry / ERC-1155 / viem-on-Polygon path becomes a *fallback* chain implementation behind `CHAIN_ADAPTER=polygon`. Default: `CHAIN_ADAPTER=aurigraph-dlt`.
+- Sprint 2 net effort drops from ~8 dev-weeks to ~5 dev-weeks (no Solidity to write or audit on the primary path).
+- **B14, B19, B23 satisfied** by the SDK; only need a thin Aurex UI rendering layer for B14.
+- **Compliance + DMRV** namespaces complement Aurex's existing flows (existing `compliance.service` and `verification.service` keep ownership; SDK calls feed them).
+- New stream **BCR/SDK** in the Epic (AV4-370..381) covers all SDK-specific work.
+- Existing tickets AV4-349/350/351/353 supersession-commented and scope-narrowed.
+
+**One-line summary:** writing the Solidity contract was always the riskiest part of Sprint 2. The SDK takes that off the critical path entirely. We now write *adapter glue*, not on-chain code.
+
+---
+
 ## 1. Aurex (AurexV4) — gap matrix
 
 **Current state:** Phase A/B/C of Article 6.4 already shipped (commit `9caacf2` + retention + UNFCCC scaffold + PDD wizard + E2E). 14/14 live E2E pass. Existing primitives reusable for BCR work:
@@ -71,16 +98,16 @@ The rest of this analysis covers Aurex + AWD2 in detail; HCE2 references appear 
 | **B11** | No sub-ton fractionalisation | ✅ Already | — | Whole-ton enforcement in `er-calc.service` and `issuance.service` |
 | **B12** | No tokenising already-retired credits | ⚠️ Partial | S | Existing `retirementStatus !== ACTIVE` checks; need pre-mint guard that includes BCR's lock status |
 | **B13** | Listing UI: project / visuals / page link / "BioCarbon" attribution | ❌ Missing | M | New marketplace page; can extend existing `/credits` UI |
-| **B14** | Public token registry / inventory + history UI | ⚠️ Partial | M | `/credits/accounts` + `/credits/blocks/:id` exist behind auth; need a **public** explorer for transparency (B14 is explicit about "accessible to the user") |
+| **B14** | Public token registry / inventory + history UI | ⚠️ Partial → **SDK-assisted** | S | `client.assets.getPublicLedger('UC_CARBON')` + `client.assets.listByUseCase('UC_CARBON')` ship out of the box. Aurex marketplace UI just renders these. |
 | **B15** | KYC / CDD / AML / CTF + tax compliance | ❌ Missing | **L** | New: `KycVerification` model + adapter for Sumsub/Onfido/Persona; gate on transfer/retirement |
 | **B16** | Beneficiary identity verification + pass-through to BCR on retirement | ⚠️ Partial | M | Retirement narrative exists; needs structured `RetirementBeneficiary` with verified-identity link |
 | **B17** | Burn-on-retirement → BCR API call | ⚠️ Partial | S | `transaction.service.retireBlock` already routes to retirement admin accounts; needs to add the BCR API call (via the new B3 adapter) |
 | **B18** | Two-way bridge (delist path) | ❌ Missing | M | New `delistBlock` operation that burns the token AND calls BCR `unlockVCC` — symmetric to retirement but reverses to ISSUED state |
-| **B19** | Energy-efficient (non-PoW) blockchain | ❌ Decision pending | S | Recommend Polygon PoS or LACChain (BCR's own anchor chain). Document decision |
+| **B19** | Energy-efficient (non-PoW) blockchain | ✅ via SDK | — | Aurigraph DLT V12 is permissioned/PoA, hosted at dlt.aurigraph.io. Polygon PoS available as fallback (`CHAIN_ADAPTER=polygon`). Decision: **default Aurigraph DLT** |
 | **B20** | Notify BCR of changes | ❌ Not done | S (process) | Change-management runbook |
 | **B21** | Disclose multi-chain tokenisation + double-counting controls at application | ❌ Not done | S (doc) | Architecture doc submitted to BCR with B1 |
 | **B22** | Local legal classification | ❌ Not done | S (legal) | Per-jurisdiction review |
-| **B23** | Token used solely for environmental sustainability | ✅ By design | — | Use-case attestation |
+| **B23** | Token used solely for environmental sustainability | ✅ By design + SDK | — | SDK's `UC_CARBON` use case is explicitly carbon-only. Tier capability check (`client.handshake.capabilities()`) gates access |
 | **B24** | Submit to BCR audit | ❌ Not done | S (process) | Audit cooperation SOP |
 
 **Aurex effort total (engineering only, excluding ops/legal):** ~10 dev-weeks for 1 engineer; ~5 calendar weeks with 2 engineers in parallel.
