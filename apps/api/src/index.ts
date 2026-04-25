@@ -42,6 +42,8 @@ import { adminRetentionRouter } from './routes/admin-retention.js';
 import { correspondingAdjustmentsRouter } from './routes/corresponding-adjustments.js';
 // AAT-θ / AV4-354: KYC / CDD / AML / CTF adapter (BCR binding requirement B15)
 import { kycRouter } from './routes/kyc.js';
+// BCR Sprint 3 (AAT-λ): public marketplace + token detail (B13/B14)
+import { biocarbonPublicRouter } from './routes/biocarbon-public.js';
 // AV4-338 / AAT-7: retention header + nightly archival worker
 import { retentionHeaderMiddleware } from './middleware/retention-header.js';
 import { startRetentionWorker } from './workers/retention-archival.worker.js';
@@ -120,6 +122,8 @@ app.use('/api/v1/admin/retention', adminRetentionRouter);
 app.use('/api/v1/corresponding-adjustments', correspondingAdjustmentsRouter);
 // AAT-θ / AV4-354: KYC / CDD / AML / CTF adapter (BCR binding requirement B15)
 app.use('/api/v1/kyc', kycRouter);
+// AAT-λ / AV4-355: public marketplace + token detail (B13/B14)
+app.use('/api/v1/biocarbon', biocarbonPublicRouter);
 
 // ADM-052: RFC 7807 error handler
 app.use(errorHandler);
