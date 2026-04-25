@@ -1,8 +1,10 @@
 import { Router, type IRouter } from 'express';
 import { z } from 'zod';
+import { prisma } from '@aurex/database';
 import { requireAuth } from '../middleware/auth.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
 import { requireOrgRole } from '../middleware/org-role.js';
+import { AppError } from '../middleware/error-handler.js';
 import * as issuanceService from '../services/issuance.service.js';
 import { tokenizeIssuance } from '../services/tokenization.service.js';
 import { delistIssuance } from '../services/delist.service.js';
@@ -62,6 +64,26 @@ issuanceRouter.post('/:id/reject', requireOrgRole(...APPROVE_ROLES), async (req,
       reason,
     );
     res.json({ data: row });
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /:id (AAT-9C / Wave 9c) — direct lookup of an issuance by id.
+ * Persistence audit P2 — low impact (mostly for shareable links from
+ * email). Org-scoping is enforced via the underlying activity's orgId.
+ */
+issuanceRouter.get('/:id', async (req, res, next) => {
+  try {
+    const issuance = await prisma.issuance.findUnique({
+      where: { id: req.params.id as string },
+      include: { activity: { select: { id: true, orgId: true, title: true } } },
+    });
+    if (!issuance || issuance.activity.orgId !== req.orgId) {
+      throw new AppError(404, 'Not Found', 'Issuance not found');
+    }
+    res.json({ data: issuance });
   } catch (err) {
     next(err);
   }

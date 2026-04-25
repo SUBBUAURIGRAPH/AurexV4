@@ -53,6 +53,9 @@ import { couponsRouter } from './routes/coupons.js';
 import { adminCouponsRouter } from './routes/admin-coupons.js';
 // AAT-RZP / Wave 7: Razorpay-backed subscription billing.
 import { billingRouter } from './routes/billing.js';
+// AAT-9C / Wave 9c: persistence-audit GET endpoints (retirements + delist requests)
+import { retirementsRouter } from './routes/retirements.js';
+import { delistRequestsRouter } from './routes/delist-requests.js';
 // AV4-338 / AAT-7: retention header + nightly archival worker
 import { retentionHeaderMiddleware } from './middleware/retention-header.js';
 import { startRetentionWorker } from './workers/retention-archival.worker.js';
@@ -149,6 +152,9 @@ app.use('/api/v1/admin/coupons', adminCouponsRouter);
 // The webhook endpoint inside billingRouter overrides express.json with
 // express.raw so HMAC verification sees the exact bytes Razorpay signed.
 app.use('/api/v1/billing', billingRouter);
+// AAT-9C / Wave 9c: persistence-audit P0 — list endpoints for write-only entities.
+app.use('/api/v1/retirements', retirementsRouter);
+app.use('/api/v1/delist-requests', delistRequestsRouter);
 
 // ADM-052: RFC 7807 error handler
 app.use(errorHandler);

@@ -34,6 +34,50 @@ creditsRouter.get('/accounts/:id', async (req, res, next) => {
   }
 });
 
+/**
+ * GET /blocks (AAT-9C / Wave 9c) — paginated list of CreditUnitBlocks for
+ * the caller's org, optionally filtered by accountId. Persistence audit
+ * P0: the audit found no list endpoint for blocks per org / per account
+ * — only single-block lookup by `:serialFirst`. The "Credits" dashboard
+ * had no list source.
+ *
+ * Org-scoping uses the holder account's `orgId` (single-tenant per org),
+ * matching the existing `getBlockBySerialRange` pattern.
+ */
+const listBlocksQuerySchema = z.object({
+  accountId: z.string().uuid().optional(),
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+});
+
+creditsRouter.get('/blocks', async (req, res, next) => {
+  try {
+    const { accountId, page, pageSize } = listBlocksQuerySchema.parse(req.query);
+    const where = {
+      holderAccount: { orgId: req.orgId! },
+      ...(accountId ? { holderAccountId: accountId } : {}),
+    };
+    const skip = (page - 1) * pageSize;
+
+    const [items, total] = await Promise.all([
+      prisma.creditUnitBlock.findMany({
+        where,
+        skip,
+        take: pageSize,
+        orderBy: { issuanceDate: 'desc' },
+        include: {
+          holderAccount: { select: { id: true, name: true, accountType: true } },
+        },
+      }),
+      prisma.creditUnitBlock.count({ where }),
+    ]);
+
+    res.json({ data: { items, total, page, pageSize } });
+  } catch (err) {
+    next(err);
+  }
+});
+
 /** GET /blocks/:serialFirst — lookup block by its first serial number */
 creditsRouter.get('/blocks/:serialFirst', async (req, res, next) => {
   try {

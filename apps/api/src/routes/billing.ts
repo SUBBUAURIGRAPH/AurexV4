@@ -20,7 +20,7 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from 'express';
 import express from 'express';
 import { z } from 'zod';
-import type { SubscriptionPlan } from '@aurex/database';
+import { prisma, type SubscriptionPlan } from '@aurex/database';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { AppError } from '../middleware/error-handler.js';
 import * as subscriptionService from '../services/billing/subscription.service.js';
@@ -205,6 +205,131 @@ billingRouter.get(
       const orgId = requireOrgId(req);
       const invoices = await subscriptionService.listInvoicesForOrg(orgId);
       res.json({ data: invoices });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// ─── GET /invoices/:id (AAT-9C / Wave 9c) ──────────────────────────────
+// Persistence-audit P0 fix: list endpoint exists but no individual GET,
+// so the "Download invoice" button has nothing to call.
+
+async function findInvoiceForOrg(
+  invoiceId: string,
+  orgId: string,
+): Promise<NonNullable<Awaited<ReturnType<typeof prisma.invoice.findFirst>>>> {
+  const invoice = await prisma.invoice.findFirst({
+    where: { id: invoiceId, subscription: { organizationId: orgId } },
+  });
+  if (!invoice) {
+    throw new AppError(404, 'Not Found', 'Invoice not found');
+  }
+  return invoice;
+}
+
+billingRouter.get(
+  '/invoices/:id',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const orgId = requireOrgId(req);
+      const invoice = await findInvoiceForOrg(req.params.id as string, orgId);
+      res.json({ data: invoice });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// ─── GET /invoices/:id/download (AAT-9C / Wave 9c) ─────────────────────
+// Mirrors the report-download pattern (commit 2a06d69): JSON envelope +
+// Content-Disposition: attachment so the browser triggers a real
+// download dialog instead of rendering inline. CSV/PDF formats are a
+// Wave 11 follow-up.
+
+billingRouter.get(
+  '/invoices/:id/download',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const orgId = requireOrgId(req);
+      const invoice = await findInvoiceForOrg(req.params.id as string, orgId);
+      const filename = `invoice-${invoice.invoiceNumber}.json`;
+      const payload = JSON.stringify(
+        {
+          invoice: {
+            id: invoice.id,
+            subscriptionId: invoice.subscriptionId,
+            invoiceNumber: invoice.invoiceNumber,
+            currency: invoice.currency,
+            subtotalMinor: invoice.subtotalMinor,
+            discountMinor: invoice.discountMinor,
+            taxMinor: invoice.taxMinor,
+            totalMinor: invoice.totalMinor,
+            status: invoice.status,
+            issuedAt: invoice.issuedAt,
+            paidAt: invoice.paidAt,
+            metadata: invoice.metadata,
+          },
+          exportedAt: new Date().toISOString(),
+        },
+        null,
+        2,
+      );
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', Buffer.byteLength(payload, 'utf-8').toString());
+      res.send(payload);
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// ─── GET /renewal-attempts (AAT-9C / Wave 9c) ──────────────────────────
+// Persistence-audit P1: admin-only list with optional status filter.
+// Org-scoped via the parent Subscription's organizationId.
+
+const renewalAttemptStatusSchema = z.enum([
+  'PENDING',
+  'EMAIL_SENT',
+  'PAID',
+  'FAILED',
+  'CANCELLED',
+]);
+
+const renewalAttemptsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+  status: renewalAttemptStatusSchema.optional(),
+});
+
+billingRouter.get(
+  '/renewal-attempts',
+  requireAuth,
+  requireRole('ORG_ADMIN', 'SUPER_ADMIN'),
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const orgId = requireOrgId(req);
+      const { page, pageSize, status } = renewalAttemptsQuerySchema.parse(req.query);
+      const where = {
+        subscription: { organizationId: orgId },
+        ...(status ? { status } : {}),
+      };
+      const skip = (page - 1) * pageSize;
+
+      const [items, total] = await Promise.all([
+        prisma.renewalAttempt.findMany({
+          where,
+          skip,
+          take: pageSize,
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.renewalAttempt.count({ where }),
+      ]);
+
+      res.json({ data: { items, total, page, pageSize } });
     } catch (err) {
       next(err);
     }

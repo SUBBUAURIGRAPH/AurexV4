@@ -49,9 +49,13 @@ const { mockPrisma } = vi.hoisted(() => {
     // AAT-RENEWAL / Wave 8c — service paths look up RenewalAttempt before
     // taking the renewal-vs-fresh branch. Default all reads to null so the
     // existing route tests keep using the fresh-activation branch.
+    // AAT-9C / Wave 9c — added findMany + count for the
+    // GET /renewal-attempts list endpoint.
     renewalAttempt: {
       findFirst: vi.fn(),
       findUnique: vi.fn(),
+      findMany: vi.fn(),
+      count: vi.fn(),
       update: vi.fn(),
       updateMany: vi.fn(),
       create: vi.fn(),
@@ -185,6 +189,13 @@ async function call(opts: RequestOpts): Promise<FakeResponse> {
       },
       json(data: unknown) {
         payload = data;
+        resolve({ status, body: payload, headers: respHeaders });
+        return this as Response;
+      },
+      // res.send is exercised by the invoice-download route. Capture the
+      // raw payload so the test can JSON.parse it back.
+      send(data: unknown) {
+        if (payload === undefined) payload = data;
         resolve({ status, body: payload, headers: respHeaders });
         return this as Response;
       },
@@ -486,6 +497,168 @@ describe('GET /api/v1/billing/subscriptions/me', () => {
     const res = await call({
       method: 'GET',
       url: '/api/v1/billing/subscriptions/me',
+    });
+    expect(res.status).toBe(401);
+  });
+});
+
+// ─── AAT-9C / Wave 9c — invoice + renewal-attempt GETs ─────────────────
+
+function makeInvoice(overrides: Record<string, unknown> = {}) {
+  return {
+    id: 'inv-1',
+    subscriptionId: 'sub-r-1',
+    invoiceNumber: 'INV-2026-000042',
+    currency: 'INR',
+    subtotalMinor: 499900,
+    discountMinor: 0,
+    taxMinor: 89982,
+    totalMinor: 589882,
+    status: 'PAID',
+    issuedAt: new Date('2026-04-25T00:00:00Z'),
+    paidAt: new Date('2026-04-25T00:00:01Z'),
+    metadata: null,
+    createdAt: new Date('2026-04-25T00:00:00Z'),
+    updatedAt: new Date('2026-04-25T00:00:01Z'),
+    ...overrides,
+  };
+}
+
+describe('GET /api/v1/billing/invoices/:id', () => {
+  it('returns the invoice when scoped to caller org', async () => {
+    mockPrisma.invoice.findFirst.mockResolvedValue(makeInvoice());
+    const res = await call({
+      method: 'GET',
+      url: '/api/v1/billing/invoices/inv-1',
+      authHeader: makeAuthHeader('ORG_ADMIN'),
+    });
+    expect(res.status).toBe(200);
+    expect((res.body as { data: { invoiceNumber: string } }).data.invoiceNumber).toBe(
+      'INV-2026-000042',
+    );
+    // The org-scope predicate must be in the where clause.
+    const args = mockPrisma.invoice.findFirst.mock.calls[0]![0] as Record<string, unknown>;
+    const where = args.where as { id: string; subscription: { organizationId: string } };
+    expect(where.id).toBe('inv-1');
+    expect(where.subscription.organizationId).toBe('11111111-1111-1111-1111-111111111111');
+  });
+
+  it('returns 404 when the invoice belongs to another org', async () => {
+    mockPrisma.invoice.findFirst.mockResolvedValue(null);
+    const res = await call({
+      method: 'GET',
+      url: '/api/v1/billing/invoices/inv-other',
+      authHeader: makeAuthHeader('ORG_ADMIN'),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 401 without auth', async () => {
+    const res = await call({
+      method: 'GET',
+      url: '/api/v1/billing/invoices/inv-1',
+    });
+    expect(res.status).toBe(401);
+  });
+});
+
+describe('GET /api/v1/billing/invoices/:id/download', () => {
+  it('returns a JSON download with Content-Disposition: attachment', async () => {
+    mockPrisma.invoice.findFirst.mockResolvedValue(makeInvoice());
+    const res = await call({
+      method: 'GET',
+      url: '/api/v1/billing/invoices/inv-1/download',
+      authHeader: makeAuthHeader('ORG_ADMIN'),
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toMatch(/application\/json/);
+    expect(res.headers['content-disposition']).toBe(
+      'attachment; filename="invoice-INV-2026-000042.json"',
+    );
+    // Body is a string (res.send), not res.json — parse it back.
+    const body = JSON.parse(String(res.body)) as {
+      invoice: { invoiceNumber: string; totalMinor: number };
+      exportedAt: string;
+    };
+    expect(body.invoice.invoiceNumber).toBe('INV-2026-000042');
+    expect(body.invoice.totalMinor).toBe(589882);
+    expect(typeof body.exportedAt).toBe('string');
+  });
+
+  it('returns 404 when the invoice is not found', async () => {
+    mockPrisma.invoice.findFirst.mockResolvedValue(null);
+    const res = await call({
+      method: 'GET',
+      url: '/api/v1/billing/invoices/missing/download',
+      authHeader: makeAuthHeader('ORG_ADMIN'),
+    });
+    expect(res.status).toBe(404);
+  });
+});
+
+describe('GET /api/v1/billing/renewal-attempts', () => {
+  it('returns paginated renewal attempts for the caller org', async () => {
+    mockPrisma.renewalAttempt.findMany.mockResolvedValue([
+      {
+        id: 'ra-1',
+        subscriptionId: 'sub-r-1',
+        periodStart: new Date('2027-04-25'),
+        periodEnd: new Date('2028-04-25'),
+        amountMinor: 499900,
+        currency: 'INR',
+        status: 'PENDING',
+        retryCount: 0,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      },
+    ]);
+    mockPrisma.renewalAttempt.count.mockResolvedValue(1);
+
+    const res = await call({
+      method: 'GET',
+      url: '/api/v1/billing/renewal-attempts',
+      authHeader: makeAuthHeader('ORG_ADMIN'),
+    });
+    expect(res.status).toBe(200);
+    const body = res.body as {
+      data: { items: Array<{ id: string }>; total: number; page: number; pageSize: number };
+    };
+    expect(body.data.items).toHaveLength(1);
+    expect(body.data.total).toBe(1);
+    expect(body.data.page).toBe(1);
+    expect(body.data.pageSize).toBe(25);
+  });
+
+  it('forwards the status filter to prisma when provided', async () => {
+    mockPrisma.renewalAttempt.findMany.mockResolvedValue([]);
+    mockPrisma.renewalAttempt.count.mockResolvedValue(0);
+
+    await call({
+      method: 'GET',
+      url: '/api/v1/billing/renewal-attempts?status=FAILED&page=2&pageSize=10',
+      authHeader: makeAuthHeader('ORG_ADMIN'),
+    });
+    const args = mockPrisma.renewalAttempt.findMany.mock.calls[0]![0] as Record<string, unknown>;
+    const where = args.where as { subscription: { organizationId: string }; status?: string };
+    expect(where.status).toBe('FAILED');
+    expect(where.subscription.organizationId).toBe('11111111-1111-1111-1111-111111111111');
+    expect(args.skip).toBe(10);
+    expect(args.take).toBe(10);
+  });
+
+  it('returns 403 for a non-admin role', async () => {
+    const res = await call({
+      method: 'GET',
+      url: '/api/v1/billing/renewal-attempts',
+      authHeader: makeAuthHeader('VIEWER'),
+    });
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 401 without auth', async () => {
+    const res = await call({
+      method: 'GET',
+      url: '/api/v1/billing/renewal-attempts',
     });
     expect(res.status).toBe(401);
   });

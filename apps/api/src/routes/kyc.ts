@@ -1,5 +1,6 @@
 import { Router, type IRouter } from 'express';
 import { z } from 'zod';
+import { prisma } from '@aurex/database';
 import { requireAuth } from '../middleware/auth.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
 import { requireOrgRole } from '../middleware/org-role.js';
@@ -67,6 +68,75 @@ kycRouter.post(
         userId: req.user?.sub ?? null,
       });
       res.status(202).json({ data: result });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+/**
+ * GET /verifications (AAT-9C / Wave 9c) — paginated list of KYC verifications
+ * scoped to the caller's org. Persistence audit P1: no GET list per org
+ * meant org admins couldn't see "who has KYC pending".
+ *
+ * Org-scoping: `KycVerification` doesn't carry an orgId column directly;
+ * for USER-kind subjects, the `subjectRef` is a User id, so we filter to
+ * verifications whose subject is a member of the caller's org. For
+ * BENEFICIARY-kind, we currently include all rows (beneficiaries are
+ * external by design and not org-bound).
+ *
+ * Role gate: ORG_ADMIN / MAKER / APPROVER / MANAGER / AUDITOR / SUPER_ADMIN.
+ */
+const LIST_ROLES = [
+  'ORG_ADMIN',
+  'MAKER',
+  'APPROVER',
+  'MANAGER',
+  'AUDITOR',
+  'SUPER_ADMIN',
+];
+
+const listVerificationsQuerySchema = z.object({
+  page: z.coerce.number().int().min(1).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(25),
+});
+
+kycRouter.get(
+  '/verifications',
+  requireOrgRole(...LIST_ROLES),
+  async (req, res, next) => {
+    try {
+      const { page, pageSize } = listVerificationsQuerySchema.parse(req.query);
+
+      // Resolve the caller-org's user ids once; verifications attach to a
+      // User via `subjectRef` for USER-kind rows. Beneficiaries are
+      // external and not org-bound — they're surfaced regardless.
+      const orgUserIds = (
+        await prisma.orgMember.findMany({
+          where: { orgId: req.orgId!, isActive: true },
+          select: { userId: true },
+        })
+      ).map((m) => m.userId);
+
+      const where = {
+        OR: [
+          { subjectKind: 'USER' as const, subjectRef: { in: orgUserIds } },
+          { subjectKind: 'BENEFICIARY' as const },
+        ],
+      };
+      const skip = (page - 1) * pageSize;
+
+      const [items, total] = await Promise.all([
+        prisma.kycVerification.findMany({
+          where,
+          skip,
+          take: pageSize,
+          orderBy: { createdAt: 'desc' },
+        }),
+        prisma.kycVerification.count({ where }),
+      ]);
+
+      res.json({ data: { items, total, page, pageSize } });
     } catch (err) {
       next(err);
     }
