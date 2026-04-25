@@ -20,7 +20,7 @@
 import { Router, type IRouter, type Request, type Response, type NextFunction } from 'express';
 import express from 'express';
 import { z } from 'zod';
-import { prisma, type SubscriptionPlan } from '@aurex/database';
+import type { SubscriptionPlan } from '@aurex/database';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { AppError } from '../middleware/error-handler.js';
 import * as subscriptionService from '../services/billing/subscription.service.js';
@@ -211,22 +211,9 @@ billingRouter.get(
   },
 );
 
-// ─── GET /invoices/:id (AAT-9C / Wave 9c) ──────────────────────────────
-// Persistence-audit P0 fix: list endpoint exists but no individual GET,
-// so the "Download invoice" button has nothing to call.
-
-async function findInvoiceForOrg(
-  invoiceId: string,
-  orgId: string,
-): Promise<NonNullable<Awaited<ReturnType<typeof prisma.invoice.findFirst>>>> {
-  const invoice = await prisma.invoice.findFirst({
-    where: { id: invoiceId, subscription: { organizationId: orgId } },
-  });
-  if (!invoice) {
-    throw new AppError(404, 'Not Found', 'Invoice not found');
-  }
-  return invoice;
-}
+// ─── GET /invoices/:id ─────────────────────────────────────────────────
+// AAT-10B / Wave 10b: single invoice scoped to the caller's org. We surface
+// cross-org access as 404 to avoid leaking existence across tenants.
 
 billingRouter.get(
   '/invoices/:id',
@@ -234,7 +221,14 @@ billingRouter.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const orgId = requireOrgId(req);
-      const invoice = await findInvoiceForOrg(req.params.id as string, orgId);
+      const invoiceId = String(req.params.id ?? '');
+      if (!invoiceId) {
+        throw new AppError(400, 'Bad Request', 'Missing invoice id');
+      }
+      const invoice = await subscriptionService.getInvoiceForOrg(orgId, invoiceId);
+      if (!invoice) {
+        throw new AppError(404, 'Not Found', `Invoice ${invoiceId} not found`);
+      }
       res.json({ data: invoice });
     } catch (err) {
       next(err);
@@ -242,11 +236,11 @@ billingRouter.get(
   },
 );
 
-// ─── GET /invoices/:id/download (AAT-9C / Wave 9c) ─────────────────────
-// Mirrors the report-download pattern (commit 2a06d69): JSON envelope +
-// Content-Disposition: attachment so the browser triggers a real
-// download dialog instead of rendering inline. CSV/PDF formats are a
-// Wave 11 follow-up.
+// ─── GET /invoices/:id/download ────────────────────────────────────────
+// AAT-10B / Wave 10b: invoice download. MVP serves the invoice JSON as a
+// downloadable file (Content-Disposition: attachment) so the operator's
+// downstream PDF tooling has a single, stable contract to bind to. A PDF
+// renderer is a follow-up.
 
 billingRouter.get(
   '/invoices/:id/download',
@@ -254,82 +248,171 @@ billingRouter.get(
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const orgId = requireOrgId(req);
-      const invoice = await findInvoiceForOrg(req.params.id as string, orgId);
-      const filename = `invoice-${invoice.invoiceNumber}.json`;
-      const payload = JSON.stringify(
-        {
-          invoice: {
-            id: invoice.id,
-            subscriptionId: invoice.subscriptionId,
-            invoiceNumber: invoice.invoiceNumber,
-            currency: invoice.currency,
-            subtotalMinor: invoice.subtotalMinor,
-            discountMinor: invoice.discountMinor,
-            taxMinor: invoice.taxMinor,
-            totalMinor: invoice.totalMinor,
-            status: invoice.status,
-            issuedAt: invoice.issuedAt,
-            paidAt: invoice.paidAt,
-            metadata: invoice.metadata,
-          },
-          exportedAt: new Date().toISOString(),
-        },
-        null,
-        2,
-      );
+      const invoiceId = String(req.params.id ?? '');
+      if (!invoiceId) {
+        throw new AppError(400, 'Bad Request', 'Missing invoice id');
+      }
+      const invoice = await subscriptionService.getInvoiceForOrg(orgId, invoiceId);
+      if (!invoice) {
+        throw new AppError(404, 'Not Found', `Invoice ${invoiceId} not found`);
+      }
+      const filename = `${invoice.invoiceNumber}.json`;
       res.setHeader('Content-Type', 'application/json; charset=utf-8');
-      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-      res.setHeader('Content-Length', Buffer.byteLength(payload, 'utf-8').toString());
-      res.send(payload);
+      res.setHeader(
+        'Content-Disposition',
+        `attachment; filename="${filename}"`,
+      );
+      // Use res.end() rather than res.send() so Express does not re-set the
+      // Content-Type header to text/html behind our back when the body is a
+      // plain string.
+      res.status(200).end(JSON.stringify(invoice, null, 2));
     } catch (err) {
       next(err);
     }
   },
 );
 
-// ─── GET /renewal-attempts (AAT-9C / Wave 9c) ──────────────────────────
-// Persistence-audit P1: admin-only list with optional status filter.
-// Org-scoped via the parent Subscription's organizationId.
+// ─── POST /subscriptions/me/cancel ─────────────────────────────────────
+// AAT-10B / Wave 10b: operator-initiated cancellation. Idempotent — a
+// second call against an already-CANCELLED sub returns 200 with the same
+// row. Caller's current paid period continues until `endsAt`; no refund.
 
-const renewalAttemptStatusSchema = z.enum([
-  'PENDING',
-  'EMAIL_SENT',
-  'PAID',
-  'FAILED',
-  'CANCELLED',
-]);
-
-const renewalAttemptsQuerySchema = z.object({
-  page: z.coerce.number().int().min(1).default(1),
-  pageSize: z.coerce.number().int().min(1).max(100).default(25),
-  status: renewalAttemptStatusSchema.optional(),
-});
-
-billingRouter.get(
-  '/renewal-attempts',
+billingRouter.post(
+  '/subscriptions/me/cancel',
   requireAuth,
   requireRole('ORG_ADMIN', 'SUPER_ADMIN'),
   async (req: Request, res: Response, next: NextFunction) => {
     try {
       const orgId = requireOrgId(req);
-      const { page, pageSize, status } = renewalAttemptsQuerySchema.parse(req.query);
-      const where = {
-        subscription: { organizationId: orgId },
-        ...(status ? { status } : {}),
-      };
-      const skip = (page - 1) * pageSize;
+      const sub = await subscriptionService.cancelSubscriptionForOrg(orgId);
+      if (!sub) {
+        throw new AppError(
+          404,
+          'Not Found',
+          'No subscription found for this organization',
+        );
+      }
+      res.status(200).json({ data: sub });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
 
-      const [items, total] = await Promise.all([
-        prisma.renewalAttempt.findMany({
-          where,
-          skip,
-          take: pageSize,
-          orderBy: { createdAt: 'desc' },
-        }),
-        prisma.renewalAttempt.count({ where }),
-      ]);
+// ─── GET /renewal-attempts/:id ─────────────────────────────────────────
+// AAT-10B / Wave 10b: single renewal attempt scoped to the caller's org.
+// Used by the renewal-payment landing page that the renewal email links to.
 
-      res.json({ data: { items, total, page, pageSize } });
+billingRouter.get(
+  '/renewal-attempts/:id',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const orgId = requireOrgId(req);
+      const renewalAttemptId = String(req.params.id ?? '');
+      if (!renewalAttemptId) {
+        throw new AppError(400, 'Bad Request', 'Missing renewal-attempt id');
+      }
+      const attempt = await subscriptionService.getRenewalAttemptForOrg(
+        orgId,
+        renewalAttemptId,
+      );
+      if (!attempt) {
+        throw new AppError(
+          404,
+          'Not Found',
+          `Renewal attempt ${renewalAttemptId} not found`,
+        );
+      }
+      res.json({ data: attempt });
+    } catch (err) {
+      next(err);
+    }
+  },
+);
+
+// ─── POST /renewal-attempts/:id/checkout ───────────────────────────────
+// AAT-10B / Wave 10b: re-mint (or re-use) the Razorpay order for an
+// existing renewal attempt. The frontend renewal-payment page calls this
+// when the customer clicks "Renew now". Idempotent: if the existing
+// `renewalAttempt.razorpayOrderId` still resolves to a CREATED order we
+// return its config; otherwise we let `startRenewalCheckout` mint a fresh
+// order on the same row.
+
+billingRouter.post(
+  '/renewal-attempts/:id/checkout',
+  requireAuth,
+  async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const orgId = requireOrgId(req);
+      const renewalAttemptId = String(req.params.id ?? '');
+      if (!renewalAttemptId) {
+        throw new AppError(400, 'Bad Request', 'Missing renewal-attempt id');
+      }
+      const attempt = await subscriptionService.getRenewalAttemptForOrg(
+        orgId,
+        renewalAttemptId,
+      );
+      if (!attempt) {
+        throw new AppError(
+          404,
+          'Not Found',
+          `Renewal attempt ${renewalAttemptId} not found`,
+        );
+      }
+      // Mint (or re-use) a Razorpay order for the parent subscription. The
+      // service throws RenewalInFlightError when an in-flight order exists
+      // for the same window; we recover by surfacing the existing order
+      // shape so the customer can complete payment without a 409.
+      let result: subscriptionService.StartRenewalCheckoutResult;
+      try {
+        result = await subscriptionService.startRenewalCheckout(
+          attempt.subscriptionId,
+        );
+      } catch (err) {
+        if (err instanceof subscriptionService.RenewalInFlightError) {
+          // Re-use existing order. This branch fires when this attempt is
+          // already PENDING/EMAIL_SENT — we just return the existing order
+          // metadata so the SDK modal can open against it.
+          if (!attempt.razorpayOrderId) throw err;
+          // Public key id comes from the live Razorpay client (server-side
+          // single source of truth).
+          const { getRazorpayClient } = await import(
+            '../services/billing/razorpay-client.js'
+          );
+          const client = getRazorpayClient();
+          res.status(200).json({
+            data: {
+              renewalAttemptId: attempt.id,
+              orderId: attempt.razorpayOrderId,
+              keyId: client.publicKeyId,
+              amount: attempt.amountMinor,
+              currency: attempt.currency,
+              periodStart: attempt.periodStart,
+              periodEnd: attempt.periodEnd,
+              reused: true,
+            },
+          });
+          return;
+        }
+        throw err;
+      }
+      const { getRazorpayClient } = await import(
+        '../services/billing/razorpay-client.js'
+      );
+      const client = getRazorpayClient();
+      res.status(200).json({
+        data: {
+          renewalAttemptId: result.renewalAttemptId,
+          orderId: result.razorpayOrderId,
+          keyId: client.publicKeyId,
+          amount: result.amount,
+          currency: result.currency,
+          periodStart: result.periodStart,
+          periodEnd: result.periodEnd,
+          reused: false,
+        },
+      });
     } catch (err) {
       next(err);
     }

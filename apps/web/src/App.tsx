@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { setOnboardingIncompleteHandler } from './lib/api';
 import { useToast } from './contexts/ToastContext';
@@ -37,7 +37,13 @@ import { TeamsPage } from './pages/dashboard/TeamsPage';
 import { IntegrationsPage } from './pages/dashboard/IntegrationsPage';
 import { CompliancePage } from './pages/dashboard/CompliancePage';
 import { AuditLogsPage } from './pages/dashboard/AuditLogsPage';
-import { BillingPage } from './pages/dashboard/BillingPage';
+// AAT-10B / Wave 10b: billing manage + invoice + renewal payment pages.
+// The legacy `/billing` route at apps/web/src/pages/dashboard/BillingPage.tsx
+// is superseded by the new manage page; the route is preserved as a redirect
+// so any bookmarks keep working.
+import { BillingPage } from './pages/dashboard/billing/BillingPage';
+import { InvoicesPage as BillingInvoicesPage } from './pages/dashboard/billing/InvoicesPage';
+import { RenewPaymentPage } from './pages/billing/RenewPaymentPage';
 import { SupportPage } from './pages/dashboard/SupportPage';
 import { UsersPage } from './pages/dashboard/admin/UsersPage';
 import { OrganizationPage } from './pages/dashboard/admin/OrganizationPage';
@@ -141,7 +147,12 @@ export function App() {
             <Route path="/integrations" element={<RoleGuard allowedRoles={['administrator', 'manager', 'editor']}><IntegrationsPage /></RoleGuard>} />
             <Route path="/compliance" element={<RoleGuard allowedRoles={['administrator', 'manager', 'editor']}><CompliancePage /></RoleGuard>} />
             <Route path="/audit-logs" element={<RoleGuard allowedRoles={['administrator', 'manager']}><AuditLogsPage /></RoleGuard>} />
-            <Route path="/billing" element={<RoleGuard allowedRoles={['administrator']}><BillingPage /></RoleGuard>} />
+            {/* AAT-10B / Wave 10b: legacy /billing → /billing/manage redirect. */}
+            <Route path="/billing" element={<Navigate to="/billing/manage" replace />} />
+            <Route path="/billing/manage" element={<RoleGuard allowedRoles={['administrator']}><BillingPage /></RoleGuard>} />
+            <Route path="/billing/invoices" element={<RoleGuard allowedRoles={['administrator']}><BillingInvoicesPage /></RoleGuard>} />
+            {/* AAT-10B / Wave 10b: renewal email deep-link (auth-gated, any active org member can pay). */}
+            <Route path="/billing/renew/:renewalAttemptId" element={<RenewPaymentPage />} />
             <Route path="/support" element={<RoleGuard allowedRoles={['administrator', 'manager', 'editor', 'viewer']}><SupportPage /></RoleGuard>} />
             <Route path="/admin/users" element={<RoleGuard allowedRoles={['administrator', 'super_admin', 'org_admin']}><UsersPage /></RoleGuard>} />
             <Route path="/admin/organization" element={<RoleGuard allowedRoles={['administrator', 'super_admin', 'org_admin']}><OrganizationPage /></RoleGuard>} />

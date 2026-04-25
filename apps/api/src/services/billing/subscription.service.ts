@@ -1429,6 +1429,85 @@ export async function listInvoicesForOrg(organizationId: string): Promise<Invoic
   });
 }
 
+/**
+ * AAT-10B / Wave 10b: single-invoice fetch, scoped to the caller's org.
+ * Returns `null` when the invoice exists but belongs to a different org —
+ * the route surfaces this as a 404 (we don't leak existence across tenants).
+ */
+export async function getInvoiceForOrg(
+  organizationId: string,
+  invoiceId: string,
+): Promise<Invoice | null> {
+  return prisma.invoice.findFirst({
+    where: {
+      id: invoiceId,
+      subscription: { organizationId },
+    },
+  });
+}
+
+/**
+ * AAT-10B / Wave 10b: single-renewal-attempt fetch, scoped to the caller's
+ * org via the parent Subscription. Returns null on either not-found or
+ * cross-org access (route surfaces both as a 404 — same rationale as
+ * `getInvoiceForOrg`).
+ */
+export async function getRenewalAttemptForOrg(
+  organizationId: string,
+  renewalAttemptId: string,
+): Promise<(RenewalAttempt & { subscription: Subscription }) | null> {
+  const row = await prisma.renewalAttempt.findUnique({
+    where: { id: renewalAttemptId },
+    include: { subscription: true },
+  });
+  if (!row) return null;
+  if (row.subscription.organizationId !== organizationId) return null;
+  return row;
+}
+
+/**
+ * AAT-10B / Wave 10b: operator-initiated cancel.
+ *
+ * Idempotent: if the caller's active subscription is already CANCELLED,
+ * we return the existing row unchanged. Otherwise we flip status to
+ * CANCELLED + stamp `cancelledAt = now()`. We DO NOT issue a refund —
+ * the customer's current period continues until `endsAt` per the
+ * cancellation copy in the web UI.
+ *
+ * Returns `null` when the org has no subscription at all.
+ */
+export async function cancelSubscriptionForOrg(
+  organizationId: string,
+): Promise<Subscription | null> {
+  const sub = await prisma.subscription.findFirst({
+    where: { organizationId },
+    orderBy: { createdAt: 'desc' },
+  });
+  if (!sub) return null;
+
+  if (sub.status === 'CANCELLED') {
+    // Already cancelled — idempotent no-op.
+    return sub;
+  }
+
+  const updated = await prisma.subscription.update({
+    where: { id: sub.id },
+    data: {
+      status: 'CANCELLED',
+      cancelledAt: sub.cancelledAt ?? new Date(),
+    },
+  });
+  logger.info(
+    {
+      subscriptionId: updated.id,
+      organizationId,
+      previousStatus: sub.status,
+    },
+    'Subscription cancelled by org admin',
+  );
+  return updated;
+}
+
 // ─── Invoice issuance helper ───────────────────────────────────────────
 
 interface IssueInvoiceArgs {

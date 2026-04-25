@@ -83,7 +83,9 @@ const navItems: NavItem[] = [
       { label: 'Integrations', path: '/integrations' },
       { label: 'Compliance', path: '/compliance' },
       { label: 'Audit Logs', path: '/audit-logs' },
-      { label: 'Billing', path: '/billing' },
+      // AAT-10B / Wave 10b: split billing into manage + invoices.
+      { label: 'Billing', path: '/billing/manage' },
+      { label: 'Invoices', path: '/billing/invoices' },
       { label: 'Support', path: '/support' },
     ],
   },
