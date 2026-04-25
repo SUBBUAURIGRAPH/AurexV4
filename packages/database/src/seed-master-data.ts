@@ -19,6 +19,7 @@
 // cleanly both locally and inside the aurex-api container (where only
 // @aurex/database is hoisted to the top-level node_modules).
 import { prisma } from './client.js';
+import { Prisma } from '@prisma/client';
 
 // ─── IPCC AR6 emission factors ─────────────────────────────────────────
 // Sources: IPCC 2019 Refinement to 2006 Guidelines (Vol 2 Ch 2-3), IEA, CEA
@@ -1288,6 +1289,93 @@ async function seedRetentionPolicies() {
   console.log('  RetentionPolicy: default row created');
 }
 
+// ─── HEF-Pune-2026 voucher (AAT-V3PORT follow-up) ─────────────────────
+// Hindu Economic Forum, Pune Chapter signup voucher for 2026. Two-tier
+// discount surfaced via metadata for the future billing engine to consume:
+//   - First 100 redemptions → free first year (100% discount)
+//   - Redemptions 101+      → 50% off → ₹2,499 + 18% GST
+// Standard pricing (Scope 1+2 only) also embedded for downstream use.
+// Tier-aware billing logic is deferred until the Razorpay port (Wave 7).
+
+const HEF_PUNE_2026_METADATA = {
+  branding: 'HEF Pune 2026',
+  contact_email: 'contact@aurex.in',
+  feature_list: [
+    'full_dashboard',
+    'advanced_analytics',
+    'all_frameworks',
+    'scope_1_2_emissions',
+    'priority_support',
+  ],
+  scope_3_addon: 'contact_sales',
+  discount_tiers: [
+    {
+      from_redemption: 1,
+      to_redemption: 100,
+      discount_percentage: 100,
+      label: 'First 100 — free for first year',
+      effective_price_inr: 0,
+    },
+    {
+      from_redemption: 101,
+      to_redemption: null,
+      discount_percentage: 50,
+      label: '50% off — early bird',
+      effective_price_inr: 2499,
+      gst_percentage: 18,
+    },
+  ],
+  standard_pricing: {
+    india: {
+      currency: 'INR',
+      msme_annual: 4999,
+      enterprise_per_site_annual: 9999,
+      gst_percentage: 18,
+    },
+    international: {
+      currency: 'USD',
+      sme_annual: 999,
+      enterprise_per_site_annual: 1999,
+      tax_handling: 'jurisdictional',
+    },
+    scope_3_contact: 'contact@aurex.in',
+  },
+  followup: {
+    tier_aware_billing: 'deferred — wire when Razorpay port lands (Wave 7)',
+    chapter_liaison_name: 'TBD — Aurex Compliance to confirm',
+  },
+} as const;
+
+async function seedHefPune2026() {
+  console.log('\n── HEF-Pune-2026 voucher (Hindu Economic Forum) ──');
+  await prisma.signupCoupon.upsert({
+    where: { couponCode: 'HEF-PUNE-2026' },
+    update: {
+      chapterName: 'Pune Chapter',
+      organizationName: 'Hindu Economic Forum',
+      trialDurationDays: 365,
+      trialTier: 'PROFESSIONAL',
+      maxRedemptions: null,
+      validUntil: new Date('2027-12-31T23:59:59Z'),
+      isActive: true,
+      metadata: HEF_PUNE_2026_METADATA as unknown as Prisma.InputJsonValue,
+    },
+    create: {
+      couponCode: 'HEF-PUNE-2026',
+      chapterName: 'Pune Chapter',
+      organizationName: 'Hindu Economic Forum',
+      trialDurationDays: 365,
+      trialTier: 'PROFESSIONAL',
+      maxRedemptions: null,
+      validFrom: new Date('2026-04-25T00:00:00Z'),
+      validUntil: new Date('2027-12-31T23:59:59Z'),
+      isActive: true,
+      metadata: HEF_PUNE_2026_METADATA as unknown as Prisma.InputJsonValue,
+    },
+  });
+  console.log('  HEF-PUNE-2026: upserted (365-day Professional trial, 2-tier discount)');
+}
+
 // ─── Main ──────────────────────────────────────────────────────────────
 
 async function main() {
@@ -1303,6 +1391,7 @@ async function main() {
   await seedBcrMethodologies();
   await seedA64AdminAccounts();
   await seedRetentionPolicies();
+  await seedHefPune2026();
   if (process.env.E2E_SEED === '1') {
     await seedE2eAdminUser();
     await seedE2eA64Users();
