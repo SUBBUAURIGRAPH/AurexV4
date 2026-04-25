@@ -819,6 +819,12 @@ model Activity {
   bufferPoolContributionPct Decimal @default(20.00) @db.Decimal(5, 2) @map("buffer_pool_pct")
   cdmTransition       Boolean  @default(false) @map("cdm_transition") // legacy CDM migrating
   cdmReference        String?  @map("cdm_reference") @db.VarChar(50) // e.g. "CDM-1234"
+  // AAT-ξ / AV4-361: stable foreign reference for activities sourced from
+  // AWD2 handoffs. NULL for native Aurex activities. The AWD2-side projectId
+  // is opaque to Aurex but stable enough to dedupe synthetic Activity rows
+  // across multiple handoffs (e.g. multiple vintages of the same AWD2
+  // project).
+  awd2ProjectRef      String?  @map("awd2_project_ref") @db.VarChar(255)
   submittedAt         DateTime? @map("submitted_at")
   registeredAt        DateTime? @map("registered_at")
   closedAt            DateTime? @map("closed_at")
@@ -841,6 +847,7 @@ model Activity {
   @@index([orgId, status])
   @@index([methodologyId])
   @@index([hostCountry])
+  @@index([awd2ProjectRef])
   @@map("activities")
 }
 
@@ -1801,4 +1808,52 @@ model KycVerificationEvent {
   @@index([verificationId])
   @@index([eventType, createdAt])
   @@map("kyc_verification_events")
+}
+
+// ─── Biocarbon Sprint 4 — AWD2 → Aurex handoff (AAT-ξ / AV4-361, AV4-362) ──
+// AWD2 is a separate (legacy Polygon ERC-721) NFT registry that emits a
+// signed handoff manifest when ownership/management of a credit transitions
+// to Aurex. The receive route persists every handoff as an Awd2Handoff row
+// (status RECEIVED), then calls awd2-import.service.importAwd2Handoff which
+// translates the manifest into an Aurex Issuance row with
+// tokenizationStatus=MINTED and a composite tokenizationContractId of
+// `<awd2ContractAddress>:<awd2TokenId>`.
+//
+// Idempotency: handoffNonce is a unique key. A duplicate POST returns the
+// already-imported result without re-creating any rows.
+//
+// Failure: if the methodology is not BCR-eligible / org missing / activity
+// create fails, the handoff row is marked FAILED with a structured reason
+// and the route returns RFC 7807 422.
+
+enum Awd2HandoffStatus {
+  RECEIVED @map("received")
+  IMPORTED @map("imported")
+  FAILED   @map("failed")
+}
+
+model Awd2Handoff {
+  id                    String              @id @default(uuid()) @db.Uuid
+  handoffNonce          String              @unique @map("handoff_nonce") @db.VarChar(64)
+  awd2ContractAddress   String              @map("awd2_contract_address") @db.VarChar(64)
+  awd2TokenId           String              @map("awd2_token_id") @db.VarChar(78)
+  bcrSerialId           String              @map("bcr_serial_id") @db.VarChar(255)
+  vintage               Int
+  methodologyCode       String              @map("methodology_code") @db.VarChar(64)
+  projectId             String              @map("project_id") @db.VarChar(255)
+  projectTitle          String              @map("project_title") @db.VarChar(500)
+  tonnes                Int
+  currentHolderOrgId    String              @map("current_holder_org_id") @db.Uuid
+  provenanceHash        String              @map("provenance_hash") @db.VarChar(128)
+  handoffEmittedAt      DateTime            @map("handoff_emitted_at")
+  status                Awd2HandoffStatus   @default(RECEIVED)
+  reason                String?             @db.Text
+  issuanceId            String?             @map("issuance_id") @db.Uuid
+  receivedAt            DateTime            @default(now()) @map("received_at")
+  importedAt            DateTime?           @map("imported_at")
+
+  @@index([status, receivedAt])
+  @@index([currentHolderOrgId])
+  @@index([bcrSerialId])
+  @@map("awd2_handoffs")
 }
