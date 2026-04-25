@@ -7,7 +7,14 @@ import {
   useCompleteOnboarding,
 } from '../../hooks/useOnboarding';
 import { useMyRedemption, type MyActiveRedemption } from '../../hooks/useCoupons';
+import {
+  useStartCheckout,
+  useFinaliseCheckout,
+  type SubscriptionPlan,
+} from '../../hooks/useBilling';
+import { openRazorpayCheckout } from '../../lib/razorpay';
 import { useToast } from '../../contexts/ToastContext';
+import { useAuth } from '../../contexts/AuthContext';
 
 /**
  * AAT-ONBOARD: 3-step onboarding wizard.
@@ -54,20 +61,83 @@ const INDUSTRY_OPTIONS = [
 ];
 
 interface Plan {
+  /** Wizard-side id (kept for back-compat with persisted onboarding state). */
   id: 'INDIA_MSME' | 'INDIA_ENTERPRISE' | 'INTL_SME' | 'INTL_ENTERPRISE';
+  /** Backend SubscriptionPlan enum value used by /billing/checkout. */
+  subscriptionPlan: SubscriptionPlan;
   region: 'INDIA' | 'INTERNATIONAL';
   size: 'SME_MSME' | 'ENTERPRISE';
   label: string;
+  /** Display price for the wizard card. */
   price: string;
+  /** Per-site unit price in MAJOR units (₹ / $) — used for client-side
+   * `qty × price` previews on the per-site plans. The server still
+   * computes the authoritative total in minor units. */
+  perSiteMajor: number;
+  /** ISO currency. */
+  currency: 'INR' | 'USD';
+  /** True if the plan is sold per-site (qty selector should appear). */
+  perSiteScaling: boolean;
   scope: string;
 }
 
 const PLANS: Plan[] = [
-  { id: 'INDIA_MSME', region: 'INDIA', size: 'SME_MSME', label: 'India MSME', price: '₹4,999 / yr', scope: 'Scope 1+2' },
-  { id: 'INDIA_ENTERPRISE', region: 'INDIA', size: 'ENTERPRISE', label: 'India Enterprise', price: '₹9,999 / site / yr', scope: 'Scope 1+2' },
-  { id: 'INTL_SME', region: 'INTERNATIONAL', size: 'SME_MSME', label: 'International SME', price: '$999 / yr', scope: 'Scope 1+2' },
-  { id: 'INTL_ENTERPRISE', region: 'INTERNATIONAL', size: 'ENTERPRISE', label: 'International Enterprise', price: '$1,999 / site / yr', scope: 'Scope 1+2' },
+  {
+    id: 'INDIA_MSME',
+    subscriptionPlan: 'MSME_INDIA',
+    region: 'INDIA',
+    size: 'SME_MSME',
+    label: 'India MSME',
+    price: '₹4,999 / yr',
+    perSiteMajor: 4999,
+    currency: 'INR',
+    perSiteScaling: false,
+    scope: 'Scope 1+2',
+  },
+  {
+    id: 'INDIA_ENTERPRISE',
+    subscriptionPlan: 'ENTERPRISE_INDIA',
+    region: 'INDIA',
+    size: 'ENTERPRISE',
+    label: 'India Enterprise',
+    price: '₹9,999 / site / yr',
+    perSiteMajor: 9999,
+    currency: 'INR',
+    perSiteScaling: true,
+    scope: 'Scope 1+2',
+  },
+  {
+    id: 'INTL_SME',
+    subscriptionPlan: 'SME_INTERNATIONAL',
+    region: 'INTERNATIONAL',
+    size: 'SME_MSME',
+    label: 'International SME',
+    price: '$999 / yr',
+    perSiteMajor: 999,
+    currency: 'USD',
+    perSiteScaling: false,
+    scope: 'Scope 1+2',
+  },
+  {
+    id: 'INTL_ENTERPRISE',
+    subscriptionPlan: 'ENTERPRISE_INTL',
+    region: 'INTERNATIONAL',
+    size: 'ENTERPRISE',
+    label: 'International Enterprise',
+    price: '$1,999 / site / yr',
+    perSiteMajor: 1999,
+    currency: 'USD',
+    perSiteScaling: true,
+    scope: 'Scope 1+2',
+  },
 ];
+
+function formatCurrencyMajor(amountMajor: number, currency: 'INR' | 'USD'): string {
+  if (currency === 'INR') {
+    return `₹${amountMajor.toLocaleString('en-IN')}`;
+  }
+  return `$${amountMajor.toLocaleString('en-US')}`;
+}
 
 // ── Wizard state ──────────────────────────────────────────────────────────
 
@@ -106,6 +176,9 @@ export function OnboardingPage() {
   const skip = useSkipOnboarding();
   const complete = useCompleteOnboarding();
   const { data: redemptionData, isLoading: redemptionLoading } = useMyRedemption();
+  const startCheckout = useStartCheckout();
+  const finaliseCheckout = useFinaliseCheckout();
+  const { user } = useAuth();
   const { success: toastSuccess, error: toastError } = useToast();
   const navigate = useNavigate();
 
@@ -205,6 +278,92 @@ export function OnboardingPage() {
     );
   };
 
+  /**
+   * Plan-picker → Razorpay flow. Backend computes the authoritative
+   * total; we just relay the chosen plan + qty.
+   *
+   * Three terminal states:
+   *   1. `skippedRazorpay: true`  — coupon zeroed the price; subscription is
+   *                                 already ACTIVE. Toast + advance to step 3.
+   *   2. payment success          — finaliseCheckout posts to /checkout/success
+   *                                 (belt-and-braces vs the webhook); advance.
+   *   3. payment cancelled/failed — error toast, stay on step 2.
+   */
+  const handlePlanCheckout = (plan: Plan, perSiteCount: number) => {
+    setStep2((prev) => ({ ...prev, selectedPlan: plan.id }));
+    startCheckout.mutate(
+      { plan: plan.subscriptionPlan, perSiteCount },
+      {
+        onSuccess: async (init) => {
+          // Coupon zeroed the bill — short-circuit. No modal.
+          if (init.skippedRazorpay) {
+            toastSuccess('Trial activated — your subscription is live.');
+            submitStep2({
+              selectedPlan: plan.id,
+              trialAcknowledged: true,
+              skipped: false,
+            });
+            return;
+          }
+
+          if (!init.orderId || !init.keyId) {
+            toastError('Checkout session was not created — please retry.');
+            return;
+          }
+
+          try {
+            await openRazorpayCheckout({
+              keyId: init.keyId,
+              orderId: init.orderId,
+              amount: init.amount,
+              currency: init.currency,
+              name: 'Aurex',
+              description: `${plan.label} subscription`,
+              prefill: {
+                name: user?.name,
+                email: user?.email,
+              },
+              themeColor: '#1a5d3d',
+              onSuccess: (resp) => {
+                finaliseCheckout.mutate(
+                  {
+                    razorpayOrderId: resp.razorpay_order_id,
+                    razorpayPaymentId: resp.razorpay_payment_id,
+                    razorpaySignature: resp.razorpay_signature,
+                  },
+                  {
+                    onSuccess: () => {
+                      toastSuccess('Payment received — your subscription is live.');
+                      submitStep2({
+                        selectedPlan: plan.id,
+                        trialAcknowledged: false,
+                        skipped: false,
+                      });
+                    },
+                    onError: (e: Error) => toastError(e.message),
+                  },
+                );
+              },
+              onFailure: (failure) => {
+                if (failure.reason === 'modal_closed') {
+                  toastError('Payment cancelled — try again when ready.');
+                } else {
+                  toastError(
+                    failure.description ?? 'Payment failed — please try again.',
+                  );
+                }
+              },
+            });
+          } catch (e) {
+            const message = e instanceof Error ? e.message : 'Failed to open payment modal';
+            toastError(message);
+          }
+        },
+        onError: (e: Error) => toastError(e.message),
+      },
+    );
+  };
+
   const submitStep3 = (state: Step3State, finalize: boolean) => {
     setStep3(state);
     saveStep.mutate(
@@ -291,7 +450,9 @@ export function OnboardingPage() {
             trialLoading={redemptionLoading}
             onBack={() => goBack(1)}
             onSubmit={submitStep2}
+            onCheckout={handlePlanCheckout}
             isPending={saveStep.isPending}
+            isCheckoutPending={startCheckout.isPending || finaliseCheckout.isPending}
           />
         )}
         {activeStep === 3 && (
@@ -436,11 +597,29 @@ interface Step2Props {
   trialLoading: boolean;
   onBack: () => void;
   onSubmit: (state: Step2State) => void;
+  onCheckout: (plan: Plan, perSiteCount: number) => void;
   isPending: boolean;
+  isCheckoutPending: boolean;
 }
 
-function Step2PlanOrTrial({ initial, trial, trialLoading, onBack, onSubmit, isPending }: Step2Props) {
+function Step2PlanOrTrial({
+  initial,
+  trial,
+  trialLoading,
+  onBack,
+  onSubmit,
+  onCheckout,
+  isPending,
+  isCheckoutPending,
+}: Step2Props) {
   const [selectedPlan, setSelectedPlan] = useState<Plan['id'] | null>(initial.selectedPlan);
+  // Per-site quantity for ENTERPRISE plans. Default 1 (also the only legal
+  // value for non-per-site plans). Min 1, max 100 — backend caps higher
+  // (10000) but a 100-site UX is a more sane upper bound for the wizard.
+  const [perSiteCount, setPerSiteCount] = useState<number>(1);
+  // Trial users see the trial card; this lets them flip the plan grid in
+  // so they can pre-purchase a paid plan instead of waiting for trial end.
+  const [showPlanGrid, setShowPlanGrid] = useState<boolean>(false);
 
   const trialEndLabel = useMemo(() => {
     if (!trial) return null;
@@ -456,6 +635,8 @@ function Step2PlanOrTrial({ initial, trial, trialLoading, onBack, onSubmit, isPe
     );
   }
 
+  const showGrid = !trial || showPlanGrid;
+
   return (
     <div>
       <h2 style={{ fontSize: '1.125rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
@@ -467,16 +648,39 @@ function Step2PlanOrTrial({ initial, trial, trialLoading, onBack, onSubmit, isPe
           : 'Pick a plan to upgrade later, or skip and start with the free tier.'}
       </p>
 
-      {trial ? (
+      {trial && (
         <TrialActiveCard
           trial={trial}
           trialEndLabel={trialEndLabel}
         />
-      ) : (
+      )}
+
+      {trial && !showPlanGrid && (
+        <button
+          type="button"
+          onClick={() => setShowPlanGrid(true)}
+          style={{
+            background: 'none', border: 'none', padding: 0,
+            color: '#10b981', fontFamily: 'inherit',
+            fontSize: '0.8125rem', fontWeight: 600,
+            cursor: 'pointer', marginBottom: '1rem',
+          }}
+        >
+          Want to lock in a paid plan?
+        </button>
+      )}
+
+      {showGrid && (
         <div>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '1rem' }}>
             {PLANS.map((p) => {
               const isSelected = selectedPlan === p.id;
+              const previewMajor = p.perSiteScaling
+                ? p.perSiteMajor * perSiteCount
+                : p.perSiteMajor;
+              const previewLabel = p.perSiteScaling
+                ? `${formatCurrencyMajor(previewMajor, p.currency)} / yr · ${perSiteCount} site${perSiteCount === 1 ? '' : 's'}`
+                : null;
               return (
                 <div
                   key={p.id}
@@ -491,6 +695,7 @@ function Step2PlanOrTrial({ initial, trial, trialLoading, onBack, onSubmit, isPe
                     backgroundColor: isSelected ? 'rgba(26,93,61,0.06)' : 'var(--bg-card)',
                     cursor: 'pointer',
                     transition: 'border-color 150ms',
+                    display: 'flex', flexDirection: 'column',
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
@@ -498,24 +703,70 @@ function Step2PlanOrTrial({ initial, trial, trialLoading, onBack, onSubmit, isPe
                     <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>{p.scope}</span>
                   </div>
                   <div style={{ fontSize: '1rem', fontWeight: 700, color: '#1a5d3d', marginBottom: '0.5rem' }}>{p.price}</div>
+
+                  {p.perSiteScaling && isSelected && (
+                    <div style={{ marginBottom: '0.5rem' }}>
+                      <label style={{
+                        display: 'block', fontSize: '0.75rem', fontWeight: 600,
+                        color: 'var(--text-secondary)', marginBottom: '0.25rem',
+                      }}>
+                        Number of sites
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={100}
+                        value={perSiteCount}
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={(e) => {
+                          e.stopPropagation();
+                          const raw = Number(e.target.value);
+                          if (!Number.isFinite(raw)) return;
+                          const clamped = Math.max(1, Math.min(100, Math.round(raw)));
+                          setPerSiteCount(clamped);
+                        }}
+                        style={{
+                          ...inputStyle,
+                          padding: '0.375rem 0.5rem',
+                          fontSize: '0.8125rem',
+                        }}
+                      />
+                      {previewLabel && (
+                        <div style={{
+                          marginTop: '0.375rem',
+                          fontSize: '0.75rem', fontWeight: 600,
+                          color: 'var(--text-secondary)',
+                        }}>
+                          Total: {previewLabel} (pre-tax)
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <button
                     type="button"
-                    disabled
-                    title="Billing coming soon"
+                    disabled={isCheckoutPending}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedPlan(p.id);
+                      onCheckout(p, p.perSiteScaling ? perSiteCount : 1);
+                    }}
                     style={{
                       width: '100%',
                       padding: '0.4375rem 0.75rem',
                       borderRadius: '0.375rem',
-                      border: '1px solid var(--border-primary)',
-                      backgroundColor: 'var(--bg-secondary)',
-                      color: 'var(--text-tertiary)',
+                      border: 'none',
+                      backgroundColor: '#1a5d3d',
+                      color: '#fff',
                       fontSize: '0.8125rem',
                       fontWeight: 600,
                       fontFamily: 'inherit',
-                      cursor: 'not-allowed',
+                      cursor: isCheckoutPending ? 'not-allowed' : 'pointer',
+                      opacity: isCheckoutPending ? 0.6 : 1,
+                      marginTop: 'auto',
                     }}
                   >
-                    Continue (billing coming soon)
+                    {isCheckoutPending && isSelected ? 'Opening checkout…' : 'Continue'}
                   </button>
                 </div>
               );
