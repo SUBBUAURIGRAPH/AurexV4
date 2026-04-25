@@ -3,6 +3,7 @@ import { generateReportSchema } from '@aurex/shared';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
 import { requireOrgRole } from '../middleware/org-role.js';
+import { requireOnboardingComplete } from '../middleware/onboarding-gate.js';
 import { logger } from '../lib/logger.js';
 import * as reportService from '../services/report.service.js';
 
@@ -30,6 +31,7 @@ reportRouter.use(requireAuth, requireOrgScope);
  */
 reportRouter.post(
   '/generate',
+  requireOnboardingComplete,
   requireRole('manager', 'org_admin', 'super_admin'),
   async (req, res, next) => {
     try {
@@ -92,12 +94,39 @@ reportRouter.get('/:id/status', async (req, res, next) => {
 });
 
 /**
- * GET /:id/download — Download report data
+ * GET /:id/download — Download report data as a JSON file.
+ *
+ * Sets Content-Disposition: attachment so the browser triggers a file
+ * download dialog instead of rendering the JSON inline (which to the user
+ * looks like a blank tab — the tester report from 2026-04-25 flagged this).
+ *
+ * CSV / PDF generation is a Wave 10 follow-up; for now JSON is the only
+ * format and we make it actually downloadable.
  */
 reportRouter.get('/:id/download', async (req, res, next) => {
   try {
     const report = await reportService.downloadReport(req.params.id as string, req.orgId!);
-    res.json({ data: report.reportData });
+    const filename = `report-${report.type.toLowerCase()}-${report.id}.json`;
+    const payload = JSON.stringify(
+      {
+        report: {
+          id: report.id,
+          type: report.type,
+          status: report.status,
+          lifecycleStatus: report.lifecycleStatus,
+          parameters: report.parameters,
+          publishedAt: report.publishedAt,
+        },
+        data: report.reportData,
+        exportedAt: new Date().toISOString(),
+      },
+      null,
+      2,
+    );
+    res.setHeader('Content-Type', 'application/json; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', Buffer.byteLength(payload, 'utf-8').toString());
+    res.send(payload);
   } catch (err) {
     next(err);
   }
