@@ -94,6 +94,20 @@ function buildStubClient(): AurigraphClient {
     sdk: {
       mintQuota: explode('sdk.mintQuota'),
     },
+    // AAT-ρ / AV4-376 — compliance namespace (stubbed for tests).
+    compliance: {
+      listFrameworks: explode('compliance.listFrameworks'),
+      getFramework: explode('compliance.getFramework'),
+      assess: explode('compliance.assess'),
+      getAssessments: explode('compliance.getAssessments'),
+    },
+    // AAT-ρ / AV4-377 — dmrv namespace (stubbed for tests).
+    dmrv: {
+      recordEvent: explode('dmrv.recordEvent'),
+      getAuditTrail: explode('dmrv.getAuditTrail'),
+      batchRecord: explode('dmrv.batchRecord'),
+      triggerMint: explode('dmrv.triggerMint'),
+    },
   };
 
   return stub as unknown as AurigraphClient;

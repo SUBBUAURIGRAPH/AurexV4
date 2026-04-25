@@ -35,6 +35,10 @@ interface MockClient extends AurigraphClientLike {
     listByUseCase: ReturnType<typeof vi.fn>;
     getPublicLedger: ReturnType<typeof vi.fn>;
     getQuota: ReturnType<typeof vi.fn>;
+    complianceAssess: ReturnType<typeof vi.fn>;
+    complianceGetAssessments: ReturnType<typeof vi.fn>;
+    dmrvRecordEvent: ReturnType<typeof vi.fn>;
+    dmrvGetAuditTrail: ReturnType<typeof vi.fn>;
   };
 }
 
@@ -59,6 +63,10 @@ function makeMockClient(opts?: {
       dmrvDailyUsed: 0,
       dmrvDailyRemaining: 1000,
     }),
+    complianceAssess: vi.fn(),
+    complianceGetAssessments: vi.fn(),
+    dmrvRecordEvent: vi.fn(),
+    dmrvGetAuditTrail: vi.fn(),
   };
 
   const client = {
@@ -75,6 +83,14 @@ function makeMockClient(opts?: {
     },
     tier: {
       getQuota: spies.getQuota,
+    },
+    compliance: {
+      assess: spies.complianceAssess,
+      getAssessments: spies.complianceGetAssessments,
+    },
+    dmrv: {
+      recordEvent: spies.dmrvRecordEvent,
+      getAuditTrail: spies.dmrvGetAuditTrail,
     },
     __spies: spies,
   } as unknown as MockClient;
@@ -353,5 +369,247 @@ describe('AurigraphDltAdapter — audit log resilience', () => {
     // Even though the audit write fails, the deploy must succeed.
     const result = await adapter.deployContract(VALID_DEPLOY);
     expect(result).toEqual(DEPLOY_OK);
+  });
+});
+
+// ── AAT-ρ / AV4-376 — Compliance namespace ─────────────────────────────────
+
+describe('AurigraphDltAdapter — getComplianceAttestation', () => {
+  it('happy path: returns the matching assessment + writes SUCCESS audit row', async () => {
+    const client = makeMockClient();
+    const assessment = {
+      id: 'attest-7',
+      assetId: 'subject-1',
+      framework: 'IFRS_S2',
+      status: 'COMPLIANT',
+      assessedAt: '2026-04-01T00:00:00Z',
+    };
+    client.__spies.complianceGetAssessments.mockResolvedValue([
+      assessment,
+      { id: 'attest-other', assetId: 'subject-1', framework: 'X', status: 'PENDING', assessedAt: '2026-04-02T00:00:00Z' },
+    ]);
+    const adapter = new AurigraphDltAdapter({ client });
+
+    const result = await adapter.getComplianceAttestation('attest-7');
+
+    expect(result).toEqual(assessment);
+    expect(client.__spies.complianceGetAssessments).toHaveBeenCalledWith('attest-7');
+    expect(client.__spies.getQuota).not.toHaveBeenCalled(); // reads skip pre-flight
+
+    const arg = mockPrisma.aurigraphCallLog.create.mock.calls[0]![0]!;
+    expect(arg.data.method).toBe('compliance.getAttestation');
+    expect(arg.data.status).toBe('SUCCESS');
+  });
+
+  it('not-found: maps to ChainClientError + FAILED audit row (no retry)', async () => {
+    const client = makeMockClient();
+    client.__spies.complianceGetAssessments.mockResolvedValue([]);
+    const adapter = new AurigraphDltAdapter({ client });
+
+    await expect(adapter.getComplianceAttestation('missing')).rejects.toBeInstanceOf(
+      ChainClientError,
+    );
+    // 4xx semantics — only one call (no retry on ChainClientError).
+    expect(client.__spies.complianceGetAssessments).toHaveBeenCalledTimes(1);
+
+    const arg = mockPrisma.aurigraphCallLog.create.mock.calls[0]![0]!;
+    expect(arg.data.status).toBe('FAILED');
+    expect(arg.data.errorCode).toBe('COMPLIANCE_ATTESTATION_NOT_FOUND');
+  });
+
+  it('does not retry on AurigraphClientError (4xx) — maps to ChainClientError immediately', async () => {
+    const client = makeMockClient();
+    client.__spies.complianceGetAssessments.mockRejectedValue(
+      new AurigraphClientError('forbidden', 403, problem(403, 'FORBIDDEN')),
+    );
+    const adapter = new AurigraphDltAdapter({ client });
+
+    await expect(adapter.getComplianceAttestation('attest-1')).rejects.toBeInstanceOf(
+      ChainClientError,
+    );
+    expect(client.__spies.complianceGetAssessments).toHaveBeenCalledTimes(1);
+
+    const arg = mockPrisma.aurigraphCallLog.create.mock.calls[0]![0]!;
+    expect(arg.data.status).toBe('FAILED');
+    expect(arg.data.errorCode).toBe('FORBIDDEN');
+  });
+
+  it('retries on transient AurigraphServerError and succeeds — logs RETRIED', async () => {
+    const client = makeMockClient();
+    const assessment = {
+      id: 'attest-9',
+      assetId: 'subject-1',
+      framework: 'IFRS_S2',
+      status: 'COMPLIANT',
+      assessedAt: '2026-04-01T00:00:00Z',
+    };
+    client.__spies.complianceGetAssessments
+      .mockRejectedValueOnce(
+        new AurigraphServerError('flap', 503, problem(503, 'UPSTREAM_DOWN')),
+      )
+      .mockResolvedValueOnce([assessment]);
+    const adapter = new AurigraphDltAdapter({ client });
+
+    const result = await adapter.getComplianceAttestation('attest-9');
+
+    expect(result).toEqual(assessment);
+    expect(client.__spies.complianceGetAssessments).toHaveBeenCalledTimes(2);
+    const arg = mockPrisma.aurigraphCallLog.create.mock.calls[0]![0]!;
+    expect(arg.data.status).toBe('RETRIED');
+  });
+});
+
+describe('AurigraphDltAdapter — listComplianceAttestations', () => {
+  it('honours since + limit client-side after fetching SDK assessments', async () => {
+    const client = makeMockClient();
+    client.__spies.complianceGetAssessments.mockResolvedValue([
+      { id: 'a1', assetId: 'org-1', framework: 'F', status: 'OK', assessedAt: '2026-01-01T00:00:00Z' },
+      { id: 'a2', assetId: 'org-1', framework: 'F', status: 'OK', assessedAt: '2026-03-01T00:00:00Z' },
+      { id: 'a3', assetId: 'org-1', framework: 'F', status: 'OK', assessedAt: '2026-04-01T00:00:00Z' },
+    ]);
+    const adapter = new AurigraphDltAdapter({ client });
+
+    const result = await adapter.listComplianceAttestations({
+      subject: 'org-1',
+      since: new Date('2026-02-01T00:00:00Z'),
+      limit: 1,
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0]!.id).toBe('a2');
+    expect(client.__spies.complianceGetAssessments).toHaveBeenCalledWith('org-1');
+  });
+});
+
+describe('AurigraphDltAdapter — submitComplianceAttestation', () => {
+  it('happy path: calls compliance.assess + returns attestationId/txHash + SUCCESS audit row', async () => {
+    const client = makeMockClient();
+    client.__spies.complianceAssess.mockResolvedValue({
+      id: 'attest-100',
+      txHash: '0xcompliance',
+      assetId: 'org-1',
+      framework: 'IFRS_S2',
+      status: 'COMPLIANT',
+      assessedAt: '2026-04-25T00:00:00Z',
+    });
+    const adapter = new AurigraphDltAdapter({ client });
+
+    const result = await adapter.submitComplianceAttestation({
+      subject: 'org-1',
+      kind: 'IFRS_S2',
+      payload: { reportingPeriod: '2025' },
+    });
+
+    expect(result.attestationId).toBe('attest-100');
+    expect(result.txHash).toBe('0xcompliance');
+    expect(client.__spies.complianceAssess).toHaveBeenCalledWith(
+      'org-1',
+      'IFRS_S2',
+      { reportingPeriod: '2025' },
+    );
+    expect(client.__spies.getQuota).toHaveBeenCalledTimes(1); // pre-flight
+
+    const arg = mockPrisma.aurigraphCallLog.create.mock.calls[0]![0]!;
+    expect(arg.data.method).toBe('compliance.submitAttestation');
+    expect(arg.data.status).toBe('SUCCESS');
+    expect(arg.data.responseRef).toBe('attest-100');
+  });
+
+  it('does not retry on 5xx — submit semantics match transferAsset', async () => {
+    const client = makeMockClient();
+    client.__spies.complianceAssess.mockRejectedValue(
+      new AurigraphServerError('boom', 502, problem(502, 'UPSTREAM_BAD_GATEWAY')),
+    );
+    const adapter = new AurigraphDltAdapter({ client });
+
+    await expect(
+      adapter.submitComplianceAttestation({ subject: 'org-1', kind: 'X', payload: {} }),
+    ).rejects.toBeInstanceOf(ChainServerError);
+    // Single call — no retry on 5xx for submits (per spec).
+    expect(client.__spies.complianceAssess).toHaveBeenCalledTimes(1);
+
+    const arg = mockPrisma.aurigraphCallLog.create.mock.calls[0]![0]!;
+    expect(arg.data.status).toBe('FAILED');
+    expect(arg.data.errorCode).toBe('UPSTREAM_BAD_GATEWAY');
+  });
+});
+
+// ── AAT-ρ / AV4-377 — DMRV namespace ───────────────────────────────────────
+
+describe('AurigraphDltAdapter — submitDmrvAttestation', () => {
+  it('happy path: returns dmrvId/txHash + SUCCESS audit row + injects metadata', async () => {
+    const client = makeMockClient();
+    client.__spies.dmrvRecordEvent.mockResolvedValue({
+      eventId: 'dmrv-42',
+      status: 'ACCEPTED',
+      txHash: '0xanchor',
+      timestamp: '2026-04-25T00:00:00Z',
+    });
+    const adapter = new AurigraphDltAdapter({ client });
+
+    const result = await adapter.submitDmrvAttestation({
+      activityId: 'act-1',
+      periodId: 'period-1',
+      payload: { verifiedEr: 100 },
+    });
+
+    expect(result).toEqual({ dmrvId: 'dmrv-42', txHash: '0xanchor' });
+    expect(client.__spies.getQuota).toHaveBeenCalledTimes(1); // pre-flight
+
+    const event = client.__spies.dmrvRecordEvent.mock.calls[0]![0]!;
+    expect(event.deviceId).toBe('aurex:verification:period-1');
+    expect(event.eventType).toBe('CARBON_OFFSET');
+    expect(event.metadata).toMatchObject({
+      verifiedEr: 100,
+      aurexActivityId: 'act-1',
+      aurexPeriodId: 'period-1',
+      attestationKind: 'verification_report',
+    });
+
+    const arg = mockPrisma.aurigraphCallLog.create.mock.calls[0]![0]!;
+    expect(arg.data.method).toBe('dmrv.submitAttestation');
+    expect(arg.data.status).toBe('SUCCESS');
+    expect(arg.data.responseRef).toBe('dmrv-42');
+  });
+
+  it('writes a FAILED audit row when the SDK throws and surfaces ChainClientError', async () => {
+    const client = makeMockClient();
+    client.__spies.dmrvRecordEvent.mockRejectedValue(
+      new AurigraphClientError('bad device', 422, problem(422, 'DEVICE_UNREGISTERED')),
+    );
+    const adapter = new AurigraphDltAdapter({ client });
+
+    await expect(
+      adapter.submitDmrvAttestation({
+        activityId: 'act-1',
+        periodId: 'period-1',
+        payload: {},
+      }),
+    ).rejects.toBeInstanceOf(ChainClientError);
+
+    const arg = mockPrisma.aurigraphCallLog.create.mock.calls[0]![0]!;
+    expect(arg.data.method).toBe('dmrv.submitAttestation');
+    expect(arg.data.status).toBe('FAILED');
+    expect(arg.data.errorCode).toBe('DEVICE_UNREGISTERED');
+  });
+});
+
+describe('AurigraphDltAdapter — listDmrvForActivity', () => {
+  it('filters audit-trail events by metadata.aurexActivityId or contractId', async () => {
+    const client = makeMockClient();
+    client.__spies.dmrvGetAuditTrail.mockResolvedValue([
+      { eventId: 'e1', deviceId: 'd1', eventType: 'METER_READING', quantity: 1, metadata: { aurexActivityId: 'act-1' } },
+      { eventId: 'e2', deviceId: 'd2', eventType: 'METER_READING', quantity: 1, metadata: { aurexActivityId: 'act-other' } },
+      { eventId: 'e3', deviceId: 'd3', eventType: 'METER_READING', quantity: 1, contractId: 'act-1' },
+    ]);
+    const adapter = new AurigraphDltAdapter({ client });
+
+    const result = await adapter.listDmrvForActivity('act-1', { limit: 50 });
+
+    expect(result).toHaveLength(2);
+    expect(result.map((e) => e.eventId)).toEqual(['e1', 'e3']);
+    const arg = mockPrisma.aurigraphCallLog.create.mock.calls[0]![0]!;
+    expect(arg.data.method).toBe('dmrv.listForActivity');
+    expect(arg.data.status).toBe('SUCCESS');
   });
 });

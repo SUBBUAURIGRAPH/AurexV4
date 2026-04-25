@@ -46,6 +46,8 @@ import { kycRouter } from './routes/kyc.js';
 import { biocarbonPublicRouter } from './routes/biocarbon-public.js';
 // AAT-ξ / AV4-361, AV4-362: AWD2 → Aurex handoff receive + backfill.
 import { awd2HandoffRouter } from './routes/awd2-handoff.js';
+// AAT-ρ / AV4-376: Aurigraph DLT compliance namespace integration.
+import { complianceRouter } from './routes/compliance.js';
 // AV4-338 / AAT-7: retention header + nightly archival worker
 import { retentionHeaderMiddleware } from './middleware/retention-header.js';
 import { startRetentionWorker } from './workers/retention-archival.worker.js';
@@ -130,6 +132,8 @@ app.use('/api/v1/biocarbon', biocarbonPublicRouter);
 // Webhook-style — JWT-signed by AWD2's federation key, no Aurex user/org
 // scope. Mounts at /api/v1/awd2 so the route file owns the /handoff path.
 app.use('/api/v1/awd2', awd2HandoffRouter);
+// AAT-ρ / AV4-376: Aurigraph DLT compliance attestation reads + submits.
+app.use('/api/v1/compliance', complianceRouter);
 
 // ADM-052: RFC 7807 error handler
 app.use(errorHandler);

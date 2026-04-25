@@ -1095,10 +1095,19 @@ model VerificationReport {
   findings            Json?
   documentUrl         String?  @map("document_url") @db.VarChar(500)
   verifiedAt          DateTime @map("verified_at")
+  // ── AAT-ρ / AV4-377 — DMRV anchoring on Aurigraph DLT ──────────────────
+  // Populated by `verification.service.ts` after a successful
+  // `aurigraphAdapter.submitDmrvAttestation(...)` call. Append-only:
+  // presence short-circuits a re-anchor, and a failed anchor leaves both
+  // fields null so a follow-up worker can retry. The anchored attestation
+  // is the on-ledger receipt for the DOE-signed verification report.
+  dmrvAttestationId   String?  @map("dmrv_attestation_id") @db.VarChar(255)
+  dmrvTxHash          String?  @map("dmrv_tx_hash") @db.VarChar(255)
   createdAt           DateTime @default(now()) @map("created_at")
 
   period MonitoringPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
 
+  @@index([dmrvAttestationId])
   @@map("verification_reports")
 }
 

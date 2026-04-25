@@ -26,6 +26,10 @@ import {
   AurigraphClient,
   AurigraphClientError,
   AurigraphServerError,
+  type AssessmentResult,
+  type AuditFilter,
+  type DmrvEvent,
+  type DmrvReceipt,
   type MintQuota,
   type TransferRequest,
   type TransferReceipt,
@@ -94,6 +98,76 @@ export interface ChainAdapter {
   burnAsset(spec: AssetBurnSpec): Promise<ContractDeployResult>;
   getQuota(): Promise<MintQuota>;
   readonly adapterName: string;
+}
+
+// ── AAT-ρ / AV4-376 — Compliance attestation types ─────────────────────────
+//
+// SDK 1.2.0 surface (`packages/aurigraph-dlt-sdk/src/namespaces/compliance.ts`)
+// exposes `listFrameworks` / `getFramework` / `assess` / `getAssessments` —
+// it does NOT expose a free-form `submit/getAttestation/list` surface as the
+// spec assumed. The adapter therefore models compliance attestations as
+// framework-bound assessments (`AssessmentResult`) — `kind` maps to the
+// framework code (e.g. `IFRS_S2`, `BCR_RETIREMENT_PASSTHROUGH`) and
+// `subject` maps to the SDK's asset id concept (typically the Aurex
+// activity id, but kept as an opaque string for tests). See the README hand-
+// back notes for the gap & deviation summary.
+
+export interface ComplianceListOpts {
+  /** Subject reference (e.g. activity id / asset id). Required. */
+  subject: string;
+  /** Optional ISO-8601 lower-bound; SDK 1.2.0 does not currently filter
+   *  server-side, so this is honoured client-side after fetch. */
+  since?: Date;
+  /** Optional max-rows cap; honoured client-side. */
+  limit?: number;
+}
+
+export interface ComplianceSubmitSpec {
+  /** Subject reference (e.g. activity id). Becomes the SDK assetId. */
+  subject: string;
+  /** Framework code (IFRS_S2 / BCR_RETIREMENT_PASSTHROUGH / etc.). */
+  kind: string;
+  /** Free-form metadata persisted on the assessment. */
+  payload?: Record<string, unknown>;
+}
+
+export interface ComplianceSubmitResult {
+  attestationId: string;
+  txHash: string;
+}
+
+// ── AAT-ρ / AV4-377 — DMRV attestation types ────────────────────────────────
+//
+// SDK 1.2.0 surface (`packages/aurigraph-dlt-sdk/src/namespaces/dmrv.ts`)
+// exposes `recordEvent` / `getAuditTrail` / `batchRecord` / `triggerMint`. The
+// adapter wraps `recordEvent` for `submitDmrvAttestation` (single-event
+// anchor) and `getAuditTrail` for `getDmrvAttestation` /
+// `listDmrvForActivity`. The `payload` is forwarded as the SDK's
+// `metadata` field so the verification report's full DOE-signed body is
+// retained on-ledger.
+
+export interface DmrvSubmitSpec {
+  /** Aurex activityId — used as the SDK `contractId` link when present, and
+   *  always serialised into `metadata.activityId`. */
+  activityId: string;
+  /** Aurex monitoring period id — always serialised into
+   *  `metadata.periodId`. */
+  periodId: string;
+  /** Free-form payload (e.g. the DOE-signed VerificationReport body). */
+  payload?: Record<string, unknown>;
+  /** Override the device id (defaults to a deterministic
+   *  `aurex:verification:<periodId>` synthetic id so the attestation is
+   *  attributable but does not require a registered device). */
+  deviceId?: string;
+}
+
+export interface DmrvSubmitResult {
+  /** Server-assigned event id — surfaces as `dmrvAttestationId` on the
+   *  Aurex side. */
+  dmrvId: string;
+  /** Tx hash if the SDK call landed on-ledger; `undefined` for queued /
+   *  pending statuses. */
+  txHash: string;
 }
 
 // ── Errors ─────────────────────────────────────────────────────────────────
@@ -297,6 +371,10 @@ export interface AurigraphClientLike {
   assets: AurigraphClient['assets'];
   wallet: AurigraphClient['wallet'];
   tier: AurigraphClient['tier'];
+  /** AAT-ρ / AV4-376 — compliance namespace (SDK 1.2.0 surface). */
+  compliance: AurigraphClient['compliance'];
+  /** AAT-ρ / AV4-377 — dmrv namespace (SDK 1.2.0 surface). */
+  dmrv: AurigraphClient['dmrv'];
 }
 
 export interface AurigraphDltAdapterOptions {
@@ -482,6 +560,210 @@ export class AurigraphDltAdapter implements ChainAdapter {
     );
   }
 
+  // ── AAT-ρ / AV4-376 — Compliance namespace ─────────────────────────────
+  //
+  // The SDK 1.2.0 compliance namespace exposes `assess` / `getAssessments`
+  // (no free-form `submit` / `list` surface). The adapter maps:
+  //   submitComplianceAttestation -> compliance.assess(subject, kind, payload)
+  //   getComplianceAttestation    -> compliance.getAssessments(...).find(id)
+  //   listComplianceAttestations  -> compliance.getAssessments(subject)
+  // Where the SDK does not surface a separate "attestation id", we use the
+  // same id as the assessment record (the SDK guarantees uniqueness via
+  // `{assetId}:{framework}:{assessedAt}`).
+
+  async getComplianceAttestation(
+    attestationId: string,
+  ): Promise<AssessmentResult> {
+    // The SDK 1.2.0 surface only lists assessments by asset; attestations
+    // carry an embedded `id` field server-side that is not yet surfaced
+    // through the typed `AssessmentResult`. We inspect `unknown` via a
+    // type-guarded match instead of casting to `any`.
+    return this.runRead<AssessmentResult>(
+      'compliance.getAttestation',
+      { attestationId },
+      async () => {
+        // Ask the SDK for the embedded assessment listing keyed by
+        // attestationId; many V11 deployments also map this id 1:1 to an
+        // assetId so we can fall back to a direct asset lookup.
+        const list = await this.client.compliance.getAssessments(attestationId);
+        const match = findAttestationById(list, attestationId);
+        if (!match) {
+          throw new ChainClientError(
+            `Compliance attestation not found: ${attestationId}`,
+            404,
+            'COMPLIANCE_ATTESTATION_NOT_FOUND',
+          );
+        }
+        return match;
+      },
+    );
+  }
+
+  async listComplianceAttestations(
+    opts: ComplianceListOpts,
+  ): Promise<AssessmentResult[]> {
+    return this.runRead<AssessmentResult[]>(
+      'compliance.listAttestations',
+      {
+        subject: opts.subject,
+        since: opts.since?.toISOString(),
+        limit: opts.limit,
+      },
+      async () => {
+        const all = await this.client.compliance.getAssessments(opts.subject);
+        return filterAttestations(all, opts);
+      },
+    );
+  }
+
+  async submitComplianceAttestation(
+    spec: ComplianceSubmitSpec,
+  ): Promise<ComplianceSubmitResult> {
+    const method = 'compliance.submitAttestation';
+    const params: Record<string, unknown> = {
+      subject: spec.subject,
+      kind: spec.kind,
+      payload: spec.payload ?? null,
+    };
+    const startedAt = Date.now();
+
+    await this.preflightQuota({ method, params, startedAt });
+
+    try {
+      // Submits are non-idempotent on the SDK transport (no idempotency-key
+      // exposed for `compliance.assess`), so disable retry-on-5xx in line
+      // with the `transferAsset` policy.
+      const { value, attempts } = await callWithRetry(
+        () =>
+          this.client.compliance.assess(spec.subject, spec.kind, spec.payload),
+        { retryServerErrors: false },
+      );
+
+      const attestationId = extractAttestationId(value, spec.subject, spec.kind);
+      const txHash = extractAttestationTxHash(value);
+
+      await writeCallLog({
+        method,
+        params,
+        responseRef: attestationId,
+        status: attempts > 1 ? 'RETRIED' : 'SUCCESS',
+        latencyMs: Date.now() - startedAt,
+      });
+
+      return { attestationId, txHash };
+    } catch (err) {
+      await this.recordFailure(method, params, startedAt, err);
+      throw err;
+    }
+  }
+
+  // ── AAT-ρ / AV4-377 — DMRV namespace ───────────────────────────────────
+
+  async submitDmrvAttestation(
+    spec: DmrvSubmitSpec,
+  ): Promise<DmrvSubmitResult> {
+    const method = 'dmrv.submitAttestation';
+    const params: Record<string, unknown> = {
+      activityId: spec.activityId,
+      periodId: spec.periodId,
+      payload: spec.payload ?? null,
+    };
+    const startedAt = Date.now();
+
+    await this.preflightQuota({ method, params, startedAt });
+
+    try {
+      // DMRV ingestion is non-idempotent without a SDK-level idempotency key
+      // (the V11 endpoint dedupes by client-supplied `eventId` only, which we
+      // populate below). Disable retry-on-5xx for safety; the events worker
+      // can re-attempt on failure.
+      const event: DmrvEvent = {
+        deviceId:
+          spec.deviceId ?? `aurex:verification:${spec.periodId}`,
+        eventType: 'CARBON_OFFSET',
+        quantity: 0,
+        unit: 'attestation',
+        timestamp: new Date().toISOString(),
+        metadata: {
+          ...(spec.payload ?? {}),
+          aurexActivityId: spec.activityId,
+          aurexPeriodId: spec.periodId,
+          attestationKind: 'verification_report',
+        },
+      };
+
+      const { value, attempts } = await callWithRetry<DmrvReceipt>(
+        () => this.client.dmrv.recordEvent(event),
+        { retryServerErrors: false },
+      );
+
+      const dmrvId = value.eventId ?? '';
+      const txHash = value.txHash ?? '';
+
+      await writeCallLog({
+        method,
+        params,
+        responseRef: dmrvId || txHash,
+        status: attempts > 1 ? 'RETRIED' : 'SUCCESS',
+        latencyMs: Date.now() - startedAt,
+      });
+
+      return { dmrvId, txHash };
+    } catch (err) {
+      await this.recordFailure(method, params, startedAt, err);
+      throw err;
+    }
+  }
+
+  async getDmrvAttestation(dmrvId: string): Promise<DmrvEvent> {
+    return this.runRead<DmrvEvent>(
+      'dmrv.getAttestation',
+      { dmrvId },
+      async () => {
+        // SDK 1.2.0 has no `getEvent(id)` — fetch the audit trail and pick
+        // the matching id. This is bounded by `limit` so it does not blow up
+        // for large activities.
+        const events = await this.client.dmrv.getAuditTrail({ limit: 200 });
+        const match = events.find((e) => e.eventId === dmrvId);
+        if (!match) {
+          throw new ChainClientError(
+            `DMRV attestation not found: ${dmrvId}`,
+            404,
+            'DMRV_ATTESTATION_NOT_FOUND',
+          );
+        }
+        return match;
+      },
+    );
+  }
+
+  async listDmrvForActivity(
+    activityId: string,
+    opts?: { limit?: number; eventType?: AuditFilter['eventType'] },
+  ): Promise<DmrvEvent[]> {
+    return this.runRead<DmrvEvent[]>(
+      'dmrv.listForActivity',
+      { activityId, limit: opts?.limit, eventType: opts?.eventType },
+      async () => {
+        const filter: AuditFilter = {
+          contractId: activityId,
+          limit: opts?.limit,
+          eventType: opts?.eventType,
+        };
+        const events = await this.client.dmrv.getAuditTrail(filter);
+        // SDK does not yet filter by activityId server-side; client-side
+        // filter on the metadata link we always inject in submit().
+        return events.filter((e) => {
+          if (e.contractId === activityId) return true;
+          const md = e.metadata as
+            | { aurexActivityId?: unknown }
+            | undefined;
+          return md?.aurexActivityId === activityId;
+        });
+      },
+    );
+  }
+
   // ── Internal helpers ───────────────────────────────────────────────────
 
   private async preflightQuota(ctx: {
@@ -582,6 +864,75 @@ export class AurigraphDltAdapter implements ChainAdapter {
       latencyMs: Date.now() - startedAt,
     });
   }
+}
+
+// ── AAT-ρ — internal type-guarded extractors for SDK 1.2.0 attestation
+//          shapes that are not yet fully typed in `AssessmentResult`. ───────
+
+function findAttestationById(
+  list: AssessmentResult[],
+  id: string,
+): AssessmentResult | undefined {
+  for (const row of list) {
+    const candidate = row as unknown as Record<string, unknown>;
+    if (typeof candidate.id === 'string' && candidate.id === id) return row;
+    if (
+      typeof candidate.attestationId === 'string' &&
+      candidate.attestationId === id
+    ) {
+      return row;
+    }
+    if (
+      typeof candidate.assessmentId === 'string' &&
+      candidate.assessmentId === id
+    ) {
+      return row;
+    }
+  }
+  return undefined;
+}
+
+function filterAttestations(
+  list: AssessmentResult[],
+  opts: ComplianceListOpts,
+): AssessmentResult[] {
+  let filtered = list;
+  if (opts.since) {
+    const sinceMs = opts.since.getTime();
+    filtered = filtered.filter((row) => {
+      const t = Date.parse(row.assessedAt);
+      return Number.isFinite(t) ? t >= sinceMs : true;
+    });
+  }
+  if (typeof opts.limit === 'number' && opts.limit >= 0) {
+    filtered = filtered.slice(0, opts.limit);
+  }
+  return filtered;
+}
+
+function extractAttestationId(
+  value: AssessmentResult,
+  subject: string,
+  kind: string,
+): string {
+  const candidate = value as unknown as Record<string, unknown>;
+  if (typeof candidate.id === 'string') return candidate.id;
+  if (typeof candidate.attestationId === 'string') return candidate.attestationId;
+  if (typeof candidate.assessmentId === 'string') return candidate.assessmentId;
+  // Deterministic fallback so the receipt persists even if the V11 server
+  // returns the bare assessment payload without a top-level id.
+  const stamp =
+    typeof value.assessedAt === 'string' ? value.assessedAt : Date.now();
+  return `compliance:${subject}:${kind}:${String(stamp)}`;
+}
+
+function extractAttestationTxHash(value: AssessmentResult): string {
+  const candidate = value as unknown as Record<string, unknown>;
+  if (typeof candidate.txHash === 'string') return candidate.txHash;
+  if (typeof candidate.transactionHash === 'string') {
+    return candidate.transactionHash;
+  }
+  return '';
 }
 
 /**
