@@ -7,6 +7,22 @@
 
 ---
 
+## Delivery status (as of 2026-04-25)
+
+This table reconciles the original 4-sprint plan above with what actually shipped to `main` after the SDK pivot. Per-sprint sections below remain as the original specification; this row-level summary is the authoritative "what landed" view. Cross-link the per-binding ledger in `BIOCARBON_GAP_ANALYSIS.md` (Aurex matrix, "Shipped via" column).
+
+| Sprint | Status | Tickets shipped | Notes |
+|---|---|---|---|
+| Sprint 0 (operational) | ✅ Drafted; submission pending | AV4-341 / AV4-342 / AV4-343 / AV4-347 | BCR application email + anticorruption agreement tracker + legal classification matrix + 3-doc operational dossier landed (`ee6bdf7`, `697a27e`). Compliance to send. |
+| Sprint 1 (BCR adapter scaffold) | ✅ Shipped | AV4-344 / AV4-345 / AV4-346 / AV4-348 | `BcrRegistryAdapter` (disabled / mock / live-pending) + `Methodology.isBcrEligible` + 6 BCR-eligible methodologies seeded (`fdba951`). |
+| SDK foundation | ✅ Shipped | AV4-370 / AV4-372 / AV4-374 | `@aurigraph/dlt-sdk` vendored, `AurigraphDltAdapter` with `deployContract` / `transfer` / `burn` / `quota`, asset metadata schema with immutable BCR Serial ID embed (`de94fb0`, `bb8bce8`). |
+| Sprint 2 (lock-then-mint) | ✅ Shipped | AV4-373 / AV4-375 | `tokenization.service` via `UC_CARBON` `contracts.deploy`; events worker for burn / retire / delist with cursor + retry (`d566b69`, `a6225c8`). |
+| Sprint 3 (KYC + retirement + marketplace) | ✅ Shipped | AV4-354 / AV4-355 / AV4-356 / AV4-357 / AV4-358 / AV4-359 | `KycVerification` adapter, retirement payload + service with verified beneficiary, delist initiator (two-way bridge), public marketplace + token detail UI, +41 service unit tests (`1bd2157`, `ba13239`, `f383ba7`, `443dd82`, `7d74cbd`). |
+| Sprint 4 (cross-system + ops) | ✅ Shipped | AV4-361 / AV4-362 / AV4-363 / AV4-364 | AWD2 → Aurex handoff receive (signed-JWT), backfill service, 3 operational runbooks (cutover / change-management / audit-cooperation), e2e full-lifecycle test harness (`4a48ebb`, `69366e3`). |
+| Sprint 5 (catalogue + DMRV + docs) | 🚧 In flight (this dispatch) | AV4-368 / AV4-376 / AV4-377 / AV4-381 / AV4-369 / AV4-379 | Methodology single-source-of-truth, SDK `compliance` namespace integration, SDK `dmrv` namespace integration, this docs reconciliation pass, sandbox harness + cross-system regression. |
+
+---
+
 ## Sprint 0 — Pre-flight (Week 0, ~5 days)
 
 **Specification**
@@ -56,12 +72,12 @@ interface BcrRegistryAdapter {
 - `BcrRegistrySyncEvent` Prisma model for audit trail (parallels `UnfcccRegistrySyncEvent`).
 
 ### Refinement (parallel AAT wave)
-| AAT | Files | TDD targets |
-|---|---|---|
-| **AAT-A1** | `services/registries/bcr-adapter.ts`, `services/registries/disabled-bcr-adapter.ts`, `services/registries/mock-bcr-adapter.ts` | RED → GREEN for the 7 adapter methods |
-| **AAT-A2** | Schema additions: `Methodology.isBcrEligible`, `BcrRegistrySyncEvent` model + enum | Schema change + Prisma generate |
-| **AAT-A3** | Seed: tag VM0042 / VM0007 / VM0033 etc. as BCR-eligible | Seed test |
-| **AAT-A4** | Operational dossier: `docs/biocarbon/01-03/*.md` | Doc lint test |
+| AAT | Files | TDD targets | Shipped |
+|---|---|---|---|
+| **AAT-A1** | `services/registries/bcr-adapter.ts`, `services/registries/disabled-bcr-adapter.ts`, `services/registries/mock-bcr-adapter.ts` | RED → GREEN for the 7 adapter methods | ✅ AV4-344 / AV4-345 — `fdba951` |
+| **AAT-A2** | Schema additions: `Methodology.isBcrEligible`, `BcrRegistrySyncEvent` model + enum | Schema change + Prisma generate | ✅ AV4-346 — `fdba951` |
+| **AAT-A3** | Seed: tag VM0042 / VM0007 / VM0033 etc. as BCR-eligible | Seed test | ✅ AV4-348 — `fdba951` (6 methodologies seeded) |
+| **AAT-A4** | Operational dossier: `docs/biocarbon/01-03/*.md` | Doc lint test | ✅ AV4-347 — `697a27e` |
 
 ### TDD test suite — Sprint 1
 
@@ -138,15 +154,15 @@ contract BioCarbonVCCToken is ERC1155, AccessControl, Pausable {
 - Indexer (BullMQ + viem `watchContractEvent`) listens for `BcrBurnRequested` and triggers the `bcr-adapter.notifyBurn()` API call (closing the loop).
 
 ### Refinement (parallel AAT wave — SDK-primary)
-| AAT | Files | Asserts | Jira |
-|---|---|---|---|
-| **AAT-B1 (SDK)** | `apps/api/src/lib/aurigraph-client.ts` + `services/chains/aurigraph-dlt-adapter.ts` | SDK client singleton + adapter | AV4-370 + AV4-372 |
-| **AAT-B2 (SDK)** | `services/tokenization.service.ts` calling `aurigraphAdapter.deployContract(UC_CARBON, terms)` | Lock-then-mint orchestrator | AV4-373 |
-| **AAT-B3 (SDK)** | `workers/aurigraph-events.worker.ts` (SDK native event stream) | On-chain → BCR API loop | AV4-375 |
-| **AAT-B4** | `routes/tokenization.ts` — POST `/issuances/:id/tokenize` | Public trigger | AV4-352 |
-| **AAT-B5 (SDK)** | `services/asset-metadata.schema.ts` — BCR Serial ID embed | Round-trip metadata test | AV4-374 |
-| **AAT-B6 (fallback)** | `packages/contracts/contracts/BioCarbonVCCToken.sol` + Foundry tests | Polygon fallback only | AV4-349 (narrowed) |
-| **AAT-B7 (fallback)** | `services/chains/polygon-adapter.ts` (viem wrapper) | Polygon fallback only | AV4-350 (narrowed) |
+| AAT | Files | Asserts | Jira | Shipped |
+|---|---|---|---|---|
+| **AAT-B1 (SDK)** | `apps/api/src/lib/aurigraph-client.ts` + `services/chains/aurigraph-dlt-adapter.ts` | SDK client singleton + adapter | AV4-370 + AV4-372 | ✅ `de94fb0` |
+| **AAT-B2 (SDK)** | `services/tokenization.service.ts` calling `aurigraphAdapter.deployContract(UC_CARBON, terms)` | Lock-then-mint orchestrator | AV4-373 | ✅ `d566b69` |
+| **AAT-B3 (SDK)** | `workers/aurigraph-events.worker.ts` (SDK native event stream) | On-chain → BCR API loop | AV4-375 | ✅ `a6225c8` |
+| **AAT-B4** | `routes/tokenization.ts` — POST `/issuances/:id/tokenize` | Public trigger | AV4-352 | 🚧 Pending — superseded by AV4-373 service-layer trigger; standalone HTTP route still TBD |
+| **AAT-B5 (SDK)** | `services/asset-metadata.schema.ts` — BCR Serial ID embed | Round-trip metadata test | AV4-374 | ✅ `bb8bce8` |
+| **AAT-B6 (fallback)** | `packages/contracts/contracts/BioCarbonVCCToken.sol` + Foundry tests | Polygon fallback only | AV4-349 (narrowed) | ⏸️ Deferred — superseded by SDK primary path; see "Superseded tickets" |
+| **AAT-B7 (fallback)** | `services/chains/polygon-adapter.ts` (viem wrapper) | Polygon fallback only | AV4-350 (narrowed) | ⏸️ Deferred — superseded by SDK primary path; see "Superseded tickets" |
 
 ### TDD test suite — Sprint 2
 
@@ -197,13 +213,13 @@ contract BioCarbonVCCToken is ERC1155, AccessControl, Pausable {
 - Retirement payload schema versioned in `@aurex/shared`.
 
 ### Refinement (parallel AAT wave)
-| AAT | Files | Asserts |
-|---|---|---|
-| **AAT-C1** | `services/kyc/sumsub-adapter.ts` + Prisma model | KYC verification flow |
-| **AAT-C2** | `apps/web/src/pages/biocarbon/marketplace/*` | Public catalogue UI |
-| **AAT-C3** | `apps/web/src/pages/biocarbon/tokens/[serialId]` | Token detail explorer |
-| **AAT-C4** | `services/delist.service.ts` + `routes/credits.ts:POST /blocks/:id/delist` | Two-way bridge |
-| **AAT-C5** | `services/retirement.service.ts` extended retirement payload | Beneficiary capture |
+| AAT | Files | Asserts | Shipped |
+|---|---|---|---|
+| **AAT-C1** | `services/kyc/sumsub-adapter.ts` + Prisma model | KYC verification flow | ✅ AV4-354 — `1bd2157` |
+| **AAT-C2** | `apps/web/src/pages/biocarbon/marketplace/*` | Public catalogue UI | ✅ AV4-355 + AV4-356 — `ba13239`, `f383ba7` |
+| **AAT-C3** | `apps/web/src/pages/biocarbon/tokens/[serialId]` | Token detail explorer | ✅ AV4-356 — `f383ba7` |
+| **AAT-C4** | `services/delist.service.ts` + `routes/credits.ts:POST /blocks/:id/delist` | Two-way bridge | ✅ AV4-357 — `443dd82` (delist initiator; close-the-loop via AV4-375 events worker `a6225c8`) |
+| **AAT-C5** | `services/retirement.service.ts` extended retirement payload | Beneficiary capture | ✅ AV4-358 — `7d74cbd` (+ AV4-359 unit tests) |
 
 ### TDD test suite — Sprint 3
 
@@ -242,13 +258,13 @@ contract BioCarbonVCCToken is ERC1155, AccessControl, Pausable {
 - Service-to-service auth via signed JWT (mTLS later).
 
 ### Refinement (parallel AAT wave)
-| AAT | Repo | Files | Asserts |
-|---|---|---|---|
-| **AAT-D1** | AWD2 | `app/api/vcc/handoff/route.ts` + matching tests | Handoff emit |
-| **AAT-D2** | Aurex | `routes/biocarbon-handoff.ts` (signed-JWT auth) | Handoff receive |
-| **AAT-D3** | Aurex | `services/migrations/awd2-import.service.ts` | Initial backfill |
-| **AAT-D4** | Aurex | `docs/biocarbon/05-bcr-cutover-runbook.md`, `06-change-mgmt-sop.md`, `07-audit-cooperation.md` | Runbooks |
-| **AAT-D5** | Aurex | `tests/biocarbon/e2e-full-lifecycle.test.ts` | End-to-end E2E (matches A6.4 harness pattern) |
+| AAT | Repo | Files | Asserts | Shipped |
+|---|---|---|---|---|
+| **AAT-D1** | AWD2 | `app/api/vcc/handoff/route.ts` + matching tests | Handoff emit | ⏸️ Deferred — AV4-360 (external repo) |
+| **AAT-D2** | Aurex | `routes/biocarbon-handoff.ts` (signed-JWT auth) | Handoff receive | ✅ AV4-361 — `4a48ebb` |
+| **AAT-D3** | Aurex | `services/migrations/awd2-import.service.ts` | Initial backfill | ✅ AV4-362 — `4a48ebb` |
+| **AAT-D4** | Aurex | `docs/biocarbon/07-bcr-cutover-runbook.md`, `08-change-management.md`, `09-audit-cooperation-runbook.md` | Runbooks | ✅ AV4-363 — `69366e3` (paths shifted from 05–07 to 07–09 to keep 04–06 free for application + agreement + legal classification artefacts) |
+| **AAT-D5** | Aurex | `tests/biocarbon/e2e-full-lifecycle.test.ts` | End-to-end E2E (matches A6.4 harness pattern) | ✅ AV4-364 — `69366e3` |
 
 ### TDD test suite — Sprint 4
 
@@ -306,6 +322,31 @@ CI matrix:
 | **Total** | **17 wk** | mix | **36** | **~52** |
 
 With the standard 4× AAT parallel pattern (per ADM-058), each 4-week sprint condenses to roughly 2 calendar weeks of wall-clock — total ≈ **9 calendar weeks** for the full BCR alignment.
+
+---
+
+## Superseded tickets
+
+The Aurigraph DLT SDK pivot (see §0.5 of `BIOCARBON_GAP_ANALYSIS.md`) replaced the original Solidity / Foundry / viem-on-Polygon path with `@aurigraph/dlt-sdk` `UC_CARBON` `contracts.deploy`. The following tickets are formally superseded — left in Jira for historical traceability, scope-narrowed to "Polygon fallback only" or closed as redundant.
+
+- **AV4-349** (BioCarbonVCCToken.sol ERC-1155 contract + Foundry tests) — superseded by AV4-373 (`d566b69`). The SDK's `UC_CARBON` template provides the on-chain primitive; no bespoke Solidity is on the critical path. AV4-349 stays open at "Polygon fallback only" scope; reactivate only if `CHAIN_ADAPTER=polygon` is required for a production tenant.
+- **AV4-350** (Polygon viem chain adapter) — superseded by AV4-372 (`de94fb0`). `AurigraphDltAdapter` is the default chain adapter; Polygon-via-viem becomes a fallback implementation against the same adapter interface. Same supersession scope as AV4-349.
+- **AV4-351** (deterministic CREATE2 deployment + Hardhat) — superseded by AV4-370 / AV4-372 (`de94fb0`). SDK-managed contract addresses are tenant-scoped via channel rather than chain-deterministic; CREATE2 is irrelevant on the SDK path.
+- **AV4-353** (Polygon Amoy testnet deployment + Polygonscan verification) — superseded by AV4-373 (`d566b69`). Validation now runs against the Aurigraph DLT V12 sandbox tenant `marketplace-channel-sbx`, not Polygon Amoy.
+
+---
+
+## Deferred / not yet started
+
+Tickets that were in scope for the original 4-sprint plan but not part of what shipped through Sprint 5. Each carries an explicit reason; none are silently dropped.
+
+- **AV4-360** — AWD2 handoff emit (producer side). Lives in the AWD2 repo, not AurexV4. Tracked separately; receive side (AV4-361) is shipped and validated against a fixture payload.
+- **AV4-365** — HCE2 ERC-20 → ERC-1155 migration. Blocked on the §0 path-decision in `BIOCARBON_GAP_ANALYSIS.md` (HCE2 carbon scope still unresolved). Stays Path 1 default (out of scope) until user activates Path 2.
+- **AV4-366** — BCR Account Holder operationally onboarded (B4). Blocked on AV4-341 (BCR application email send) which is drafted but pending Compliance dispatch. Operational, not engineering.
+- **AV4-367** — Service-to-service identity federation (X1, full mTLS / OAuth2). Sprint 4 shipped signed-JWT (AV4-361) which satisfies B3 + A8 for the current launch profile; full federation deferred until a second consumer beyond AWD2 needs it.
+- **AV4-371** — Aurigraph DLT tenant onboarding (production). Operational; gated by AV4-366 on the BCR side. Sandbox tenant (`marketplace-channel-sbx`) is wired and used by Sprint 2/3/4 tests.
+- **AV4-378** — Tier quota gate + admin dashboard for SDK `client.tier.getQuota()`. Read path is in place via the adapter; admin UI + enforcement gate before mint is deferred to a post-Sprint-5 dispatch.
+- **AV4-380** — Java SDK option (alongside the TypeScript SDK). Blocked: no consumer for a Java path today; AurexV4 is TypeScript end-to-end. Reactivate only if a Java-only integration target appears.
 
 ---
 

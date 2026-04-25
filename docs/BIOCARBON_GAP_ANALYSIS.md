@@ -109,34 +109,52 @@ After the initial gap analysis, the **Aurigraph DLT V12 SDK** was identified as 
 
 ### Gap matrix per binding requirement
 
-| # | Binding requirement | Aurex status | Effort | Notes |
-|---|---|---|---|---|
-| **B1** | Apply for BCR Third-Party authorisation | ❌ Not done | S (operational) | Email registry@biocarbonstandard.com + business model + smart-contract docs + audit reports |
-| **B2** | Sign BCR Anticorruption-Bribery Policy + partnership agreement | ❌ Not done | S (legal) | Off-code |
-| **B3** | API integration with BCR registry — full lifecycle pass-through | ❌ Not done | M | New service `bcr-registry.service.ts` mirroring `UnfcccRegistryAdapter` shape; methods: `lockVCC`, `confirmLock`, `notifyMint`, `notifyTransfer`, `notifyBurn`, `notifyRetire`, `notifyDelist`, `getStatus` |
-| **B4** | Become BCR Account Holder | ❌ Not done | S (operational) | Output of B1 |
-| **B5** | Lock-then-mint sequencing | ⚠️ Partial | M | Issuance lifecycle exists but doesn't gate on a remote-lock confirmation. Add `Issuance.bcrLockId` + `Issuance.bcrLockedAt`; mint only fires after BCR API confirms lock |
-| **B6** | Embed BCR Serial ID in token metadata; preserve until burn | ⚠️ Partial | S | `CreditUnitBlock.serialFirst` already exists; needs `bcrSerialId String?` field + immutability check in update guards |
-| **B7** | One VCC = one token (1:1) | ⚠️ Partial | S | Integer-rounding logic already enforces whole-ton; need contract-level invariant on the on-chain side |
-| **B8** | NFT (ERC-721) or Semi-Fungible (ERC-1155) only | ❌ Missing | **L** | No on-chain code today. Recommend ERC-1155 SFT (one ID per VCC batch with whole-ton balance) |
-| **B9** | No pooling across projects | ✅ Already | — | Each Activity is independent; no pooling implementation exists |
-| **B10** | No attribute-stripping wrapping | ✅ Already | — | No wrap mechanics in code |
-| **B11** | No sub-ton fractionalisation | ✅ Already | — | Whole-ton enforcement in `er-calc.service` and `issuance.service` |
-| **B12** | No tokenising already-retired credits | ⚠️ Partial | S | Existing `retirementStatus !== ACTIVE` checks; need pre-mint guard that includes BCR's lock status |
-| **B13** | Listing UI: project / visuals / page link / "BioCarbon" attribution | ❌ Missing | M | New marketplace page; can extend existing `/credits` UI |
-| **B14** | Public token registry / inventory + history UI | ⚠️ Partial → **SDK-assisted** | S | `client.assets.getPublicLedger('UC_CARBON')` + `client.assets.listByUseCase('UC_CARBON')` ship out of the box. Aurex marketplace UI just renders these. |
-| **B15** | KYC / CDD / AML / CTF + tax compliance | ❌ Missing | **L** | New: `KycVerification` model + adapter for Sumsub/Onfido/Persona; gate on transfer/retirement |
-| **B16** | Beneficiary identity verification + pass-through to BCR on retirement | ⚠️ Partial | M | Retirement narrative exists; needs structured `RetirementBeneficiary` with verified-identity link |
-| **B17** | Burn-on-retirement → BCR API call | ⚠️ Partial | S | `transaction.service.retireBlock` already routes to retirement admin accounts; needs to add the BCR API call (via the new B3 adapter) |
-| **B18** | Two-way bridge (delist path) | ❌ Missing | M | New `delistBlock` operation that burns the token AND calls BCR `unlockVCC` — symmetric to retirement but reverses to ISSUED state |
-| **B19** | Energy-efficient (non-PoW) blockchain | ✅ via SDK | — | Aurigraph DLT V12 is permissioned/PoA, hosted at dlt.aurigraph.io. Polygon PoS available as fallback (`CHAIN_ADAPTER=polygon`). Decision: **default Aurigraph DLT** |
-| **B20** | Notify BCR of changes | ❌ Not done | S (process) | Change-management runbook |
-| **B21** | Disclose multi-chain tokenisation + double-counting controls at application | ❌ Not done | S (doc) | Architecture doc submitted to BCR with B1 |
-| **B22** | Local legal classification | ❌ Not done | S (legal) | Per-jurisdiction review |
-| **B23** | Token used solely for environmental sustainability | ✅ By design + SDK | — | SDK's `UC_CARBON` use case is explicitly carbon-only. Tier capability check (`client.handshake.capabilities()`) gates access |
-| **B24** | Submit to BCR audit | ❌ Not done | S (process) | Audit cooperation SOP |
+> **Status legend (Shipped via column).** Each cell carries the AV4 ticket(s) that closed the binding requirement and the commit SHA(s) on `main` that landed the work. `pending` means the requirement is acknowledged but no engineering work has shipped yet (operational or blocked by an upstream gate). `enforced by …` means the requirement is satisfied as a side-effect of another shipped change rather than a dedicated artefact. SHAs are short (7-char) and resolvable on `origin/main` via `git show <sha>`. The "Aurex status" column reflects the state *before* the SDK pivot (kept for historical reading); the "Shipped via" column is the authoritative reconciliation as of 2026-04-25.
+
+| # | Binding requirement | Aurex status | Effort | Notes | Shipped via |
+|---|---|---|---|---|---|
+| **B1** | Apply for BCR Third-Party authorisation | ❌ Not done | S (operational) | Email registry@biocarbonstandard.com + business model + smart-contract docs + audit reports | AV4-341 (drafted, pending Compliance send) — `ee6bdf7` |
+| **B2** | Sign BCR Anticorruption-Bribery Policy + partnership agreement | ❌ Not done | S (legal) | Off-code | AV4-342 (pre-signature tracker) — `ee6bdf7` |
+| **B3** | API integration with BCR registry — full lifecycle pass-through | ❌ Not done | M | New service `bcr-registry.service.ts` mirroring `UnfcccRegistryAdapter` shape; methods: `lockVCC`, `confirmLock`, `notifyMint`, `notifyTransfer`, `notifyBurn`, `notifyRetire`, `notifyDelist`, `getStatus` | AV4-344..348 (`BcrRegistryAdapter` — disabled / mock / live-pending; default `disabled` until B1 returns) — `fdba951` |
+| **B4** | Become BCR Account Holder | ❌ Not done | S (operational) | Output of B1 | pending — operational AV4-366 |
+| **B5** | Lock-then-mint sequencing | ⚠️ Partial | M | Issuance lifecycle exists but doesn't gate on a remote-lock confirmation. Add `Issuance.bcrLockId` + `Issuance.bcrLockedAt`; mint only fires after BCR API confirms lock | AV4-373 — `d566b69` |
+| **B6** | Embed BCR Serial ID in token metadata; preserve until burn | ⚠️ Partial | S | `CreditUnitBlock.serialFirst` already exists; needs `bcrSerialId String?` field + immutability check in update guards | AV4-374 (immutable asset metadata schema) — `bb8bce8` |
+| **B7** | One VCC = one token (1:1) | ⚠️ Partial | S | Integer-rounding logic already enforces whole-ton; need contract-level invariant on the on-chain side | AV4-373 (`tokenization.service` 1:1 enforcement) — `d566b69` |
+| **B8** | NFT (ERC-721) or Semi-Fungible (ERC-1155) only | ❌ Missing | **L** | No on-chain code today. Recommend ERC-1155 SFT (one ID per VCC batch with whole-ton balance) | AV4-373 (UC_CARBON template via SDK; no ERC-20 path exists in the adapter) — `d566b69` |
+| **B9** | No pooling across projects | ✅ Already | — | Each Activity is independent; no pooling implementation exists | enforced by AV4-373 single-asset `contracts.deploy` |
+| **B10** | No attribute-stripping wrapping | ✅ Already | — | No wrap mechanics in code | enforced by AV4-374 immutable metadata schema |
+| **B11** | No sub-ton fractionalisation | ✅ Already | — | Whole-ton enforcement in `er-calc.service` and `issuance.service` | AV4-373 + AV4-374 (whole-ton invariant in service + schema) |
+| **B12** | No tokenising already-retired credits | ⚠️ Partial | S | Existing `retirementStatus !== ACTIVE` checks; need pre-mint guard that includes BCR's lock status | AV4-373 + AV4-358 (status guards on issuance + retirement paths) |
+| **B13** | Listing UI: project / visuals / page link / "BioCarbon" attribution | ❌ Missing | M | New marketplace page; can extend existing `/credits` UI | AV4-355 + AV4-356 — `ba13239`, `f383ba7` |
+| **B14** | Public token registry / inventory + history UI | ⚠️ Partial → **SDK-assisted** | S | `client.assets.getPublicLedger('UC_CARBON')` + `client.assets.listByUseCase('UC_CARBON')` ship out of the box. Aurex marketplace UI just renders these. | AV4-355 + AV4-356 — `ba13239`, `f383ba7` |
+| **B15** | KYC / CDD / AML / CTF + tax compliance | ❌ Missing | **L** | New: `KycVerification` model + adapter for Sumsub/Onfido/Persona; gate on transfer/retirement | AV4-354 — `1bd2157` |
+| **B16** | Beneficiary identity verification + pass-through to BCR on retirement | ⚠️ Partial | M | Retirement narrative exists; needs structured `RetirementBeneficiary` with verified-identity link | AV4-358 (`kycVerificationId` required + beneficiary subject kind) — `7d74cbd` |
+| **B17** | Burn-on-retirement → BCR API call | ⚠️ Partial | S | `transaction.service.retireBlock` already routes to retirement admin accounts; needs to add the BCR API call (via the new B3 adapter) | AV4-375 (events worker → `bcrAdapter.retireVcc`) — `a6225c8` |
+| **B18** | Two-way bridge (delist path) | ❌ Missing | M | New `delistBlock` operation that burns the token AND calls BCR `unlockVCC` — symmetric to retirement but reverses to ISSUED state | AV4-357 (delist initiator) + AV4-375 (events worker close-the-loop) — `443dd82`, `a6225c8` |
+| **B19** | Energy-efficient (non-PoW) blockchain | ✅ via SDK | — | Aurigraph DLT V12 is permissioned/PoA, hosted at dlt.aurigraph.io. Polygon PoS available as fallback (`CHAIN_ADAPTER=polygon`). Decision: **default Aurigraph DLT** | AV4-370 / AV4-372 (Aurigraph DLT V12 non-PoW; Polygon PoS as fallback) — `de94fb0` |
+| **B20** | Notify BCR of changes | ❌ Not done | S (process) | Change-management runbook | AV4-363 (`docs/biocarbon/08-change-management.md`) — `69366e3` |
+| **B21** | Disclose multi-chain tokenisation + double-counting controls at application | ❌ Not done | S (doc) | Architecture doc submitted to BCR with B1 | AV4-347 (`docs/biocarbon/02-architecture-disclosure.md` + `03-double-counting-controls.md`) — `697a27e` |
+| **B22** | Local legal classification | ❌ Not done | S (legal) | Per-jurisdiction review | AV4-343 (`docs/biocarbon/06-legal-classification-matrix.md`) — `ee6bdf7` |
+| **B23** | Token used solely for environmental sustainability | ✅ By design + SDK | — | SDK's `UC_CARBON` use case is explicitly carbon-only. Tier capability check (`client.handshake.capabilities()`) gates access | AV4-347 (`docs/biocarbon/01-business-model.md`) + AV4-373 (UC_CARBON use-case attestation) — `697a27e`, `d566b69` |
+| **B24** | Submit to BCR audit | ❌ Not done | S (process) | Audit cooperation SOP | AV4-363 (`docs/biocarbon/09-audit-cooperation-runbook.md`) — `69366e3` |
 
 **Aurex effort total (engineering only, excluding ops/legal):** ~10 dev-weeks for 1 engineer; ~5 calendar weeks with 2 engineers in parallel.
+
+### Operational artefacts
+
+The 9 documents in `docs/biocarbon/` are the operational deliverables that pair with the engineering work above. Together they form the dossier required for BCR Third-Party authorisation (B1, B21) and downstream compliance activities (B20, B22, B24).
+
+| File | AV4 ticket | Purpose |
+|---|---|---|
+| `docs/biocarbon/01-business-model.md` | AV4-347 | Business model attestation — sustainability-only token use (B23 evidence) |
+| `docs/biocarbon/02-architecture-disclosure.md` | AV4-347 | Multi-chain architecture disclosure for BCR application (B21) |
+| `docs/biocarbon/03-double-counting-controls.md` | AV4-347 | Double-counting controls narrative (B21 paired requirement) |
+| `docs/biocarbon/04-bcr-application-email.md` | AV4-341 | Drafted BCR Third-Party authorisation email (B1) — pending Compliance send |
+| `docs/biocarbon/05-anticorruption-agreement-tracker.md` | AV4-342 | Pre-signature anticorruption agreement tracker (B2) |
+| `docs/biocarbon/06-legal-classification-matrix.md` | AV4-343 | Per-jurisdiction legal classification matrix (B22) |
+| `docs/biocarbon/07-bcr-cutover-runbook.md` | AV4-363 | BCR sandbox → mainnet cutover runbook (Sprint 4 deliverable) |
+| `docs/biocarbon/08-change-management.md` | AV4-363 | Change-management SOP for BCR notifications (B20) |
+| `docs/biocarbon/09-audit-cooperation-runbook.md` | AV4-363 | BCR audit-cooperation runbook (B24) |
 
 ---
 
