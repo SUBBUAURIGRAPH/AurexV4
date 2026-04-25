@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 
 import { PublicLayout } from './layouts/PublicLayout';
+import { PublicLayout as BiocarbonPublicLayout } from './components/layout/PublicLayout';
 import { DashboardLayout } from './layouts/DashboardLayout';
 
 import { HomePage } from './pages/public/HomePage';
@@ -46,6 +47,9 @@ import { SuppliersPage } from './pages/dashboard/suppliers/SuppliersPage';
 import { ActivitiesPage } from './pages/dashboard/activities/ActivitiesPage';
 import { PddEditorPage } from './pages/dashboard/activities/PddEditorPage';
 import { CreditsPage } from './pages/dashboard/credits/CreditsPage';
+// BioCarbon public marketplace (AAT-ν / AV4-356)
+import { MarketplacePage } from './pages/biocarbon/MarketplacePage';
+import { TokenDetailPage } from './pages/biocarbon/TokenDetailPage';
 import { RoleGuard } from './components/auth/RoleGuard';
 
 const queryClient = new QueryClient({
@@ -76,6 +80,12 @@ export function App() {
             <Route path="/products/carbontrace" element={<CarbonTracePage />} />
             <Route path="/products/hydropulse" element={<HydroPulsePage />} />
             <Route path="/products/sylvagraph" element={<SylvagraphPage />} />
+          </Route>
+
+          {/* Public BioCarbon marketplace (no auth) */}
+          <Route element={<BiocarbonPublicLayout />}>
+            <Route path="/biocarbon/marketplace" element={<MarketplacePage />} />
+            <Route path="/biocarbon/tokens/:bcrSerialId" element={<TokenDetailPage />} />
           </Route>
 
           {/* Auth routes (no layout wrapper) */}
