@@ -7,6 +7,11 @@ import type { TableColumn } from '../../components/ui/Table';
 import { Pagination } from '../../components/ui/Pagination';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Button } from '../../components/ui/Button';
+import { useToast } from '../../contexts/ToastContext';
+import {
+  buildAuditCsvUrl,
+  type AuditCsvFilters,
+} from '../../hooks/useAuditCsvExport';
 
 function formatTimestamp(iso: string): string {
   const d = new Date(iso);
@@ -19,6 +24,7 @@ function formatTimestamp(iso: string): string {
 }
 
 export function AuditLogsPage() {
+  const toast = useToast();
   const [actionFilter, setActionFilter] = useState('');
   const [resourceFilter, setResourceFilter] = useState('');
   const [userIdFilter, setUserIdFilter] = useState('');
@@ -26,6 +32,7 @@ export function AuditLogsPage() {
   const [dateTo, setDateTo] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(20);
+  const [exporting, setExporting] = useState(false);
 
   const { data, isLoading, isError } = useAuditLogs({
     action: actionFilter || undefined,
@@ -39,6 +46,72 @@ export function AuditLogsPage() {
 
   const rows = data?.data ?? [];
   const total = data?.pagination.total ?? 0;
+
+  // AAT-10A (Wave 10a): wire the CSV export. We HEAD the endpoint first
+  // so the row-cap 413 surfaces as a toast rather than a blank tab; on
+  // success we open the same URL in a new tab and the browser triggers
+  // the download via the Content-Disposition header.
+  const exportFilters: AuditCsvFilters = {
+    action: actionFilter || undefined,
+    resource: resourceFilter || undefined,
+    userId: userIdFilter || undefined,
+    dateFrom: dateFrom ? new Date(dateFrom).toISOString() : undefined,
+    dateTo: dateTo ? new Date(dateTo).toISOString() : undefined,
+  };
+  const csvUrl = buildAuditCsvUrl(exportFilters);
+
+  async function handleExportCsv(): Promise<void> {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const token = localStorage.getItem('aurex_token');
+      const res = await fetch(csvUrl, {
+        method: 'HEAD',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (res.status === 413) {
+        toast.error(
+          'Too many rows — narrow your filters and try again. CSV export caps at 10,000 rows.',
+        );
+        return;
+      }
+      if (!res.ok) {
+        toast.error(
+          `Export failed (HTTP ${res.status}). Please try again or contact support.`,
+        );
+        return;
+      }
+      // Browsers don't pass Authorization on a plain anchor / window.open,
+      // so we fetch the body, blob it, and trigger an in-page download.
+      const dl = await fetch(csvUrl, {
+        method: 'GET',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!dl.ok) {
+        toast.error(`Export failed (HTTP ${dl.status}).`);
+        return;
+      }
+      const blob = await dl.blob();
+      const cd = dl.headers.get('Content-Disposition') ?? '';
+      const match = /filename="([^"]+)"/.exec(cd);
+      const filename = match?.[1] ?? `audit-logs-${new Date()
+        .toISOString()
+        .slice(0, 10)}.csv`;
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Network error';
+      toast.error(`CSV export failed: ${msg}`);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   const columns: TableColumn<AuditLogEntry>[] = [
     {
@@ -171,20 +244,42 @@ export function AuditLogsPage() {
           </p>
         </div>
         {/*
-          AAT-WORKFLOW (Wave 9a): expose the Export CSV control as a
-          disabled button rather than missing entirely. The /audit-logs
-          API does not yet accept ?format=csv (audit-log.service exposes
-          listAudit() with JSON-only output), so wiring it up to a real
-          download is a Wave 10 follow-up.
+          AAT-10A (Wave 10a): live CSV export. The API streams a CSV file
+          with `Content-Disposition: attachment` (mirrors the report
+          download pattern). Pre-flighted via HEAD so the 10k row-cap
+          surfaces as a toast rather than a blank tab.
         */}
-        <Button
-          variant="outline"
-          size="sm"
-          disabled
-          title="Coming soon — CSV export wired in Wave 10"
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            gap: '0.25rem',
+          }}
         >
-          Export CSV
-        </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleExportCsv}
+            loading={exporting}
+            disabled={exporting || rows.length === 0}
+            title={
+              rows.length === 0
+                ? 'No matching audit entries to export'
+                : 'Download the current filtered view as CSV'
+            }
+          >
+            Export CSV
+          </Button>
+          <span
+            style={{
+              fontSize: '0.6875rem',
+              color: 'var(--text-tertiary)',
+            }}
+          >
+            CSV export caps at 10,000 rows
+          </span>
+        </div>
       </div>
 
       {/* Filter bar */}
