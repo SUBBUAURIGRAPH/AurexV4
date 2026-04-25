@@ -79,6 +79,21 @@ export class RazorpayClientError extends Error {
   }
 }
 
+/**
+ * 5xx variant. Distinguished from `RazorpayClientError` so callers can
+ * apply different retry/backoff policies (4xx = bad request, don't retry;
+ * 5xx = transient, safe to retry).
+ *
+ * `RazorpayServerError` extends `RazorpayClientError` so existing
+ * `instanceof RazorpayClientError` checks continue to match.
+ */
+export class RazorpayServerError extends RazorpayClientError {
+  constructor(status: number, message: string, body?: unknown) {
+    super(status, message, body);
+    this.name = 'RazorpayServerError';
+  }
+}
+
 // ─── Utils ─────────────────────────────────────────────────────────────
 
 function hmacSha256Hex(secret: string, payload: string | Buffer): string {
@@ -168,7 +183,18 @@ export function createRazorpayClient(config: RazorpayConfig): RazorpayClient {
           { status: res.status, body: parsed, receipt: input.receipt },
           'Razorpay createOrder failed',
         );
-        throw new RazorpayClientError(res.status, `Razorpay createOrder failed: ${res.status}`, parsed);
+        if (res.status >= 500) {
+          throw new RazorpayServerError(
+            res.status,
+            `Razorpay createOrder failed: ${res.status}`,
+            parsed,
+          );
+        }
+        throw new RazorpayClientError(
+          res.status,
+          `Razorpay createOrder failed: ${res.status}`,
+          parsed,
+        );
       }
 
       // Validate the shape we depend on. Razorpay returns more fields, but

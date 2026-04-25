@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:sandbox": "AURIGRAPH_SANDBOX_TEST=1 vitest run --reporter=verbose sandbox-aurigraph",
+    "test:sandbox-razorpay": "RAZORPAY_SANDBOX_TEST=1 vitest run --reporter=verbose sandbox-razorpay",
     "lint": "eslint \"src/**/*.ts\"",
     "typecheck": "tsc --noEmit",
     "clean": "rm -rf dist coverage",
