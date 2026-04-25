@@ -163,6 +163,7 @@ const navItems: NavItem[] = [
       { label: 'Users', path: '/admin/users' },
       { label: 'Organization', path: '/admin/organization' },
       { label: 'Organizations (Parents & Subsidiaries)', path: '/admin/organizations' },
+      { label: 'Signup Coupons', path: '/admin/coupons' },
     ],
   },
 ];
