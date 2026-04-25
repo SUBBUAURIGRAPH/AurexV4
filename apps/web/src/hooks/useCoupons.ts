@@ -91,7 +91,7 @@ export interface ValidateCouponResult {
 export function useValidateCoupon() {
   return useMutation({
     mutationFn: ({ code, email }: { code: string; email?: string }) =>
-      api.post<ValidateCouponResult>('/api/v1/coupons/validate', { code, email }),
+      api.post<ValidateCouponResult>('/coupons/validate', { code, email }),
   });
 }
 
@@ -108,7 +108,7 @@ export function useAdminCoupons(filters: CouponFilters) {
 
   return useQuery({
     queryKey: ['admin-coupons', filters],
-    queryFn: () => api.get<CouponsListResponse>('/api/v1/admin/coupons', params),
+    queryFn: () => api.get<CouponsListResponse>('/admin/coupons', params),
     staleTime: 30_000,
   });
 }
@@ -116,7 +116,7 @@ export function useAdminCoupons(filters: CouponFilters) {
 export function useAdminCoupon(id: string | undefined) {
   return useQuery({
     queryKey: ['admin-coupon', id],
-    queryFn: () => api.get<{ data: CouponWithCount }>(`/api/v1/admin/coupons/${id}`),
+    queryFn: () => api.get<{ data: CouponWithCount }>(`/admin/coupons/${id}`),
     enabled: Boolean(id),
   });
 }
@@ -125,7 +125,7 @@ export function useCreateCoupon() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: CreateCouponInput) =>
-      api.post<{ data: Coupon }>('/api/v1/admin/coupons', input),
+      api.post<{ data: Coupon }>('/admin/coupons', input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-coupons'] });
     },
@@ -136,7 +136,7 @@ export function useUpdateCoupon(id: string) {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (input: UpdateCouponInput) =>
-      api.patch<{ data: Coupon }>(`/api/v1/admin/coupons/${id}`, input),
+      api.patch<{ data: Coupon }>(`/admin/coupons/${id}`, input),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-coupons'] });
       qc.invalidateQueries({ queryKey: ['admin-coupon', id] });
@@ -148,7 +148,7 @@ export function useDeactivateCoupon() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      api.post<{ data: Coupon }>(`/api/v1/admin/coupons/${id}/deactivate`, {}),
+      api.post<{ data: Coupon }>(`/admin/coupons/${id}/deactivate`, {}),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['admin-coupons'] });
     },
@@ -170,7 +170,7 @@ export function useCouponRedemptions(
   return useQuery({
     queryKey: ['coupon-redemptions', couponId, page, pageSize],
     queryFn: () =>
-      api.get<RedemptionsListResponse>(`/api/v1/admin/coupons/${couponId}/redemptions`, {
+      api.get<RedemptionsListResponse>(`/admin/coupons/${couponId}/redemptions`, {
         page,
         pageSize,
       }),

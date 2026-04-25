@@ -94,15 +94,12 @@ afterEach(() => {
 });
 
 describe('useValidateCoupon contract', () => {
-  it('posts to /api/v1/coupons/validate with code + email', async () => {
+  it('posts to /coupons/validate (single /api/v1 prefix from api wrapper)', async () => {
     // Drive the api lib directly — it's the same module the hook uses.
     const { api } = await import('../lib/api');
-    await api.post('/api/v1/coupons/validate', { code: 'HEF-PUNE-2026', email: 'x@y.com' });
+    await api.post('/coupons/validate', { code: 'HEF-PUNE-2026', email: 'x@y.com' });
     expect(fetchCalls).toHaveLength(1);
-    expect(fetchCalls[0]!.input).toBe('/api/v1/api/v1/coupons/validate');
-    // ^ Pre-existing api lib double-prefixes when the path already
-    //   starts with /api/v1; we keep parity with the existing
-    //   useCoupons hook so deployments remain consistent.
+    expect(fetchCalls[0]!.input).toBe('/api/v1/coupons/validate');
     expect(fetchCalls[0]!.init?.method).toBe('POST');
   });
 });
