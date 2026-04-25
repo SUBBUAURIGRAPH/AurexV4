@@ -48,6 +48,9 @@ import { biocarbonPublicRouter } from './routes/biocarbon-public.js';
 import { awd2HandoffRouter } from './routes/awd2-handoff.js';
 // AAT-ρ / AV4-376: Aurigraph DLT compliance namespace integration.
 import { complianceRouter } from './routes/compliance.js';
+// AAT-V3PORT: HEF voucher / coupon trial-signup (ported from V3).
+import { couponsRouter } from './routes/coupons.js';
+import { adminCouponsRouter } from './routes/admin-coupons.js';
 // AV4-338 / AAT-7: retention header + nightly archival worker
 import { retentionHeaderMiddleware } from './middleware/retention-header.js';
 import { startRetentionWorker } from './workers/retention-archival.worker.js';
@@ -134,6 +137,10 @@ app.use('/api/v1/biocarbon', biocarbonPublicRouter);
 app.use('/api/v1/awd2', awd2HandoffRouter);
 // AAT-ρ / AV4-376: Aurigraph DLT compliance attestation reads + submits.
 app.use('/api/v1/compliance', complianceRouter);
+// AAT-V3PORT: HEF voucher / coupon trial-signup. Public validate + redeem;
+// admin CRUD gated to SUPER_ADMIN / ORG_ADMIN.
+app.use('/api/v1/coupons', couponsRouter);
+app.use('/api/v1/admin/coupons', adminCouponsRouter);
 
 // ADM-052: RFC 7807 error handler
 app.use(errorHandler);

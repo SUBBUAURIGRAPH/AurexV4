@@ -1893,3 +1893,74 @@ model Awd2Handoff {
   @@index([bcrSerialId])
   @@map("awd2_handoffs")
 }
+
+// ─── HEF Voucher / SignupCoupon (AAT-V3PORT) ───────────────────────────
+// Coupon-based trial signup ported from AurexV3. HEF = "Hydrogen Energy
+// Foundation" — the system grants pre-signup trial access via codes such
+// as `HEF-PUNE-2026`, `HEF-MUMBAI-2026`. The validate endpoint is public
+// (pre-signup), the redeem endpoint creates a CouponRedemption row and
+// hands a {trialStart, trialEnd, trialTier, trialDurationDays} window
+// back to the caller. Wiring to the user/signup flow is a follow-up.
+//
+// Concurrency: redeem uses a Prisma `$transaction` + a conditional
+// `WHERE currentRedemptions < maxRedemptions` clause so the database
+// enforces the cap atomically (no double-spend at maxRedemptions-1).
+
+model SignupCoupon {
+  id                 String    @id @default(uuid()) @db.Uuid
+  couponCode         String    @unique @map("coupon_code") @db.VarChar(64)
+  chapterName        String    @map("chapter_name") @db.VarChar(255)
+  organizationName   String    @map("organization_name") @db.VarChar(255)
+  trialDurationDays  Int       @default(14) @map("trial_duration_days")
+  trialTier          TrialTier @default(STARTER) @map("trial_tier")
+  maxRedemptions     Int?      @map("max_redemptions") // NULL = unlimited
+  currentRedemptions Int       @default(0) @map("current_redemptions")
+  validFrom          DateTime  @default(now()) @map("valid_from")
+  validUntil         DateTime? @map("valid_until")
+  isActive           Boolean   @default(true) @map("is_active")
+  createdBy          String?   @map("created_by") @db.Uuid
+  metadata           Json      @default("{}")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  redemptions CouponRedemption[]
+
+  @@index([isActive, validFrom, validUntil])
+  @@index([couponCode])
+  @@map("signup_coupons")
+}
+
+model CouponRedemption {
+  id             String       @id @default(uuid()) @db.Uuid
+  couponId       String       @map("coupon_id") @db.Uuid
+  coupon         SignupCoupon @relation(fields: [couponId], references: [id], onDelete: Cascade)
+  userEmail      String       @map("user_email") @db.VarChar(255)
+  userIpAddress  String?      @map("user_ip_address") @db.VarChar(64)
+  userGeoCountry String?      @map("user_geo_country") @db.VarChar(2)
+  trialStart     DateTime     @map("trial_start")
+  trialEnd       DateTime     @map("trial_end")
+  trialStatus    TrialStatus  @default(ACTIVE) @map("trial_status")
+  converted      Boolean      @default(false)
+  convertedPlan  String?      @map("converted_plan") @db.VarChar(64)
+  convertedAt    DateTime?    @map("converted_at")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@unique([couponId, userEmail])
+  @@index([userEmail])
+  @@index([trialStatus, trialEnd])
+  @@map("coupon_redemptions")
+}
+
+enum TrialTier {
+  STARTER      @map("starter")
+  PROFESSIONAL @map("professional")
+  ENTERPRISE   @map("enterprise")
+}
+
+enum TrialStatus {
+  ACTIVE    @map("active")
+  EXPIRED   @map("expired")
+  CONVERTED @map("converted")
+  CANCELLED @map("cancelled")
+}
