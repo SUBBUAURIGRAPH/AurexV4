@@ -1,11 +1,10 @@
 /**
- * AAT-10A (Wave 10a) — Minimal RFC 4180 CSV writer for the audit-log
+ * AAT-10A (Wave 10a) — RFC 4180 CSV writer for the audit-log
  * export endpoint.
  *
- * We deliberately avoid pulling in `papaparse` / `csv-stringify` for a
- * single export route. The escaper here handles the three characters
- * RFC 4180 requires quoting on (`,`, `"`, newline) and is exercised by
- * unit tests in `audit-log-csv.test.ts`.
+ * AAT-10C (Wave 10c) — the cell escaper now lives in the shared
+ * `csv-writer` helper. We re-export it here so existing imports
+ * (`audit-log-csv.test.ts`, `audit-logs.ts`) keep working unchanged.
  *
  * Header row contract (do NOT reorder without bumping a follow-up — the
  * web download links are versionless and may be opened by spreadsheets
@@ -15,6 +14,7 @@
  */
 
 import type { AuditLogEntry } from './audit-log.service.js';
+import { escapeCsvCell as sharedEscapeCsvCell } from './csv-writer.js';
 
 export const AUDIT_CSV_ROW_CAP = 10_000;
 
@@ -31,18 +31,10 @@ export const AUDIT_CSV_HEADER = [
 const CHANGE_SUMMARY_MAX = 200;
 
 /**
- * RFC 4180 cell escaper. A cell is wrapped in double-quotes when it
- * contains a comma, a double-quote, a CR, or an LF. Embedded
- * double-quotes are escaped by doubling them.
+ * RFC 4180 cell escaper. Re-exported from the shared `csv-writer`
+ * helper so call-sites importing from `audit-log-csv.js` keep working.
  */
-export function escapeCsvCell(input: string): string {
-  if (input === '') return '';
-  // Test once; covers `,`, `"`, `\r`, `\n` per RFC 4180.
-  if (/[",\r\n]/.test(input)) {
-    return `"${input.replace(/"/g, '""')}"`;
-  }
-  return input;
-}
+export const escapeCsvCell = sharedEscapeCsvCell;
 
 /**
  * Reduce an audit-log row's old/new payload to a single-line summary.

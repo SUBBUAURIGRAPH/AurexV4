@@ -5,7 +5,15 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Pagination } from '../../components/ui/Pagination';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { useReports, Report, ReportStatus, downloadReportUrl } from '../../hooks/useReports';
+import {
+  useReports,
+  Report,
+  ReportStatus,
+  downloadReportUrl,
+  REPORT_DOWNLOAD_FORMATS,
+  type ReportDownloadFormat,
+} from '../../hooks/useReports';
+import { useToast } from '../../contexts/ToastContext';
 
 /* ============================================
    Report Type Definitions
@@ -98,13 +106,64 @@ function describeReport(r: Report): string {
 
 export function ReportsPage() {
   const navigate = useNavigate();
+  const toast = useToast();
   const { data, isLoading, isError } = useReports();
   const reports: Report[] = data?.data ?? [];
 
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  // AAT-10C (Wave 10c): per-row format selection. JSON is the default
+  // so the existing one-click flow stays unchanged for users who don't
+  // touch the dropdown.
+  const [downloadFormat, setDownloadFormat] = useState<ReportDownloadFormat>('json');
 
   const paginatedReports = reports.slice((page - 1) * pageSize, page * pageSize);
+
+  // AAT-10C: HEAD-check the URL before opening it so server errors
+  // (e.g. unsupported format, report-not-COMPLETED) surface as toasts
+  // rather than silently opening a tab with an RFC 7807 problem JSON.
+  async function handleDownload(reportId: string): Promise<void> {
+    const url = downloadReportUrl(reportId, downloadFormat);
+    try {
+      const token = localStorage.getItem('aurex_token');
+      const head = await fetch(url, {
+        method: 'HEAD',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!head.ok) {
+        toast.error(
+          `Download failed (HTTP ${head.status}). Please try again or contact support.`,
+        );
+        return;
+      }
+      // Browsers don't pass Authorization on a plain anchor / window.open,
+      // so we fetch the body, blob it, and trigger an in-page download.
+      const dl = await fetch(url, {
+        method: 'GET',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      });
+      if (!dl.ok) {
+        toast.error(`Download failed (HTTP ${dl.status}).`);
+        return;
+      }
+      const blob = await dl.blob();
+      const cd = dl.headers.get('Content-Disposition') ?? '';
+      const match = /filename="([^"]+)"/.exec(cd);
+      const filename =
+        match?.[1] ?? `report-${reportId}.${downloadFormat}`;
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Network error';
+      toast.error(`Report download failed: ${msg}`);
+    }
+  }
 
   return (
     <div style={{ maxWidth: '1200px' }}>
@@ -243,14 +302,47 @@ export function ReportsPage() {
                       </td>
                       <td style={{ padding: '0.875rem 1rem', textAlign: 'right' }}>
                         {r.status === 'COMPLETED' && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            style={{ color: '#10b981' }}
-                            onClick={() => window.open(downloadReportUrl(r.id), '_blank')}
+                          <div
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '0.5rem',
+                              justifyContent: 'flex-end',
+                            }}
                           >
-                            Download
-                          </Button>
+                            {/* AAT-10C: format dropdown defaults to JSON. */}
+                            <select
+                              aria-label="Download format"
+                              value={downloadFormat}
+                              onChange={(e) =>
+                                setDownloadFormat(
+                                  e.target.value as ReportDownloadFormat,
+                                )
+                              }
+                              style={{
+                                fontSize: '0.75rem',
+                                padding: '0.25rem 0.5rem',
+                                borderRadius: '0.375rem',
+                                border: '1px solid var(--border-primary)',
+                                background: 'var(--bg-primary)',
+                                color: 'var(--text-secondary)',
+                              }}
+                            >
+                              {REPORT_DOWNLOAD_FORMATS.map((f) => (
+                                <option key={f} value={f}>
+                                  {f.toUpperCase()}
+                                </option>
+                              ))}
+                            </select>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              style={{ color: '#10b981' }}
+                              onClick={() => void handleDownload(r.id)}
+                            >
+                              Download
+                            </Button>
+                          </div>
                         )}
                       </td>
                     </tr>

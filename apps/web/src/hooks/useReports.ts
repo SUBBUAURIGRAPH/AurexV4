@@ -76,6 +76,27 @@ export function useReportStatus(id: string) {
   });
 }
 
-export function downloadReportUrl(id: string): string {
-  return `/api/v1/reports/${id}/download`;
+/**
+ * AAT-10C (Wave 10c): supported download formats. JSON remains the
+ * default so existing callers (the old "Download" button) keep working
+ * without passing an explicit format.
+ */
+export type ReportDownloadFormat = 'json' | 'csv' | 'pdf';
+export const REPORT_DOWNLOAD_FORMATS: readonly ReportDownloadFormat[] = [
+  'json',
+  'csv',
+  'pdf',
+] as const;
+
+/**
+ * Build the versioned API path for a report download. The optional
+ * `format` argument appends `?format=<csv|pdf>`; for `json` we stay on
+ * the bare path to keep parity with pre-AAT-10C URLs in the wild.
+ */
+export function downloadReportUrl(
+  id: string,
+  format: ReportDownloadFormat = 'json',
+): string {
+  const base = `/api/v1/reports/${id}/download`;
+  return format === 'json' ? base : `${base}?format=${format}`;
 }
