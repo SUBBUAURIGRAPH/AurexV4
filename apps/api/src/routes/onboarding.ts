@@ -73,6 +73,19 @@ onboardingRouter.post('/skip', async (req, res, next) => {
   }
 });
 
+// AAT-ONBOARD: explicit "wizard done" finaliser. The new 3-step wizard
+// hits this after step 3 to atomically flip status=COMPLETED without
+// also having to coerce step 4 (frameworks) into the flow.
+onboardingRouter.post('/complete', async (req, res, next) => {
+  try {
+    const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, unknown>;
+    const row = await onboardingService.completeOnboarding(req.orgId!, body);
+    res.json({ data: row });
+  } catch (err) {
+    next(err);
+  }
+});
+
 onboardingRouter.delete('/', requireRole('super_admin', 'org_admin'), async (req, res, next) => {
   try {
     const row = await onboardingService.resetOnboarding(req.orgId!);

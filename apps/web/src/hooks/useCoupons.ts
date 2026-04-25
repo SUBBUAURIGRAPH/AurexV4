@@ -177,3 +177,30 @@ export function useCouponRedemptions(
     enabled: Boolean(couponId),
   });
 }
+
+/* ============================================
+   AAT-ONBOARD: caller's active redemption (for the onboarding wizard)
+   ============================================ */
+
+export interface MyActiveRedemption {
+  redemptionId: string;
+  couponCode: string;
+  chapterName: string;
+  organizationName: string;
+  trialStart: string;
+  trialEnd: string;
+  trialTier: TrialTier;
+  trialStatus: TrialStatus;
+  trialDurationDays: number;
+  daysRemaining: number;
+  metadata: Record<string, unknown>;
+}
+
+export function useMyRedemption() {
+  return useQuery({
+    queryKey: ['coupons', 'redemptions', 'me'],
+    queryFn: () =>
+      api.get<{ data: MyActiveRedemption | null }>('/coupons/redemptions/me'),
+    staleTime: 60_000,
+  });
+}

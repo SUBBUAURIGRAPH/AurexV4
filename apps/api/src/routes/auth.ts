@@ -1,8 +1,10 @@
 import { Router, type IRouter } from 'express';
+import { z } from 'zod';
 import { AppError } from '../middleware/error-handler.js';
 import { requireAuth } from '../middleware/auth.js';
 import { isValidEmail, sanitizeInput } from '../lib/security.js';
 import * as authService from '../services/auth.service.js';
+import * as emailVerificationService from '../services/email-verification.service.js';
 
 export const authRouter: IRouter = Router();
 
@@ -42,12 +44,24 @@ authRouter.post('/login', async (req, res, next) => {
   }
 });
 
+// Coupon code: 4–64 chars, alphanumeric + hyphens only, normalised to
+// uppercase. Tighter than the public /coupons/validate schema because
+// /register is also creating a User row and we want a clean audit trail.
+const couponCodeSchema = z
+  .string()
+  .trim()
+  .min(4)
+  .max(64)
+  .regex(/^[A-Za-z0-9-]+$/, 'Coupon code must be alphanumeric (with hyphens)')
+  .transform((s) => s.toUpperCase());
+
 authRouter.post('/register', async (req, res, next) => {
   try {
-    const { email, password, name } = req.body as {
+    const { email, password, name, couponCode } = req.body as {
       email?: string;
       password?: string;
       name?: string;
+      couponCode?: string;
     };
 
     if (!email || !password || !name) {
@@ -60,13 +74,86 @@ authRouter.post('/register', async (req, res, next) => {
       throw new AppError(400, 'Bad Request', 'Password must be at least 8 characters');
     }
 
-    const user = await authService.register(
+    let normalisedCoupon: string | undefined;
+    if (couponCode !== undefined && couponCode !== null && couponCode !== '') {
+      const parsed = couponCodeSchema.safeParse(couponCode);
+      if (!parsed.success) {
+        throw new AppError(400, 'Bad Request', 'Invalid coupon code format');
+      }
+      normalisedCoupon = parsed.data;
+    }
+
+    const result = await authService.register(
       sanitizeInput(email, 254),
       password,
       sanitizeInput(name, 200),
+      {
+        couponCode: normalisedCoupon,
+        ipAddress: getClientIP(req),
+        userAgent: req.headers['user-agent'],
+      },
     );
 
-    res.status(201).json({ data: user });
+    // The frontend keys on `data` for the user shape; trial / coupon
+    // fields ride alongside so a single response carries everything.
+    const payload: Record<string, unknown> = {
+      data: { id: result.id, email: result.email, name: result.name },
+    };
+    if (result.trial) {
+      payload.trial = {
+        ...result.trial,
+        trialStart: result.trial.trialStart.toISOString(),
+        trialEnd: result.trial.trialEnd.toISOString(),
+      };
+    }
+    if (result.couponWarning) payload.couponWarning = result.couponWarning;
+    if (result._devVerificationToken) {
+      payload._devVerificationToken = result._devVerificationToken;
+    }
+
+    res.status(201).json(payload);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Email verification ────────────────────────────────────────────────
+
+const verifyEmailSchema = z.object({
+  token: z.string().trim().min(16).max(256),
+});
+
+authRouter.post('/verify-email', async (req, res, next) => {
+  try {
+    const { token } = verifyEmailSchema.parse(req.body ?? {});
+    const result = await emailVerificationService.verifyToken(token);
+    res.json({
+      data: {
+        verifiedAt: result.verifiedAt.toISOString(),
+        alreadyVerified: result.alreadyVerified,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.post('/resend-verification', requireAuth, async (req, res, next) => {
+  try {
+    const issued = await emailVerificationService.resendForUser(req.user!.sub);
+    await authService.logAuthEvent(
+      req.user!.sub,
+      'EMAIL_VERIFY_RESEND',
+      getClientIP(req),
+      req.headers['user-agent'],
+    );
+    const payload: Record<string, unknown> = {
+      data: { expiresAt: issued.expiresAt.toISOString() },
+    };
+    if (process.env.NODE_ENV !== 'production') {
+      payload._devVerificationToken = issued.plaintextToken;
+    }
+    res.json(payload);
   } catch (err) {
     next(err);
   }

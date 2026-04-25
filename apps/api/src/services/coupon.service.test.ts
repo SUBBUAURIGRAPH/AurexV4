@@ -21,6 +21,7 @@ const { mockPrisma } = vi.hoisted(() => {
     },
     couponRedemption: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
@@ -49,6 +50,7 @@ import {
   redeemCoupon,
   listRedemptions,
   markConverted,
+  findActiveRedemptionForEmail,
   _resetValidateBurstForTests,
 } from './coupon.service.js';
 
@@ -406,5 +408,58 @@ describe('markConverted', () => {
     await expect(markConverted('missing', 'starter')).rejects.toMatchObject({
       status: 404,
     });
+  });
+});
+
+// ── findActiveRedemptionForEmail (AAT-ONBOARD) ───────────────────────────
+
+describe('findActiveRedemptionForEmail', () => {
+  it('returns the most-recent active redemption with daysRemaining computed', async () => {
+    const trialEnd = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    mockPrisma.couponRedemption.findFirst.mockResolvedValue({
+      id: 'red-1',
+      couponId: 'coupon-1',
+      userEmail: 'a@b.com',
+      trialStart: new Date(),
+      trialEnd,
+      trialStatus: 'ACTIVE',
+      coupon: makeCoupon({ trialDurationDays: 365 }),
+    });
+
+    const result = await findActiveRedemptionForEmail('A@B.com');
+
+    expect(result).not.toBeNull();
+    expect(result!.couponCode).toBe('HEF-PUNE-2026');
+    expect(result!.chapterName).toBe('Pune Chapter');
+    expect(result!.daysRemaining).toBeGreaterThanOrEqual(29);
+    expect(result!.daysRemaining).toBeLessThanOrEqual(30);
+    // Email lookup is case-insensitive (normalised before query).
+    expect(mockPrisma.couponRedemption.findFirst).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ userEmail: 'a@b.com' }),
+      }),
+    );
+  });
+
+  it('returns null when the user has no redemption rows', async () => {
+    mockPrisma.couponRedemption.findFirst.mockResolvedValue(null);
+    const result = await findActiveRedemptionForEmail('nobody@example.com');
+    expect(result).toBeNull();
+  });
+
+  it('filters out trials whose trialEnd is in the past', async () => {
+    // Service-side filter: even if Prisma somehow returned an expired
+    // row (it shouldn't because the WHERE clause guards it), the read
+    // path enforces freshness via the same `trialEnd: { gt: now }` clause
+    // — so an expired row reaching this code path means the test is
+    // broken, not the service. We assert the WHERE clause is correct.
+    mockPrisma.couponRedemption.findFirst.mockResolvedValue(null);
+
+    await findActiveRedemptionForEmail('expired@example.com');
+
+    const call = mockPrisma.couponRedemption.findFirst.mock.calls[0]![0];
+    const where = (call as { where: Record<string, unknown> }).where;
+    expect(where.trialStatus).toBe('ACTIVE');
+    expect(where.trialEnd).toMatchObject({ gt: expect.any(Date) });
   });
 });

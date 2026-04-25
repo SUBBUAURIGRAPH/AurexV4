@@ -5,12 +5,35 @@ export const onboardingStep1Schema = z.object({
   industry: z.string().max(100).optional(),
   country: z.string().max(100).optional(),
   website: z.string().url().max(255).optional().or(z.literal('')),
+  // AAT-ONBOARD additions — captured by the new wizard, persisted in
+  // OnboardingProgress.stepData. Pricing currency + plan eligibility
+  // are derived downstream from `region` and `customerSize`.
+  region: z.enum(['INDIA', 'INTERNATIONAL']).optional(),
+  customerSize: z.enum(['SME_MSME', 'ENTERPRISE']).optional(),
+  slug: z
+    .string()
+    .min(2)
+    .max(64)
+    .regex(/^[a-z0-9-]+$/, 'Slug must be lowercase alphanumeric with hyphens')
+    .optional(),
 });
 
 export const onboardingStep2Schema = z.object({
-  fiscalYearStartMonth: z.number().int().min(1).max(12),
-  reportingStandard: z.enum(['GHG_PROTOCOL', 'ISO_14064', 'GRI', 'CUSTOM']),
-  baseYear: z.number().int().min(2000).max(2100),
+  // The legacy fields stay optional so the existing GHG-config UX still
+  // round-trips through OnboardingProgress.stepData; the new wizard
+  // doesn't collect them at step 2 but keeps them available for a later
+  // pass once billing lands.
+  fiscalYearStartMonth: z.number().int().min(1).max(12).optional(),
+  reportingStandard: z.enum(['GHG_PROTOCOL', 'ISO_14064', 'GRI', 'CUSTOM']).optional(),
+  baseYear: z.number().int().min(2000).max(2100).optional(),
+  // AAT-ONBOARD additions: plan / voucher state. `selectedPlan` is null
+  // when the user is on a trial or has skipped plan selection.
+  trialAcknowledged: z.boolean().optional(),
+  selectedPlan: z
+    .enum(['INDIA_MSME', 'INDIA_ENTERPRISE', 'INTL_SME', 'INTL_ENTERPRISE'])
+    .nullable()
+    .optional(),
+  skipped: z.boolean().optional(),
 });
 
 export const onboardingStep3Schema = z.object({

@@ -6,6 +6,22 @@ interface User {
   name: string;
   role?: string;
   organization?: string;
+  emailVerifiedAt?: string | null;
+}
+
+export interface RegisterTrialPayload {
+  trialStart: string;
+  trialEnd: string;
+  trialTier: string;
+  trialDurationDays: number;
+  appliedCouponCode: string;
+}
+
+export interface RegisterResultPayload {
+  trial?: RegisterTrialPayload;
+  couponWarning?: string;
+  /** Dev-only: surfaced when NODE_ENV !== 'production' on the API. */
+  _devVerificationToken?: string;
 }
 
 interface AuthContextValue {
@@ -13,7 +29,12 @@ interface AuthContextValue {
   isAuthenticated: boolean;
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  register: (name: string, email: string, password: string) => Promise<void>;
+  register: (
+    name: string,
+    email: string,
+    password: string,
+    couponCode?: string,
+  ) => Promise<RegisterResultPayload>;
   logout: () => Promise<void>;
   error: string | null;
   clearError: () => void;
@@ -40,6 +61,10 @@ function pickUser(payload: unknown): User | null {
     name,
     role: candidate.role ? String(candidate.role).toLowerCase() : undefined,
     organization: candidate.organization ? String(candidate.organization) : undefined,
+    emailVerifiedAt:
+      candidate.emailVerifiedAt === null || candidate.emailVerifiedAt === undefined
+        ? null
+        : String(candidate.emailVerifiedAt),
   };
 }
 
@@ -150,18 +175,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [scheduleRefresh]);
 
-  const register = useCallback(async (name: string, email: string, password: string) => {
+  const register = useCallback(async (
+    name: string,
+    email: string,
+    password: string,
+    couponCode?: string,
+  ): Promise<RegisterResultPayload> => {
     setError(null);
     setIsLoading(true);
     try {
+      const body: Record<string, unknown> = { name, email, password };
+      if (couponCode && couponCode.trim().length > 0) {
+        body.couponCode = couponCode.trim().toUpperCase();
+      }
       const res = await fetch(`${API_BASE}/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.message || data.error || 'Registration failed');
+        throw new Error(data.detail || data.message || data.error || 'Registration failed');
       }
 
       const accessToken = data.accessToken ?? data.access_token;
@@ -174,6 +208,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         await fetchUser();
       }
+
+      // Surface trial / warning / dev-token to the caller so the
+      // RegisterPage can display the appropriate post-signup state.
+      const result: RegisterResultPayload = {};
+      if (data.trial) result.trial = data.trial as RegisterTrialPayload;
+      if (data.couponWarning) result.couponWarning = String(data.couponWarning);
+      if (data._devVerificationToken) {
+        result._devVerificationToken = String(data._devVerificationToken);
+      }
+      return result;
     } catch (err: any) {
       setError(err.message || 'Registration failed');
       throw err;

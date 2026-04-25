@@ -1,6 +1,7 @@
 import { Outlet, Navigate } from 'react-router-dom';
 import { DashboardSidebar } from '../components/layout/DashboardSidebar';
 import { DashboardTopbar } from '../components/layout/DashboardTopbar';
+import { VerifyEmailBanner } from '../components/layout/VerifyEmailBanner';
 import { useAuth } from '../contexts/AuthContext';
 
 export function DashboardLayout() {
@@ -41,6 +42,7 @@ export function DashboardLayout() {
       <DashboardTopbar />
       <DashboardSidebar />
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+        <VerifyEmailBanner />
         <main style={{ flex: 1, padding: '1.5rem' }}>
           <div className="page-enter">
             <Outlet />

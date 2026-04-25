@@ -18,6 +18,9 @@
 
 import { Router, type IRouter, type Request } from 'express';
 import { z } from 'zod';
+import { requireAuth } from '../middleware/auth.js';
+import { AppError } from '../middleware/error-handler.js';
+import { prisma } from '@aurex/database';
 import * as couponService from '../services/coupon.service.js';
 
 export const couponsRouter: IRouter = Router();
@@ -94,6 +97,57 @@ couponsRouter.post('/validate', handleValidate);
 // TODO(AAT-V3PORT-2): if/when HEF gets distinct rules (e.g. enforce
 // `couponCode.startsWith('HEF-')`), split this handler.
 couponsRouter.post('/hef/validate', handleValidate);
+
+/**
+ * Auth-gated lookup for the caller's most-recent active redemption.
+ * Powers the onboarding wizard "Trial active" card. Returns 200 with
+ * `data: null` when the user has no active trial — null is part of the
+ * contract, not an error condition.
+ */
+couponsRouter.get('/redemptions/me', requireAuth, async (req, res, next) => {
+  try {
+    const userId = req.user?.sub;
+    if (!userId) {
+      throw new AppError(401, 'Unauthorized', 'Authentication required');
+    }
+
+    // The redemption is keyed on email (the coupon flow runs at signup,
+    // before the User row exists in the redemption table). Look the
+    // user's email up first, then resolve the latest active redemption.
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    if (!user) {
+      throw new AppError(404, 'Not Found', 'User not found');
+    }
+
+    const redemption = await couponService.findActiveRedemptionForEmail(user.email);
+
+    if (!redemption) {
+      res.json({ data: null });
+      return;
+    }
+
+    res.json({
+      data: {
+        redemptionId: redemption.redemptionId,
+        couponCode: redemption.couponCode,
+        chapterName: redemption.chapterName,
+        organizationName: redemption.organizationName,
+        trialStart: redemption.trialStart.toISOString(),
+        trialEnd: redemption.trialEnd.toISOString(),
+        trialTier: redemption.trialTier,
+        trialStatus: redemption.trialStatus,
+        trialDurationDays: redemption.trialDurationDays,
+        daysRemaining: redemption.daysRemaining,
+        metadata: redemption.metadata,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
 
 couponsRouter.post('/redeem', async (req, res, next) => {
   try {

@@ -19,7 +19,11 @@ const { mockPrisma } = vi.hoisted(() => {
     },
     couponRedemption: {
       findUnique: vi.fn(),
+      findFirst: vi.fn(),
       create: vi.fn(),
+    },
+    user: {
+      findUnique: vi.fn(),
     },
     $transaction: vi.fn(),
   };
@@ -34,6 +38,7 @@ vi.mock('@aurex/database', () => ({ prisma: mockPrisma, Prisma: {} }));
 import { couponsRouter } from './coupons.js';
 import { errorHandler } from '../middleware/error-handler.js';
 import { _resetValidateBurstForTests } from '../services/coupon.service.js';
+import { signAccessToken } from '../lib/jwt.js';
 
 function buildApp(): Express {
   const app = express();
@@ -48,7 +53,7 @@ interface FakeResponse {
   body: unknown;
 }
 
-async function postJson(url: string, body: unknown, ip = '198.51.100.99'): Promise<FakeResponse> {
+async function postJson(url: string, body: unknown, ip = '198.51.100.99', headers: Record<string, string> = {}): Promise<FakeResponse> {
   const app = buildApp();
   return new Promise((resolve, reject) => {
     let status = 200;
@@ -58,11 +63,55 @@ async function postJson(url: string, body: unknown, ip = '198.51.100.99'): Promi
       url,
       originalUrl: url,
       path: url,
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...headers },
       body,
       ip,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       socket: { remoteAddress: ip } as any,
+    };
+    const res: Partial<Response> = {
+      status(code: number) {
+        status = code;
+        return this as Response;
+      },
+      json(data: unknown) {
+        payload = data;
+        resolve({ status, body: payload });
+        return this as Response;
+      },
+      end(data?: unknown) {
+        if (payload === undefined && data !== undefined) payload = data;
+        resolve({ status, body: payload });
+        return this as Response;
+      },
+      setHeader: () => res as Response,
+      getHeader: () => undefined,
+    };
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (app as any).handle(req as Request, res as Response, (err: unknown) => {
+        if (err) reject(err);
+      });
+    } catch (err) {
+      reject(err);
+    }
+  });
+}
+
+async function getJson(url: string, headers: Record<string, string> = {}): Promise<FakeResponse> {
+  const app = buildApp();
+  return new Promise((resolve, reject) => {
+    let status = 200;
+    let payload: unknown = undefined;
+    const req: Partial<Request> = {
+      method: 'GET',
+      url,
+      originalUrl: url,
+      path: url,
+      headers,
+      ip: '198.51.100.99',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      socket: { remoteAddress: '198.51.100.99' } as any,
     };
     const res: Partial<Response> = {
       status(code: number) {
@@ -222,5 +271,68 @@ describe('POST /api/v1/coupons/redeem', () => {
   it('returns 400 when email is missing', async () => {
     const res = await postJson('/api/v1/coupons/redeem', { code: 'HEF-PUNE-2026' });
     expect(res.status).toBe(400);
+  });
+});
+
+// ── /redemptions/me (AAT-ONBOARD) ─────────────────────────────────────────
+
+describe('GET /api/v1/coupons/redemptions/me', () => {
+  function authHeader(): Record<string, string> {
+    const token = signAccessToken({
+      sub: '00000000-0000-0000-0000-000000000001',
+      email: 'me@aurex.in',
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      role: 'VIEWER' as any,
+    });
+    return { authorization: `Bearer ${token}` };
+  }
+
+  it('returns the active trial card when one exists', async () => {
+    const trialEnd = new Date(Date.now() + 200 * 24 * 60 * 60 * 1000);
+    mockPrisma.user.findUnique.mockResolvedValue({ email: 'me@aurex.in' });
+    mockPrisma.couponRedemption.findFirst.mockResolvedValue({
+      id: 'red-1',
+      couponId: 'coupon-1',
+      userEmail: 'me@aurex.in',
+      trialStart: new Date(),
+      trialEnd,
+      trialStatus: 'ACTIVE',
+      coupon: makeCoupon({ trialDurationDays: 365 }),
+    });
+
+    const res = await getJson('/api/v1/coupons/redemptions/me', authHeader());
+
+    expect(res.status).toBe(200);
+    const body = res.body as { data: Record<string, unknown> };
+    expect(body.data.couponCode).toBe('HEF-PUNE-2026');
+    expect(body.data.trialDurationDays).toBe(365);
+    expect(typeof body.data.daysRemaining).toBe('number');
+    expect(body.data.daysRemaining).toBeGreaterThan(190);
+  });
+
+  it('returns 200 with data:null when the user has no active redemption', async () => {
+    mockPrisma.user.findUnique.mockResolvedValue({ email: 'fresh@aurex.in' });
+    mockPrisma.couponRedemption.findFirst.mockResolvedValue(null);
+
+    const res = await getJson('/api/v1/coupons/redemptions/me', authHeader());
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ data: null });
+  });
+
+  it('returns 200 with data:null when the trial has ended (trialEnd guard)', async () => {
+    // The query filters on `trialEnd > now`, so an expired row simply
+    // won't match — Prisma returns null.
+    mockPrisma.user.findUnique.mockResolvedValue({ email: 'me@aurex.in' });
+    mockPrisma.couponRedemption.findFirst.mockResolvedValue(null);
+
+    const res = await getJson('/api/v1/coupons/redemptions/me', authHeader());
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ data: null });
+  });
+
+  it('returns 401 without an auth header', async () => {
+    const res = await getJson('/api/v1/coupons/redemptions/me');
+    expect(res.status).toBe(401);
   });
 });

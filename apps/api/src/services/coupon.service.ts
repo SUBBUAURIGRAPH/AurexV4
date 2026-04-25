@@ -593,6 +593,69 @@ export async function listRedemptions(params: ListRedemptionsParams): Promise<{
   };
 }
 
+// ─── Active-redemption lookup (used by the onboarding wizard) ───────────
+
+export interface ActiveRedemption {
+  redemptionId: string;
+  couponId: string;
+  couponCode: string;
+  chapterName: string;
+  organizationName: string;
+  trialStart: Date;
+  trialEnd: Date;
+  trialTier: TrialTier;
+  trialStatus: TrialStatus;
+  trialDurationDays: number;
+  daysRemaining: number;
+  metadata: Record<string, unknown>;
+}
+
+/**
+ * Find the most-recent ACTIVE redemption for the given email. Returns
+ * null when none exists or when the trial window has ended.
+ *
+ * "Active" here is both `trialStatus = ACTIVE` and `trialEnd > now`. We
+ * deliberately filter by `trialEnd` in addition to status because the
+ * service does not run a scheduler to flip ACTIVE → EXPIRED — the read
+ * path enforces freshness.
+ */
+export async function findActiveRedemptionForEmail(
+  email: string,
+): Promise<ActiveRedemption | null> {
+  const normalised = normaliseEmail(email);
+  const now = new Date();
+
+  const row = await prisma.couponRedemption.findFirst({
+    where: {
+      userEmail: normalised,
+      trialStatus: 'ACTIVE',
+      trialEnd: { gt: now },
+    },
+    orderBy: { createdAt: 'desc' },
+    include: { coupon: true },
+  });
+
+  if (!row) return null;
+
+  const msRemaining = row.trialEnd.getTime() - now.getTime();
+  const daysRemaining = Math.max(0, Math.ceil(msRemaining / (24 * 60 * 60 * 1000)));
+
+  return {
+    redemptionId: row.id,
+    couponId: row.couponId,
+    couponCode: row.coupon.couponCode,
+    chapterName: row.coupon.chapterName,
+    organizationName: row.coupon.organizationName,
+    trialStart: row.trialStart,
+    trialEnd: row.trialEnd,
+    trialTier: row.coupon.trialTier as TrialTier,
+    trialStatus: row.trialStatus as TrialStatus,
+    trialDurationDays: row.coupon.trialDurationDays,
+    daysRemaining,
+    metadata: (row.coupon.metadata ?? {}) as Record<string, unknown>,
+  };
+}
+
 export async function markConverted(redemptionId: string, plan: string) {
   const existing = await prisma.couponRedemption.findUnique({ where: { id: redemptionId } });
   if (!existing) throw new AppError(404, 'Not Found', 'Redemption not found');

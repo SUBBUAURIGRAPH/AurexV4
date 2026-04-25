@@ -42,6 +42,17 @@ export function useSkipOnboarding() {
   });
 }
 
+export function useCompleteOnboarding() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (finalStepData?: Record<string, unknown>) =>
+      api.post<{ data: OnboardingProgress }>('/onboarding/complete', finalStepData ?? {}),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['onboarding'] });
+    },
+  });
+}
+
 export interface EsgFramework {
   id: string;
   code: string;

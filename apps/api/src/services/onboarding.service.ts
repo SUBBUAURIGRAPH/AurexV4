@@ -82,6 +82,44 @@ export async function saveStep(
   return updated as unknown as OnboardingProgressResult;
 }
 
+/**
+ * AAT-ONBOARD: explicit completion endpoint for the 3-step wizard.
+ *
+ * The existing step-driven flow (saveStep with step=4) still works for
+ * the legacy 4-step UI. The new wizard collects different signals (org
+ * size, region, plan choice, invites) and finishes after step 3 — the
+ * model's `completed=true` is the single source of truth, the steps are
+ * just journal entries. This helper marks the run done idempotently.
+ */
+export async function completeOnboarding(
+  orgId: string,
+  finalStepData?: Record<string, unknown>,
+): Promise<OnboardingProgressResult> {
+  const progress = await ensureProgress(orgId);
+
+  if (progress.status === 'COMPLETED') {
+    // Idempotent — re-completing is a no-op so refreshes / double-clicks
+    // don't throw.
+    return progress;
+  }
+
+  const stepData = (progress.stepData ?? {}) as Record<string, unknown>;
+  if (finalStepData) {
+    stepData.completion = finalStepData;
+  }
+
+  const updated = await prisma.onboardingProgress.update({
+    where: { orgId },
+    data: {
+      status: 'COMPLETED',
+      completedAt: new Date(),
+      stepData: stepData as never,
+    },
+  });
+  logger.info({ orgId }, 'Onboarding completed (wizard)');
+  return updated as unknown as OnboardingProgressResult;
+}
+
 export async function skipOnboarding(orgId: string, reason?: string): Promise<OnboardingProgressResult> {
   const progress = await ensureProgress(orgId);
 

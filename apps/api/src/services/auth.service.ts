@@ -3,6 +3,8 @@ import { prisma } from '@aurex/database';
 import { signAccessToken, signRefreshToken, verifyRefreshToken, type TokenPayload } from '../lib/jwt.js';
 import { logger } from '../lib/logger.js';
 import { AppError } from '../middleware/error-handler.js';
+import * as couponService from './coupon.service.js';
+import * as emailVerificationService from './email-verification.service.js';
 
 const SALT_ROUNDS = 12;
 const MAX_FAILED_ATTEMPTS = 5;
@@ -92,11 +94,42 @@ export async function login(
   };
 }
 
+export interface RegisterTrial {
+  trialStart: Date;
+  trialEnd: Date;
+  trialTier: string;
+  trialDurationDays: number;
+  appliedCouponCode: string;
+}
+
+export interface RegisterResult {
+  id: string;
+  email: string;
+  name: string;
+  /** Trial window when a coupon was successfully redeemed during signup. */
+  trial?: RegisterTrial;
+  /** Set when a coupon code was provided but redemption failed; the
+   *  user is still created. Front-end surfaces "Account created, but
+   *  voucher couldn't be applied: <reason>". */
+  couponWarning?: string;
+  /** Email-verification plaintext token, only emitted when
+   *  NODE_ENV !== 'production' so dev/test can complete the flow without
+   *  an SMTP server wired up. */
+  _devVerificationToken?: string;
+}
+
+export interface RegisterOptions {
+  couponCode?: string;
+  ipAddress?: string;
+  userAgent?: string;
+}
+
 export async function register(
   email: string,
   password: string,
   name: string,
-): Promise<{ id: string; email: string; name: string }> {
+  options: RegisterOptions = {},
+): Promise<RegisterResult> {
   const exists = await prisma.user.findUnique({ where: { email } });
   if (exists) {
     throw new AppError(409, 'Conflict', 'Email already registered');
@@ -110,7 +143,63 @@ export async function register(
   });
 
   logger.info({ userId: user.id, email }, 'User registered');
-  return user;
+
+  // Issue email-verification token (best-effort — failure here must NOT
+  // roll back user creation). We surface the plaintext only outside of
+  // production so dev/test can complete the flow.
+  let devVerificationToken: string | undefined;
+  try {
+    const issued = await emailVerificationService.issueToken(user.id, email);
+    if (process.env.NODE_ENV !== 'production') {
+      devVerificationToken = issued.plaintextToken;
+    }
+  } catch (err) {
+    logger.error({ err, userId: user.id }, 'Failed to issue verification token');
+  }
+
+  // Audit log: include couponApplied flag but NOT the raw code value.
+  // The redemption row holds the canonical reference; auth events only
+  // record whether one was attempted.
+  let trial: RegisterTrial | undefined;
+  let couponWarning: string | undefined;
+
+  if (options.couponCode) {
+    const code = options.couponCode.trim();
+    try {
+      const redeemed = await couponService.redeemCoupon({
+        code,
+        email,
+        ipAddress: options.ipAddress,
+      });
+      trial = {
+        trialStart: redeemed.trialStart,
+        trialEnd: redeemed.trialEnd,
+        trialTier: redeemed.trialTier,
+        trialDurationDays: redeemed.trialDurationDays,
+        appliedCouponCode: redeemed.couponCode,
+      };
+    } catch (err) {
+      // Surface a clean reason but never block account creation.
+      const reason =
+        err instanceof AppError ? err.message : 'Voucher could not be applied';
+      couponWarning = reason;
+      logger.warn({ userId: user.id, err }, 'Coupon redemption failed during register');
+    }
+  }
+
+  await logAuthEvent(
+    user.id,
+    'REGISTER',
+    options.ipAddress,
+    options.userAgent,
+    { couponApplied: Boolean(trial), couponWarning: couponWarning ?? null },
+  );
+
+  const result: RegisterResult = { id: user.id, email: user.email, name: user.name };
+  if (trial) result.trial = trial;
+  if (couponWarning) result.couponWarning = couponWarning;
+  if (devVerificationToken) result._devVerificationToken = devVerificationToken;
+  return result;
 }
 
 export async function refreshTokens(
@@ -172,6 +261,7 @@ export async function getCurrentUser(userId: string) {
       email: true,
       name: true,
       role: true,
+      emailVerifiedAt: true,
       orgMembers: {
         where: { isActive: true },
         take: 1,
@@ -190,6 +280,7 @@ export async function getCurrentUser(userId: string) {
     name: user.name,
     role: toApiRole(user.role),
     organization: user.orgMembers[0]?.org?.name,
+    emailVerifiedAt: user.emailVerifiedAt ? user.emailVerifiedAt.toISOString() : null,
   };
 }
 
@@ -222,14 +313,17 @@ export async function logAuthEvent(
   eventType: string,
   ipAddress?: string,
   userAgent?: string,
+  metadata?: Record<string, unknown>,
 ): Promise<void> {
   try {
     await prisma.authEvent.create({
       data: {
         userId,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         eventType: eventType as any,
         ipAddress,
         userAgent,
+        ...(metadata !== undefined ? { metadata: metadata as never } : {}),
       },
     });
   } catch (err) {
