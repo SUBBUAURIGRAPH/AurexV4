@@ -706,3 +706,30 @@ function readNumber(v: unknown): number | undefined {
 export function __isWorkerActive(): boolean {
   return activeDeps !== null;
 }
+
+/**
+ * Test helper — drive a single tick of the worker WITHOUT starting the
+ * polling loop. End-to-end tests use this to deterministically reconcile
+ * a chain burn → BCR call without waiting on `setInterval`.
+ *
+ * Both `aurigraphAdapter` and `bcrAdapter` are required — there is no
+ * default in test mode (we never want a test to accidentally hit the real
+ * SDK or the real BCR endpoint). `pollIntervalMs` is unused by `processTick`
+ * itself but kept on the resolved deps for parity with the production path.
+ *
+ * Added by AAT-ο / AV4-364 to support the e2e full-lifecycle test
+ * (`apps/api/src/e2e-full-lifecycle.test.ts`). Production code paths
+ * SHOULD NOT call this; use `startAurigraphEventsWorker()` instead.
+ */
+export async function processOnce(opts: {
+  aurigraphAdapter: Pick<AurigraphDltAdapter, 'getPublicLedger'>;
+  bcrAdapter: BcrRegistryAdapter;
+  maxRetries?: number;
+}): Promise<ProcessTickResult> {
+  return processTick({
+    pollIntervalMs: 0,
+    maxRetries: opts.maxRetries ?? DEFAULT_MAX_RETRIES,
+    aurigraph: opts.aurigraphAdapter,
+    bcr: opts.bcrAdapter,
+  });
+}
