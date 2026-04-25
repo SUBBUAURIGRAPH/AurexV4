@@ -88,13 +88,32 @@ const navItems: NavItem[] = [
     ],
   },
   {
-    label: 'Frameworks',
+    label: 'Carbon Markets',
+    path: '/activities',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z" />
+        <path d="M2 21c0-3 1.85-5.36 5.08-6" />
+      </svg>
+    ),
+    children: [
+      { label: 'Activities (Project Pipeline)', path: '/activities' },
+      { label: 'Credits (Holdings)', path: '/credits' },
+      { label: 'BioCarbon Marketplace (Public)', path: '/biocarbon/marketplace' },
+    ],
+  },
+  {
+    label: 'ESG Reporting',
     path: '/frameworks',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
       </svg>
     ),
+    children: [
+      { label: 'Frameworks Hub (TCFD/GRI/CDP/SASB/ISSB)', path: '/frameworks' },
+      { label: 'BRSR Builder (India)', path: '/brsr' },
+    ],
   },
   {
     label: 'Suppliers',
@@ -102,43 +121,6 @@ const navItems: NavItem[] = [
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <rect x="1" y="3" width="15" height="13" /><polygon points="16 8 20 8 23 11 23 16 16 16 16 8" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Activities',
-    path: '/activities',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M3 3h18v18H3z" /><path d="M3 9h18" /><path d="M9 21V9" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Credits',
-    path: '/credits',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10" /><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8" /><path d="M12 6v2" /><path d="M12 16v2" />
-      </svg>
-    ),
-  },
-  {
-    label: 'BioCarbon Marketplace',
-    path: '/biocarbon/marketplace',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M11 20A7 7 0 0 1 9.8 6.1C15.5 5 17 4.48 19 2c1 2 2 4.18 2 8 0 5.5-4.78 10-10 10z" />
-        <path d="M2 21c0-3 1.85-5.36 5.08-6" />
-      </svg>
-    ),
-  },
-  {
-    label: 'BRSR',
-    path: '/brsr',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
       </svg>
     ),
   },
