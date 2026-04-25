@@ -59,6 +59,14 @@ const { mockPrisma } = vi.hoisted(() => {
       create: vi.fn().mockResolvedValue({ id: 'oe-1' }),
       update: vi.fn().mockResolvedValue({ id: 'oe-1' }),
     },
+    // AAT-RENEWAL / Wave 8c — renewal-aware webhook + capture path.
+    renewalAttempt: {
+      findFirst: vi.fn(),
+      findUnique: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+      create: vi.fn(),
+    },
     $transaction: vi.fn(),
   };
   mock.$transaction.mockImplementation(
@@ -220,10 +228,14 @@ beforeEach(() => {
   }));
   mockPrisma.invoice.findFirst.mockResolvedValue(null);
   mockPrisma.razorpayWebhookEvent.findUnique.mockResolvedValue(null);
-  // Default: no org members → receipt email is silently skipped.
+  // AAT-EMAIL: default → no org members → receipt email is silently skipped.
   mockPrisma.orgMember.findMany.mockResolvedValue([]);
   mockPrisma.outboundEmail.create.mockResolvedValue({ id: 'oe-1' });
   mockPrisma.outboundEmail.update.mockResolvedValue({ id: 'oe-1' });
+  // AAT-RENEWAL: default to "no renewal in flight" so the existing
+  // initial-checkout / capture tests stay unchanged.
+  mockPrisma.renewalAttempt.findFirst.mockResolvedValue(null);
+  mockPrisma.renewalAttempt.findUnique.mockResolvedValue(null);
 });
 
 // ─── pickDiscountTier ──────────────────────────────────────────────────
@@ -1003,5 +1015,201 @@ describe('processWebhook payment.captured + payment-receipt email', () => {
     );
 
     expect(_testEmailQueue).toHaveLength(0);
+  });
+});
+// ─── AAT-RENEWAL / Wave 8c — renewal-aware capture/failure paths ───────
+
+describe('processWebhook — renewal-aware capture (AAT-RENEWAL)', () => {
+  it('renewal payment.captured extends Subscription.endsAt + marks RenewalAttempt PAID', async () => {
+    const ORDER_ID = 'order_renewal_xyz';
+    const RENEWAL_ATTEMPT_ID = 'ra-1';
+    const PERIOD_END = new Date('2027-04-01T00:00:00Z');
+
+    const envelope = makeWebhookEnvelope('evt_renew_1', 'payment.captured', {
+      id: 'pay_renewal_xyz',
+      order_id: ORDER_ID,
+      status: 'captured',
+    });
+    const rawBody = JSON.stringify(envelope);
+    const signature = signWebhook(rawBody);
+
+    mockPrisma.razorpayWebhookEvent.findUnique.mockResolvedValue(null);
+    mockPrisma.razorpayWebhookEvent.create.mockResolvedValue({
+      id: 'evtrow-renew-1',
+      razorpayEventId: 'evt_renew_1',
+      eventType: 'payment.captured',
+      signatureValid: true,
+      processed: false,
+    });
+    mockPrisma.razorpayWebhookEvent.update.mockResolvedValue({
+      id: 'evtrow-renew-1',
+      processed: true,
+    });
+    mockPrisma.razorpayOrder.findUnique.mockResolvedValue(
+      makeRazorpayOrder({ razorpayOrderId: ORDER_ID }),
+    );
+    // RenewalAttempt is found → renewal branch taken.
+    mockPrisma.renewalAttempt.findFirst.mockResolvedValue({
+      id: RENEWAL_ATTEMPT_ID,
+      subscriptionId: 'sub-1',
+      periodStart: new Date('2026-04-01T00:00:00Z'),
+      periodEnd: PERIOD_END,
+      amountMinor: 589882,
+      currency: 'INR',
+      status: 'EMAIL_SENT',
+    });
+    // applyRenewalCapture re-fetches the attempt inside the txn.
+    mockPrisma.renewalAttempt.findUnique.mockResolvedValue({
+      id: RENEWAL_ATTEMPT_ID,
+      subscriptionId: 'sub-1',
+      periodStart: new Date('2026-04-01T00:00:00Z'),
+      periodEnd: PERIOD_END,
+      amountMinor: 589882,
+      currency: 'INR',
+      status: 'EMAIL_SENT',
+    });
+    mockPrisma.renewalAttempt.update.mockResolvedValue({
+      id: RENEWAL_ATTEMPT_ID,
+      status: 'PAID',
+    });
+    mockPrisma.razorpayOrder.update.mockResolvedValue({});
+    mockPrisma.subscription.update.mockResolvedValue(
+      makeSubscription({ status: 'ACTIVE', endsAt: PERIOD_END }),
+    );
+
+    const client = makeFakeClient();
+    const result = await processWebhook(
+      { rawBody, signature, payload: envelope as Parameters<typeof processWebhook>[0]['payload'] },
+      client,
+    );
+
+    expect(result.processed).toBe(true);
+
+    // RenewalAttempt was flipped to PAID.
+    expect(mockPrisma.renewalAttempt.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: RENEWAL_ATTEMPT_ID },
+        data: expect.objectContaining({ status: 'PAID' }),
+      }),
+    );
+    // Subscription endsAt extended to periodEnd (NOT now() + 1y).
+    expect(mockPrisma.subscription.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'ACTIVE',
+          endsAt: PERIOD_END,
+        }),
+      }),
+    );
+    // Razorpay order CAPTURED.
+    expect(mockPrisma.razorpayOrder.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: 'CAPTURED' }),
+      }),
+    );
+    // A renewal Invoice was issued.
+    expect(mockPrisma.invoice.create).toHaveBeenCalledTimes(1);
+  });
+
+  it('non-renewal payment.captured ignores the renewal path entirely', async () => {
+    const ORDER_ID = 'order_fresh_xyz';
+    const envelope = makeWebhookEnvelope('evt_fresh_1', 'payment.captured', {
+      id: 'pay_fresh_xyz',
+      order_id: ORDER_ID,
+      status: 'captured',
+    });
+    const rawBody = JSON.stringify(envelope);
+    const signature = signWebhook(rawBody);
+
+    mockPrisma.razorpayWebhookEvent.findUnique.mockResolvedValue(null);
+    mockPrisma.razorpayWebhookEvent.create.mockResolvedValue({
+      id: 'evtrow-fresh-1',
+      signatureValid: true,
+      processed: false,
+    });
+    mockPrisma.razorpayWebhookEvent.update.mockResolvedValue({});
+    mockPrisma.razorpayOrder.findUnique.mockResolvedValue(
+      makeRazorpayOrder({ razorpayOrderId: ORDER_ID }),
+    );
+    // No matching RenewalAttempt → fresh-activation path.
+    mockPrisma.renewalAttempt.findFirst.mockResolvedValue(null);
+    mockPrisma.subscription.findUnique.mockResolvedValue(makeSubscription());
+    mockPrisma.subscription.update.mockResolvedValue(makeSubscription({ status: 'ACTIVE' }));
+    mockPrisma.razorpayOrder.update.mockResolvedValue({});
+
+    const client = makeFakeClient();
+    await processWebhook(
+      { rawBody, signature, payload: envelope as Parameters<typeof processWebhook>[0]['payload'] },
+      client,
+    );
+
+    // The renewal-update path was NOT taken.
+    expect(mockPrisma.renewalAttempt.update).not.toHaveBeenCalled();
+    // Subscription was activated via the fresh-activation path (status=ACTIVE
+    // is set with explicit startsAt + endsAt = now()+1y, NOT periodEnd).
+    expect(mockPrisma.subscription.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          status: 'ACTIVE',
+          // startsAt is `new Date()` so we just check it's truthy.
+          startsAt: expect.any(Date) as unknown as Date,
+        }),
+      }),
+    );
+  });
+
+  it('renewal payment.failed marks RenewalAttempt FAILED, leaves Subscription ACTIVE', async () => {
+    const ORDER_ID = 'order_renew_fail';
+    const RENEWAL_ATTEMPT_ID = 'ra-fail-1';
+    const envelope = makeWebhookEnvelope('evt_renew_fail', 'payment.failed', {
+      id: 'pay_renew_fail',
+      order_id: ORDER_ID,
+      status: 'failed',
+      error_description: 'card declined',
+    });
+    const rawBody = JSON.stringify(envelope);
+    const signature = signWebhook(rawBody);
+
+    mockPrisma.razorpayWebhookEvent.findUnique.mockResolvedValue(null);
+    mockPrisma.razorpayWebhookEvent.create.mockResolvedValue({
+      id: 'evtrow-renew-fail',
+      signatureValid: true,
+      processed: false,
+    });
+    mockPrisma.razorpayWebhookEvent.update.mockResolvedValue({});
+    mockPrisma.razorpayOrder.findUnique.mockResolvedValue(
+      makeRazorpayOrder({ razorpayOrderId: ORDER_ID, status: 'CREATED' }),
+    );
+    // Matching renewal — failure path stays inside renewal branch.
+    mockPrisma.renewalAttempt.findFirst.mockResolvedValue({
+      id: RENEWAL_ATTEMPT_ID,
+      subscriptionId: 'sub-1',
+      status: 'PENDING',
+    });
+    mockPrisma.renewalAttempt.update.mockResolvedValue({
+      id: RENEWAL_ATTEMPT_ID,
+      status: 'FAILED',
+    });
+    mockPrisma.razorpayOrder.update.mockResolvedValue({});
+
+    const client = makeFakeClient();
+    await processWebhook(
+      { rawBody, signature, payload: envelope as Parameters<typeof processWebhook>[0]['payload'] },
+      client,
+    );
+
+    // RenewalAttempt → FAILED.
+    expect(mockPrisma.renewalAttempt.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: RENEWAL_ATTEMPT_ID },
+        data: expect.objectContaining({
+          status: 'FAILED',
+          failureReason: 'card declined',
+        }),
+      }),
+    );
+    // Subscription is NOT flipped to PAYMENT_FAILED — stays ACTIVE so the
+    // customer can retry inside the grace window.
+    expect(mockPrisma.subscription.update).not.toHaveBeenCalled();
   });
 });

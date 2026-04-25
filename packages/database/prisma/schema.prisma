@@ -2038,6 +2038,8 @@ model Subscription {
 
   invoices            Invoice[]
   razorpayOrders      RazorpayOrder[]
+  // AAT-RENEWAL / Wave 8c: per-renewal-window attempt rows (one per yearly cycle).
+  renewalAttempts     RenewalAttempt[]
 
   @@index([organizationId, status])
   @@index([status, endsAt])
@@ -2177,4 +2179,57 @@ enum EmailStatus {
   PENDING @map("pending")
   SENT    @map("sent")
   FAILED  @map("failed")
+}
+
+// AAT-RENEWAL / Wave 8c — Subscription renewal scheduler.
+//
+// Each row represents ONE attempted yearly-cycle renewal for a subscription.
+// The unique constraint on (subscriptionId, periodStart) is the idempotency
+// guard — the renewal worker scans every 24h and uses this row to know
+// whether a Razorpay order has already been issued for the next renewal
+// window. Retry attempts within the same window MUST reuse the existing row
+// (bump retryCount); a fresh row only appears for a NEW periodStart.
+//
+// The lifecycle mirrors `RazorpayOrder` but adds renewal-specific bookkeeping:
+//   PENDING       — Razorpay order created, payment-link email not yet sent
+//                   (or send is in flight).
+//   EMAIL_SENT    — payment-link email dispatched; awaiting customer payment.
+//   PAID          — Razorpay payment.captured webhook flipped this row;
+//                   parent Subscription.endsAt is extended in the same txn.
+//   FAILED        — capture failed, OR the grace window expired without
+//                   payment. The parent Subscription is moved to EXPIRED
+//                   only when grace expires (NOT on individual capture
+//                   failures — the customer can retry inside the grace).
+//   CANCELLED     — operator cancelled the renewal (e.g. customer asked
+//                   to terminate before payment).
+model RenewalAttempt {
+  id              String                @id @default(uuid()) @db.Uuid
+  subscriptionId  String                @map("subscription_id") @db.Uuid
+  subscription    Subscription          @relation(fields: [subscriptionId], references: [id])
+  periodStart     DateTime              @map("period_start")
+  periodEnd       DateTime              @map("period_end")
+  amountMinor     Int                   @map("amount_minor")
+  currency        String                @db.VarChar(3)
+  razorpayOrderId String?               @map("razorpay_order_id") @db.VarChar(128)
+  status          RenewalAttemptStatus  @default(PENDING)
+  emailSentAt     DateTime?             @map("email_sent_at")
+  paidAt          DateTime?             @map("paid_at")
+  failedAt        DateTime?             @map("failed_at")
+  failureReason   String?               @map("failure_reason") @db.Text
+  retryCount      Int                   @default(0) @map("retry_count")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  @@unique([subscriptionId, periodStart])
+  @@index([status, createdAt])
+  @@index([subscriptionId])
+  @@map("renewal_attempts")
+}
+
+enum RenewalAttemptStatus {
+  PENDING        @map("pending")        // order created, awaiting payment
+  EMAIL_SENT     @map("email_sent")     // payment-link email sent to customer
+  PAID           @map("paid")           // captured via webhook
+  FAILED         @map("failed")         // capture failed or expired without payment
+  CANCELLED      @map("cancelled")
 }

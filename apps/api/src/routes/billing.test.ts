@@ -46,6 +46,16 @@ const { mockPrisma } = vi.hoisted(() => {
       create: vi.fn(),
       update: vi.fn(),
     },
+    // AAT-RENEWAL / Wave 8c — service paths look up RenewalAttempt before
+    // taking the renewal-vs-fresh branch. Default all reads to null so the
+    // existing route tests keep using the fresh-activation branch.
+    renewalAttempt: {
+      findFirst: vi.fn(),
+      findUnique: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+      create: vi.fn(),
+    },
     $transaction: vi.fn(),
   };
   mock.$transaction.mockImplementation(
@@ -251,6 +261,10 @@ beforeEach(() => {
   }));
   mockPrisma.invoice.findFirst.mockResolvedValue(null);
   mockPrisma.razorpayWebhookEvent.findUnique.mockResolvedValue(null);
+  // AAT-RENEWAL: default to "no renewal in flight" so route tests keep
+  // exercising the fresh-activation path unless they opt in.
+  mockPrisma.renewalAttempt.findFirst.mockResolvedValue(null);
+  mockPrisma.renewalAttempt.findUnique.mockResolvedValue(null);
 });
 
 // ─── POST /checkout ────────────────────────────────────────────────────

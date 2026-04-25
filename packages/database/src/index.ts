@@ -17,6 +17,9 @@ export type {
   SubscriptionStatus,
   InvoiceStatus,
   RazorpayOrderStatus,
+  // AAT-RENEWAL / Wave 8c
+  RenewalAttempt,
+  RenewalAttemptStatus,
 } from '@prisma/client';
 
 // AAT-EMAIL / Wave 8b: re-export OutboundEmail audit model + EmailStatus

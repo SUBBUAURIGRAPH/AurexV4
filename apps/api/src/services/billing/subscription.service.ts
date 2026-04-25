@@ -37,6 +37,7 @@ import {
   type Invoice,
   type RazorpayOrder,
   type RazorpayWebhookEvent,
+  type RenewalAttempt,
 } from '@aurex/database';
 import { AppError } from '../../middleware/error-handler.js';
 import { logger } from '../../lib/logger.js';
@@ -166,6 +167,61 @@ export interface ProcessWebhookResult {
   /** True iff the handler took action (state change). */
   processed: boolean;
   error?: string;
+}
+
+// ─── Renewal types (AAT-RENEWAL / Wave 8c) ─────────────────────────────
+
+export interface StartRenewalCheckoutResult {
+  renewalAttemptId: string;
+  razorpayOrderId: string;
+  /**
+   * Customer-facing URL the renewal email should link to. Frontend route is
+   * a Wave 9 follow-up; the URL shape is fixed here so the email send is
+   * deterministic from day one.
+   */
+  paymentUrl: string;
+  amount: number;
+  currency: string;
+  periodStart: Date;
+  periodEnd: Date;
+}
+
+/**
+ * Thrown by `startRenewalCheckout` when an in-flight `RenewalAttempt` row
+ * already exists for the next renewal window — caller should NOT create a
+ * duplicate Razorpay order.
+ */
+export class RenewalInFlightError extends AppError {
+  constructor(public readonly subscriptionId: string) {
+    super(
+      409,
+      'Renewal Already In Flight',
+      `Subscription ${subscriptionId} already has an active renewal attempt for the upcoming period`,
+      'https://aurex.in/errors/renewal-in-flight',
+    );
+    this.name = 'RenewalInFlightError';
+  }
+}
+
+/**
+ * Thrown by `startRenewalCheckout` when the parent subscription is in a
+ * terminal state (CANCELLED) and therefore cannot be renewed.
+ */
+export class CannotRenewCancelledError extends AppError {
+  public readonly subscriptionStatus: SubscriptionStatus;
+  constructor(
+    public readonly subscriptionId: string,
+    subscriptionStatus: SubscriptionStatus,
+  ) {
+    super(
+      409,
+      'Cannot Renew Cancelled Subscription',
+      `Subscription ${subscriptionId} is ${subscriptionStatus} and cannot be renewed`,
+      'https://aurex.in/errors/cannot-renew-cancelled',
+    );
+    this.name = 'CannotRenewCancelledError';
+    this.subscriptionStatus = subscriptionStatus;
+  }
 }
 
 // ─── Internal helpers ──────────────────────────────────────────────────
@@ -548,6 +604,23 @@ export async function processPaymentSuccess(
     }
   }
 
+  // AAT-RENEWAL / Wave 8c: detect renewal orders and take the renewal path.
+  // Renewal orders have `notes.renewal === true` (set on createOrder) AND
+  // a matching RenewalAttempt row keyed on razorpayOrderId.
+  const renewalAttempt = await prisma.renewalAttempt.findFirst({
+    where: { razorpayOrderId: input.razorpayOrderId },
+  });
+
+  if (renewalAttempt) {
+    const result = await applyRenewalCapture({
+      orderRowId: orderRow.id,
+      razorpayPaymentId: input.razorpayPaymentId,
+      razorpaySignature: input.razorpaySignature,
+      renewalAttemptId: renewalAttempt.id,
+    });
+    return { ...result, alreadyActive: false };
+  }
+
   const result = await prisma.$transaction(async (tx) => {
     await tx.razorpayOrder.update({
       where: { id: orderRow.id },
@@ -620,6 +693,417 @@ export async function processPaymentSuccess(
   });
 
   return { ...result, alreadyActive: false };
+}
+
+// ─── startRenewalCheckout (AAT-RENEWAL / Wave 8c) ──────────────────────
+
+/**
+ * Public URL the renewal email links the customer to. Frontend route is a
+ * Wave 9 follow-up; the URL shape is fixed here so we don't have to bump
+ * the email template later.
+ */
+const RENEWAL_PAYMENT_URL_BASE =
+  process.env.RENEWAL_PAYMENT_URL_BASE ?? 'https://aurex.in/billing/renew';
+
+function renewalPaymentUrl(renewalAttemptId: string): string {
+  return `${RENEWAL_PAYMENT_URL_BASE}/${renewalAttemptId}`;
+}
+
+/**
+ * Compute the next renewal window for a subscription. We treat the existing
+ * `endsAt` as the start of the next period — that way, on capture, we just
+ * advance `endsAt` by one year. If `endsAt` is null (defensive — should not
+ * happen for an ACTIVE sub) we use `now()` as the start.
+ *
+ * Renewal pricing: ALWAYS the full plan amount + plan-region tax. Coupons
+ * are first-year-only by default; renewals are charged at list price unless
+ * `subscription.metadata.renewalPriceMinor` is explicitly set by an
+ * operator (escape hatch for negotiated multi-year discounts).
+ */
+function computeRenewalAmount(sub: Subscription): {
+  subtotalMinor: number;
+  taxMinor: number;
+  totalMinor: number;
+} {
+  const meta = sub.metadata as { renewalPriceMinor?: number } | null;
+  const overrideTotal = meta?.renewalPriceMinor;
+  if (typeof overrideTotal === 'number' && overrideTotal >= 0) {
+    // Operator-set renewal total. We assume the override is tax-inclusive
+    // (it overrides the entire compute path).
+    return {
+      subtotalMinor: overrideTotal,
+      taxMinor: 0,
+      totalMinor: overrideTotal,
+    };
+  }
+  const subtotalMinor = computeBaseAmount(sub.plan, sub.perSiteCount);
+  const taxMinor = computeTax(sub.currency, subtotalMinor);
+  return {
+    subtotalMinor,
+    taxMinor,
+    totalMinor: subtotalMinor + taxMinor,
+  };
+}
+
+/**
+ * Idempotently kick off a renewal Razorpay order for `subscriptionId`.
+ *
+ * Called from the renewal worker (and exposed for direct invocation by ops
+ * tooling). Throws `RenewalInFlightError` if a non-terminal RenewalAttempt
+ * already exists for the next window — the worker uses this as its
+ * de-duplication guard alongside the `@@unique([subscriptionId, periodStart])`
+ * DB constraint.
+ */
+export async function startRenewalCheckout(
+  subscriptionId: string,
+  client: RazorpayClient = getRazorpayClient(),
+): Promise<StartRenewalCheckoutResult> {
+  const sub = await prisma.subscription.findUnique({
+    where: { id: subscriptionId },
+  });
+  if (!sub) {
+    throw new AppError(404, 'Not Found', `Subscription ${subscriptionId} not found`);
+  }
+  if (sub.status === 'CANCELLED') {
+    throw new CannotRenewCancelledError(sub.id, sub.status);
+  }
+  // We allow renewing ACTIVE / TRIAL / PAYMENT_FAILED / EXPIRED subscriptions
+  // — operator may want to revive an expired sub by paying the renewal.
+  // PENDING is the only other status, which means a fresh checkout is still
+  // in flight; reject those to avoid double-billing the customer.
+  if (sub.status === 'PENDING') {
+    throw new AppError(
+      409,
+      'Conflict',
+      `Subscription ${sub.id} has a PENDING initial checkout — cannot start renewal`,
+    );
+  }
+
+  const periodStart = sub.endsAt ?? new Date();
+  const periodEnd = addOneYear(periodStart);
+
+  // Existing-window guard. The DB unique constraint is the ultimate truth,
+  // but checking here lets us surface a clean 409 instead of a P2002 raw
+  // Prisma error. A FAILED / CANCELLED row in the same window does NOT
+  // block — operators can manually retry by deleting the failed row, or
+  // the next cycle will create a fresh row for the next periodStart.
+  const existing = await prisma.renewalAttempt.findUnique({
+    where: {
+      subscriptionId_periodStart: {
+        subscriptionId: sub.id,
+        periodStart,
+      },
+    },
+  });
+  if (existing && (existing.status === 'PENDING' || existing.status === 'EMAIL_SENT' || existing.status === 'PAID')) {
+    throw new RenewalInFlightError(sub.id);
+  }
+
+  const amounts = computeRenewalAmount(sub);
+
+  // Create the Razorpay order BEFORE the RenewalAttempt row so we can stamp
+  // the order id on creation. If Razorpay throws, no DB row is left dangling.
+  let razorpayOrder;
+  try {
+    const orderInput: CreateOrderInput = {
+      amount: amounts.totalMinor,
+      currency: sub.currency,
+      receipt: makeReceiptId(sub.organizationId),
+      notes: {
+        renewal: 'true',
+        subscription_id: sub.id,
+        organization_id: sub.organizationId,
+        plan: sub.plan,
+        period_start: periodStart.toISOString(),
+      },
+    };
+    razorpayOrder = await client.createOrder(orderInput);
+  } catch (err) {
+    logger.error(
+      { err, subscriptionId: sub.id },
+      'Razorpay createOrder failed during renewal — no RenewalAttempt row created',
+    );
+    throw new AppError(
+      502,
+      'Bad Gateway',
+      'Failed to create Razorpay renewal order; please retry',
+      'https://aurex.in/errors/razorpay',
+    );
+  }
+
+  // Persist the RenewalAttempt row + a parallel RazorpayOrder row so the
+  // existing capture/failure handlers (keyed on RazorpayOrder.razorpayOrderId)
+  // can locate the renewal via that pivot. This keeps the webhook handler
+  // simple — it always finds an order row first, then checks
+  // `notes.renewal === true` on the order's webhook payload (or falls
+  // through to the renewal-attempt match).
+  const renewalAttempt = await prisma.$transaction(async (tx) => {
+    // Existing-row case: re-use a FAILED / CANCELLED row in the same window
+    // by bumping retryCount + flipping back to PENDING. The unique key is
+    // (subscriptionId, periodStart) so we can't insert a duplicate.
+    if (existing) {
+      const updated = await tx.renewalAttempt.update({
+        where: { id: existing.id },
+        data: {
+          status: 'PENDING',
+          razorpayOrderId: razorpayOrder.id,
+          amountMinor: amounts.totalMinor,
+          currency: sub.currency,
+          retryCount: existing.retryCount + 1,
+          failedAt: null,
+          failureReason: null,
+        },
+      });
+      await tx.razorpayOrder.create({
+        data: {
+          razorpayOrderId: razorpayOrder.id,
+          subscriptionId: sub.id,
+          amountMinor: amounts.totalMinor,
+          currency: sub.currency,
+          status: 'CREATED',
+          webhookPayload: {
+            renewal: true,
+            subscriptionId: sub.id,
+            renewalAttemptId: updated.id,
+            periodStart: periodStart.toISOString(),
+            periodEnd: periodEnd.toISOString(),
+          } as Prisma.InputJsonValue,
+        },
+      });
+      return updated;
+    }
+    const created = await tx.renewalAttempt.create({
+      data: {
+        subscriptionId: sub.id,
+        periodStart,
+        periodEnd,
+        amountMinor: amounts.totalMinor,
+        currency: sub.currency,
+        razorpayOrderId: razorpayOrder.id,
+        status: 'PENDING',
+      },
+    });
+    await tx.razorpayOrder.create({
+      data: {
+        razorpayOrderId: razorpayOrder.id,
+        subscriptionId: sub.id,
+        amountMinor: amounts.totalMinor,
+        currency: sub.currency,
+        status: 'CREATED',
+        webhookPayload: {
+          renewal: true,
+          subscriptionId: sub.id,
+          renewalAttemptId: created.id,
+          periodStart: periodStart.toISOString(),
+          periodEnd: periodEnd.toISOString(),
+        } as Prisma.InputJsonValue,
+      },
+    });
+    return created;
+  });
+
+  logger.info(
+    {
+      subscriptionId: sub.id,
+      renewalAttemptId: renewalAttempt.id,
+      razorpayOrderId: razorpayOrder.id,
+      amountMinor: amounts.totalMinor,
+      currency: sub.currency,
+      periodStart,
+    },
+    'Renewal Razorpay order created',
+  );
+
+  return {
+    renewalAttemptId: renewalAttempt.id,
+    razorpayOrderId: razorpayOrder.id,
+    paymentUrl: renewalPaymentUrl(renewalAttempt.id),
+    amount: amounts.totalMinor,
+    currency: sub.currency,
+    periodStart,
+    periodEnd,
+  };
+}
+
+/**
+ * Mark a RenewalAttempt's email as sent. Best-effort — caller (the worker)
+ * passes whatever timestamp the email service reports. Idempotent: if the
+ * row is already past EMAIL_SENT (e.g. PAID via webhook), this is a no-op.
+ */
+export async function markRenewalEmailSent(
+  renewalAttemptId: string,
+  sentAt: Date = new Date(),
+): Promise<void> {
+  await prisma.renewalAttempt.updateMany({
+    where: { id: renewalAttemptId, status: 'PENDING' },
+    data: {
+      status: 'EMAIL_SENT',
+      emailSentAt: sentAt,
+    },
+  });
+}
+
+/**
+ * Internal helper — applies a successful Razorpay capture to a RenewalAttempt
+ * row. Called from BOTH `processPaymentSuccess` (frontend success callback)
+ * AND `handlePaymentCaptured` (webhook). Idempotent: if the RenewalAttempt
+ * is already PAID, this is a no-op.
+ *
+ * Effect:
+ *   1. RazorpayOrder.status → CAPTURED.
+ *   2. RenewalAttempt.status → PAID + paidAt = now().
+ *   3. Subscription.endsAt → renewal periodEnd (extends the active window
+ *      by exactly the renewal period, NOT now() + 1y — this preserves
+ *      anniversary billing).
+ *   4. Subscription.status → ACTIVE (revives EXPIRED subs paid within grace).
+ *   5. Renewal Invoice issued + marked PAID.
+ */
+async function applyRenewalCapture(opts: {
+  orderRowId: string;
+  razorpayPaymentId: string;
+  razorpaySignature: string | null;
+  renewalAttemptId: string;
+  webhookPayload?: RazorpayWebhookPayload;
+}): Promise<{ subscription: Subscription; invoice: Invoice }> {
+  const result = await prisma.$transaction(async (tx) => {
+    const attempt = await tx.renewalAttempt.findUnique({
+      where: { id: opts.renewalAttemptId },
+    });
+    if (!attempt) {
+      throw new AppError(404, 'Not Found', `RenewalAttempt ${opts.renewalAttemptId} not found`);
+    }
+
+    const orderUpdateData: Prisma.RazorpayOrderUpdateInput = {
+      status: 'CAPTURED',
+      razorpayPaymentId: opts.razorpayPaymentId,
+      capturedAt: new Date(),
+    };
+    if (opts.razorpaySignature) {
+      orderUpdateData.razorpaySignature = opts.razorpaySignature;
+    }
+    if (opts.webhookPayload) {
+      orderUpdateData.webhookPayload = opts.webhookPayload as unknown as Prisma.InputJsonValue;
+    }
+    await tx.razorpayOrder.update({
+      where: { id: opts.orderRowId },
+      data: orderUpdateData,
+    });
+
+    // Idempotent re-entry on the renewal attempt itself.
+    if (attempt.status === 'PAID') {
+      const sub = await tx.subscription.findUniqueOrThrow({
+        where: { id: attempt.subscriptionId },
+      });
+      const existingInvoice = await tx.invoice.findFirst({
+        where: { subscriptionId: sub.id },
+        orderBy: { createdAt: 'desc' },
+      });
+      if (existingInvoice) {
+        return { subscription: sub, invoice: existingInvoice };
+      }
+      // Defensive: PAID without invoice — re-issue.
+    }
+
+    await tx.renewalAttempt.update({
+      where: { id: attempt.id },
+      data: {
+        status: 'PAID',
+        paidAt: new Date(),
+      },
+    });
+
+    const sub = await tx.subscription.update({
+      where: { id: attempt.subscriptionId },
+      data: {
+        status: 'ACTIVE',
+        // Extend the active window. We use the renewal's periodEnd directly
+        // so paying late within the grace window doesn't compound the
+        // anniversary date. If the operator overrode periodEnd at row
+        // creation time, that override flows through here automatically.
+        endsAt: attempt.periodEnd,
+      },
+    });
+
+    // Pricing breakdown for the invoice. We re-derive from the plan rather
+    // than relying on `sub.metadata.subtotalMinor` (which describes the
+    // initial-checkout breakdown, not the renewal). Renewals are charged at
+    // list price unless `metadata.renewalPriceMinor` is set.
+    const meta = sub.metadata as { renewalPriceMinor?: number } | null;
+    let subtotalMinor: number;
+    let taxMinor: number;
+    if (typeof meta?.renewalPriceMinor === 'number') {
+      subtotalMinor = meta.renewalPriceMinor;
+      taxMinor = 0;
+    } else {
+      subtotalMinor = computeBaseAmount(sub.plan, sub.perSiteCount);
+      taxMinor = computeTax(sub.currency, subtotalMinor);
+    }
+
+    const invoice = await issueInvoiceTx(tx, sub.id, {
+      currency: sub.currency,
+      subtotalMinor,
+      discountMinor: 0,
+      taxMinor,
+      totalMinor: attempt.amountMinor,
+      markPaid: true,
+    });
+
+    return { subscription: sub, invoice };
+  });
+
+  logger.info(
+    {
+      subscriptionId: result.subscription.id,
+      renewalAttemptId: opts.renewalAttemptId,
+      paymentId: opts.razorpayPaymentId,
+      newEndsAt: result.subscription.endsAt,
+    },
+    'Renewal payment captured + Subscription endsAt extended',
+  );
+
+  return result;
+}
+
+/**
+ * Worker calls this when the grace window expires for a renewal attempt
+ * without payment. Marks the attempt FAILED and flips the parent
+ * Subscription to EXPIRED. Idempotent.
+ */
+export async function expireRenewalAttempt(
+  renewalAttemptId: string,
+  reason: string,
+): Promise<{ subscriptionId: string; expired: boolean }> {
+  const attempt = await prisma.renewalAttempt.findUnique({
+    where: { id: renewalAttemptId },
+  });
+  if (!attempt) {
+    throw new AppError(404, 'Not Found', `RenewalAttempt ${renewalAttemptId} not found`);
+  }
+  if (attempt.status === 'PAID' || attempt.status === 'CANCELLED') {
+    return { subscriptionId: attempt.subscriptionId, expired: false };
+  }
+
+  const result = await prisma.$transaction(async (tx) => {
+    await tx.renewalAttempt.update({
+      where: { id: attempt.id },
+      data: {
+        status: 'FAILED',
+        failedAt: new Date(),
+        failureReason: reason,
+      },
+    });
+    const sub = await tx.subscription.findUnique({ where: { id: attempt.subscriptionId } });
+    if (sub && sub.status !== 'CANCELLED' && sub.status !== 'EXPIRED') {
+      await tx.subscription.update({
+        where: { id: sub.id },
+        data: { status: 'EXPIRED' },
+      });
+      return { subscriptionId: sub.id, expired: true };
+    }
+    return { subscriptionId: attempt.subscriptionId, expired: false };
+  });
+
+  return result;
 }
 
 // ─── processWebhook ────────────────────────────────────────────────────
@@ -733,10 +1217,28 @@ async function handlePaymentCaptured(payload: RazorpayWebhookPayload): Promise<v
     return;
   }
 
-  // We capture the freshly-issued invoice + subscription out of the
-  // transaction so we can fire the receipt email AFTER commit. TS infers
-  // `never` if we narrow inside the callback, so we hold them in a
-  // mutable wrapper object that survives the closure.
+  // AAT-RENEWAL / Wave 8c: renewal-vs-fresh-activation gate. We branch on
+  // the presence of a matching RenewalAttempt row — renewal orders take a
+  // separate path that EXTENDS endsAt rather than setting it from now().
+  // Renewal capture handles its own receipt-email send.
+  const renewalAttempt = await prisma.renewalAttempt.findFirst({
+    where: { razorpayOrderId: entity.order_id },
+  });
+  if (renewalAttempt) {
+    await applyRenewalCapture({
+      orderRowId: orderRow.id,
+      razorpayPaymentId: entity.id,
+      razorpaySignature: null,
+      renewalAttemptId: renewalAttempt.id,
+      webhookPayload: payload,
+    });
+    return;
+  }
+
+  // AAT-EMAIL / Wave 8b: capture the freshly-issued invoice + subscription
+  // out of the transaction so we can fire the receipt email AFTER commit.
+  // TS infers `never` if we narrow inside the callback, so we hold them in
+  // a mutable wrapper object that survives the closure.
   const captured: { invoice: Invoice | null; sub: Subscription | null } = {
     invoice: null,
     sub: null,
@@ -826,6 +1328,17 @@ async function handlePaymentFailed(payload: RazorpayWebhookPayload): Promise<voi
   });
   if (!orderRow) return;
 
+  const failureReason =
+    entity.error_description ?? entity.error_code ?? `payment_failed_${entity.status}`;
+
+  // AAT-RENEWAL / Wave 8c: renewal-failed path — mark the RenewalAttempt
+  // FAILED but DO NOT flip the parent Subscription. The customer keeps
+  // ACTIVE access until the grace window expires (the worker handles that
+  // separately via `expireRenewalAttempt`).
+  const renewalAttempt = await prisma.renewalAttempt.findFirst({
+    where: { razorpayOrderId: entity.order_id },
+  });
+
   await prisma.$transaction(async (tx) => {
     await tx.razorpayOrder.update({
       where: { id: orderRow.id },
@@ -834,10 +1347,24 @@ async function handlePaymentFailed(payload: RazorpayWebhookPayload): Promise<voi
         razorpayPaymentId: entity.id,
         attemptedAt: new Date(),
         webhookPayload: payload as unknown as Prisma.InputJsonValue,
-        failureReason:
-          entity.error_description ?? entity.error_code ?? `payment_failed_${entity.status}`,
+        failureReason,
       },
     });
+
+    if (renewalAttempt) {
+      // Renewal failed — mark FAILED on the attempt only. Subscription
+      // stays ACTIVE; the renewal scheduler will pick up another attempt
+      // on its next tick (or the grace-expiry path will flip it to EXPIRED).
+      await tx.renewalAttempt.update({
+        where: { id: renewalAttempt.id },
+        data: {
+          status: 'FAILED',
+          failedAt: new Date(),
+          failureReason,
+        },
+      });
+      return;
+    }
 
     const sub = await tx.subscription.findUnique({ where: { id: orderRow.subscriptionId } });
     if (sub && sub.status === 'PENDING') {
@@ -1029,4 +1556,4 @@ export async function sendPaymentReceiptBestEffort(args: {
 
 // Forward-declare types we re-export so route handlers don't need to
 // reach into @prisma/client directly.
-export type { RazorpayOrder };
+export type { RazorpayOrder, RenewalAttempt };

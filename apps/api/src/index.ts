@@ -58,6 +58,8 @@ import { retentionHeaderMiddleware } from './middleware/retention-header.js';
 import { startRetentionWorker } from './workers/retention-archival.worker.js';
 // AAT-ζ / AV4-375: Aurigraph events worker (burn/retire/delist → BCR sync)
 import { startAurigraphEventsWorker } from './workers/aurigraph-events.worker.js';
+// AAT-RENEWAL / Wave 8c: subscription renewal scheduler (daily scan)
+import { startRenewalScheduler } from './workers/subscription-renewal.worker.js';
 import { logger } from './lib/logger.js';
 
 const app: Express = express();
@@ -175,6 +177,17 @@ if (process.env.NODE_ENV !== 'test') {
   if (process.env.AURIGRAPH_EVENTS_WORKER_ENABLED === '1') {
     startAurigraphEventsWorker().catch((err) => {
       logger.error({ err }, 'Failed to start Aurigraph events worker');
+    });
+  }
+
+  // AAT-RENEWAL / Wave 8c: opt-in subscription renewal scheduler.
+  // Default OFF — operator must set SUBSCRIPTION_RENEWAL_WORKER_ENABLED=1.
+  // The worker scans every 24h (override via SUBSCRIPTION_RENEWAL_INTERVAL_MS)
+  // and self-schedules via setTimeout — same pattern as
+  // aurigraph-events.worker.ts.
+  if (process.env.SUBSCRIPTION_RENEWAL_WORKER_ENABLED === '1') {
+    startRenewalScheduler().catch((err) => {
+      logger.error({ err }, 'Failed to start subscription renewal scheduler');
     });
   }
 }
