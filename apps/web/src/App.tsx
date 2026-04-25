@@ -1,5 +1,8 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { useEffect } from 'react';
+import { BrowserRouter, Routes, Route, useNavigate } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { setOnboardingIncompleteHandler } from './lib/api';
+import { useToast } from './contexts/ToastContext';
 
 import { PublicLayout } from './layouts/PublicLayout';
 import { PublicLayout as BiocarbonPublicLayout } from './components/layout/PublicLayout';
@@ -22,6 +25,8 @@ import { VerifyEmailPage } from './pages/auth/VerifyEmailPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { EmissionsPage } from './pages/dashboard/EmissionsPage';
 import { EmissionsDataEntry } from './pages/dashboard/emissions/EmissionsDataEntry';
+import { EmissionDetailPage } from './pages/dashboard/emissions/EmissionDetailPage';
+import { EmissionEditPage } from './pages/dashboard/emissions/EmissionEditPage';
 import { BaselinesPage } from './pages/dashboard/emissions/BaselinesPage';
 import { TargetsPage } from './pages/dashboard/emissions/TargetsPage';
 import { AnalyticsPage } from './pages/dashboard/AnalyticsPage';
@@ -64,10 +69,32 @@ const queryClient = new QueryClient({
   },
 });
 
+/**
+ * AAT-WORKFLOW (Wave 9a): registers the api.ts onboarding-incomplete handler
+ * with toast + react-router navigation. Mounted inside <BrowserRouter> so
+ * `useNavigate` works; rendered as a sibling to <Routes> so it has no DOM
+ * footprint.
+ */
+function OnboardingInterceptorBridge() {
+  const navigate = useNavigate();
+  const toast = useToast();
+  useEffect(() => {
+    setOnboardingIncompleteHandler(({ detail, nextStep }) => {
+      toast.warning(detail || 'Please complete onboarding first');
+      navigate(nextStep || '/onboarding');
+    });
+    return () => {
+      setOnboardingIncompleteHandler(null);
+    };
+  }, [navigate, toast]);
+  return null;
+}
+
 export function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <BrowserRouter>
+        <OnboardingInterceptorBridge />
         <Routes>
           {/* Public routes */}
           <Route element={<PublicLayout />}>
@@ -103,6 +130,10 @@ export function App() {
             <Route path="/emissions/import" element={<BulkUploadPage />} />
             <Route path="/emissions/baselines" element={<BaselinesPage />} />
             <Route path="/emissions/targets" element={<TargetsPage />} />
+            {/* AAT-WORKFLOW (Wave 9a): detail + edit views — previously
+                404'd from the EmissionsPage View/Edit buttons. */}
+            <Route path="/emissions/:id" element={<EmissionDetailPage />} />
+            <Route path="/emissions/:id/edit" element={<EmissionEditPage />} />
             <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/reports/build/:type" element={<ReportBuilderPage />} />

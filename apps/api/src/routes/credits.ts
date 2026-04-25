@@ -4,6 +4,7 @@ import { prisma } from '@aurex/database';
 import { requireAuth } from '../middleware/auth.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
 import { requireOrgRole } from '../middleware/org-role.js';
+import { requireOnboardingComplete } from '../middleware/onboarding-gate.js';
 import { AppError } from '../middleware/error-handler.js';
 import * as creditsService from '../services/credits.service.js';
 import * as transactionService from '../services/transaction.service.js';
@@ -54,6 +55,7 @@ const retireSchema = z.object({
 
 creditsRouter.post(
   '/blocks/:id/retire',
+  requireOnboardingComplete,
   requireOrgRole('ORG_ADMIN', 'SUPER_ADMIN'),
   async (req, res, next) => {
     try {
@@ -84,6 +86,7 @@ const transferSchema = z.object({
 
 creditsRouter.post(
   '/blocks/:id/transfer',
+  requireOnboardingComplete,
   requireOrgRole('ORG_ADMIN', 'SUPER_ADMIN'),
   async (req, res, next) => {
     try {

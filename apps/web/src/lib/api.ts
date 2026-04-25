@@ -1,5 +1,74 @@
 const API_BASE = '/api/v1';
 
+/**
+ * AAT-WORKFLOW (Wave 9a): Onboarding-incomplete RFC 7807 marker.
+ *
+ * The API returns 412 with this `type` when the caller's org hasn't finished
+ * the onboarding wizard (see apps/api/src/middleware/onboarding-gate.ts).
+ * The interceptor below intercepts that response, shows a toast, and
+ * redirects the browser to `nextStep` (defaulting to `/onboarding`).
+ */
+export const ONBOARDING_INCOMPLETE_TYPE =
+  'https://aurex.in/errors/onboarding-incomplete';
+
+interface OnboardingIncompleteBody {
+  type: string;
+  title?: string;
+  detail?: string;
+  nextStep?: string;
+}
+
+function isOnboardingIncompleteBody(value: unknown): value is OnboardingIncompleteBody {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  return typeof v.type === 'string' && v.type === ONBOARDING_INCOMPLETE_TYPE;
+}
+
+/**
+ * Pluggable onboarding-incomplete handler. The frontend wires this once at
+ * app boot from the ToastContext + react-router so we can surface a toast
+ * and redirect without coupling api.ts to React.
+ */
+type OnboardingIncompleteHandler = (info: {
+  detail: string;
+  nextStep: string;
+}) => void;
+
+let onboardingIncompleteHandler: OnboardingIncompleteHandler | null = null;
+
+export function setOnboardingIncompleteHandler(
+  handler: OnboardingIncompleteHandler | null,
+): void {
+  onboardingIncompleteHandler = handler;
+}
+
+/**
+ * Pure helper used by both the live `request()` interceptor and the unit
+ * tests. Given a parsed JSON body + status, decides whether this is the
+ * onboarding-incomplete signal and (if so) invokes the registered handler.
+ * Returns `{ handled, nextStep }` so callers can short-circuit further error
+ * processing.
+ */
+export function maybeHandleOnboardingIncomplete(
+  status: number,
+  body: unknown,
+): { handled: boolean; nextStep: string | null } {
+  if (status !== 412) return { handled: false, nextStep: null };
+  if (!isOnboardingIncompleteBody(body)) return { handled: false, nextStep: null };
+
+  const nextStep = body.nextStep ?? '/onboarding';
+  const detail = body.detail ?? 'Please complete onboarding first';
+
+  if (onboardingIncompleteHandler) {
+    onboardingIncompleteHandler({ detail, nextStep });
+  } else if (typeof window !== 'undefined') {
+    // Fallback: hard navigate when no React-aware handler is wired yet (e.g.
+    // very early boot or unit-test envs without the provider).
+    window.location.href = nextStep;
+  }
+  return { handled: true, nextStep };
+}
+
 class ApiError extends Error {
   status: number;
   data: unknown;
@@ -76,6 +145,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
 
   // Throw on non-ok status
   if (!response.ok) {
+    // AAT-WORKFLOW (Wave 9a): intercept 412 onboarding-incomplete before the
+    // generic error path. Trigger a toast + nav-redirect via the registered
+    // handler, then still throw so the calling react-query mutation/query
+    // resolves to an error state (the user has been told what to do; we just
+    // don't want a misleading "Internal Server Error" toast on top).
+    maybeHandleOnboardingIncomplete(response.status, data);
+
     const message =
       (data && typeof data === 'object' && 'detail' in data
         ? String((data as { detail: unknown }).detail)

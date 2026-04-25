@@ -16,7 +16,8 @@ export function SupportPage() {
           <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>Support Center</h2>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)' }}>Track support tickets, SLAs, and technical enablement requests.</p>
         </div>
-        <Button>Create Ticket</Button>
+        {/* AAT-WORKFLOW (Wave 9a): support backend not wired — disabled with tooltip. */}
+        <Button disabled title="Coming soon — email support@aurex.in for now">Create Ticket</Button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
@@ -57,7 +58,7 @@ export function SupportPage() {
                       {ticket.status.replace('_', ' ')}
                     </Badge>
                   </td>
-                  <td style={{ padding: '0.875rem 1rem', textAlign: 'right' }}><Button size="sm" variant="outline">Open</Button></td>
+                  <td style={{ padding: '0.875rem 1rem', textAlign: 'right' }}><Button size="sm" variant="outline" disabled title="Coming soon — Wave 10">Open</Button></td>
                 </tr>
               ))}
             </tbody>

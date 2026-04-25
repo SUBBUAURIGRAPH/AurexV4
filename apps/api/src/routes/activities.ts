@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAuth } from '../middleware/auth.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
 import { requireOrgRole } from '../middleware/org-role.js';
+import { requireOnboardingComplete } from '../middleware/onboarding-gate.js';
 import * as activityService from '../services/activity.service.js';
 import * as reversalService from '../services/reversal.service.js';
 
@@ -57,7 +58,7 @@ activitiesRouter.get('/', async (req, res, next) => {
 });
 
 /** POST / — create activity (manager+) */
-activitiesRouter.post('/', requireOrgRole(...WRITE_ROLES), async (req, res, next) => {
+activitiesRouter.post('/', requireOnboardingComplete, requireOrgRole(...WRITE_ROLES), async (req, res, next) => {
   try {
     const data = createActivitySchema.parse(req.body);
     const activity = await activityService.createActivity({
@@ -96,7 +97,7 @@ activitiesRouter.get('/:id', async (req, res, next) => {
 });
 
 /** PATCH /:id — only while DRAFT or REJECTED (see service guard) */
-activitiesRouter.patch('/:id', requireOrgRole(...WRITE_ROLES), async (req, res, next) => {
+activitiesRouter.patch('/:id', requireOnboardingComplete, requireOrgRole(...WRITE_ROLES), async (req, res, next) => {
   try {
     const data = updateActivitySchema.parse(req.body);
     const updated = await activityService.updateActivity(
@@ -116,7 +117,7 @@ activitiesRouter.patch('/:id', requireOrgRole(...WRITE_ROLES), async (req, res, 
 });
 
 /** POST /:id/submit — DRAFT → SUBMITTED (manager+) */
-activitiesRouter.post('/:id/submit', requireOrgRole(...WRITE_ROLES), async (req, res, next) => {
+activitiesRouter.post('/:id/submit', requireOnboardingComplete, requireOrgRole(...WRITE_ROLES), async (req, res, next) => {
   try {
     const row = await activityService.submitActivity(req.params.id as string, req.orgId!, req.user!.sub);
     res.json({ data: row });

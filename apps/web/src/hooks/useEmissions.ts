@@ -66,6 +66,18 @@ export interface EmissionsFilters {
    Hooks
    ============================================ */
 
+/**
+ * AAT-WORKFLOW (Wave 9a): fetch one emission record by id. Powers the new
+ * /emissions/:id detail view and the edit-form prefill.
+ */
+export function useEmission(id: string | undefined) {
+  return useQuery<{ data: EmissionEntry }>({
+    queryKey: ['emissions', 'detail', id],
+    queryFn: () => api.get<{ data: EmissionEntry }>(`/emissions/${id}`),
+    enabled: !!id,
+  });
+}
+
 export function useEmissions(filters: EmissionsFilters) {
   const params: Record<string, string | number | boolean | undefined> = {
     scope: filters.scope,

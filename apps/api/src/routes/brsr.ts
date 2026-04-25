@@ -7,6 +7,7 @@ import {
 } from '@aurex/shared';
 import { requireAuth } from '../middleware/auth.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
+import { requireOnboardingComplete } from '../middleware/onboarding-gate.js';
 import * as brsrService from '../services/brsr.service.js';
 
 export const brsrRouter: IRouter = Router();
@@ -61,7 +62,7 @@ brsrRouter.get('/responses', requireOrgScope, async (req, res, next) => {
   }
 });
 
-brsrRouter.put('/responses', requireOrgScope, async (req, res, next) => {
+brsrRouter.put('/responses', requireOrgScope, requireOnboardingComplete, async (req, res, next) => {
   try {
     const data = upsertBrsrResponseSchema.parse(req.body);
     const row = await brsrService.upsertResponse(req.orgId!, req.user!.sub, data);

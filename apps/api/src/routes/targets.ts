@@ -2,6 +2,7 @@ import { Router, type IRouter } from 'express';
 import { createTargetSchema, updateTargetSchema, recordProgressSchema } from '@aurex/shared';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
+import { requireOnboardingComplete } from '../middleware/onboarding-gate.js';
 import { logger } from '../lib/logger.js';
 import * as targetService from '../services/target.service.js';
 
@@ -15,6 +16,7 @@ targetRouter.use(requireAuth, requireOrgScope);
  */
 targetRouter.post(
   '/',
+  requireOnboardingComplete,
   requireRole('manager', 'org_admin', 'super_admin'),
   async (req, res, next) => {
     try {
@@ -76,6 +78,7 @@ targetRouter.get('/:id', async (req, res, next) => {
  */
 targetRouter.patch(
   '/:id/approve',
+  requireOnboardingComplete,
   requireRole('org_admin', 'super_admin'),
   async (req, res, next) => {
     try {
@@ -97,6 +100,7 @@ targetRouter.patch(
  */
 targetRouter.patch(
   '/:id',
+  requireOnboardingComplete,
   requireRole('manager', 'org_admin', 'super_admin'),
   async (req, res, next) => {
     try {
@@ -124,6 +128,7 @@ targetRouter.patch(
  */
 targetRouter.post(
   '/:id/progress',
+  requireOnboardingComplete,
   requireRole('manager', 'org_admin', 'super_admin'),
   async (req, res, next) => {
     try {

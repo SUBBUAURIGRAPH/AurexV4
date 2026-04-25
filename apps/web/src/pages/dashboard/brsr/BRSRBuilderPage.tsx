@@ -181,13 +181,49 @@ export function BRSRBuilderPage() {
       {/* ── Main: indicators ──────────────────────────────────────── */}
       <main style={{ flex: 1, minWidth: 0 }}>
         {/* Header */}
-        <div style={{ marginBottom: '1rem' }}>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
-            BRSR Builder
-          </h1>
-          <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
-            Respond to BRSR indicators for your organisation. Answers are saved per fiscal year.
-          </p>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            justifyContent: 'space-between',
+            gap: '1rem',
+            marginBottom: '1rem',
+            flexWrap: 'wrap',
+          }}
+        >
+          <div>
+            <h1 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-primary)', margin: 0 }}>
+              BRSR Builder
+            </h1>
+            <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+              Respond to BRSR indicators for your organisation. Answers are saved per fiscal year.
+            </p>
+          </div>
+          {/*
+            AAT-WORKFLOW (Wave 9a): explicit Generate PDF affordance with
+            disabled state + tooltip. PDF / XBRL output isn't wired yet
+            (Wave 10) — but rendering the button as disabled tells the user
+            the path exists rather than leaving them hunting for it.
+          */}
+          <button
+            type="button"
+            disabled
+            title="Coming soon — PDF / XBRL export wired in Wave 10"
+            style={{
+              fontFamily: 'inherit',
+              fontSize: '0.8125rem',
+              fontWeight: 600,
+              padding: '0.5rem 1rem',
+              borderRadius: '0.5rem',
+              border: '1.5px solid var(--border-primary)',
+              backgroundColor: 'var(--bg-card)',
+              color: 'var(--text-tertiary)',
+              cursor: 'not-allowed',
+              opacity: 0.7,
+            }}
+          >
+            Generate PDF
+          </button>
         </div>
 
         {/* Section header + progress */}

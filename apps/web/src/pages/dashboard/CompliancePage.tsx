@@ -17,7 +17,8 @@ export function CompliancePage() {
           <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>Compliance Center</h2>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)' }}>Track obligations, deadlines, and disclosure readiness across frameworks.</p>
         </div>
-        <Button variant="outline">Export Calendar</Button>
+        {/* AAT-WORKFLOW (Wave 9a): static mock data — honest disabled state. */}
+        <Button variant="outline" disabled title="Coming soon — Wave 10">Export Calendar</Button>
       </div>
 
       <Card padding="none">
@@ -43,7 +44,7 @@ export function CompliancePage() {
                       {item.status === 'on_track' ? 'On Track' : item.status === 'at_risk' ? 'At Risk' : 'Review Pending'}
                     </Badge>
                   </td>
-                  <td style={{ padding: '0.875rem 1rem', textAlign: 'right' }}><Button size="sm" variant="ghost">Open</Button></td>
+                  <td style={{ padding: '0.875rem 1rem', textAlign: 'right' }}><Button size="sm" variant="ghost" disabled title="Coming soon — obligation drill-down in Wave 10">Open</Button></td>
                 </tr>
               ))}
             </tbody>

@@ -6,6 +6,7 @@ import { Table } from '../../components/ui/Table';
 import type { TableColumn } from '../../components/ui/Table';
 import { Pagination } from '../../components/ui/Pagination';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { Button } from '../../components/ui/Button';
 
 function formatTimestamp(iso: string): string {
   const d = new Date(iso);
@@ -138,26 +139,52 @@ export function AuditLogsPage() {
 
   return (
     <div style={{ padding: '1.5rem', maxWidth: '1280px', margin: '0 auto' }}>
-      <div style={{ marginBottom: '1.5rem' }}>
-        <h1
-          style={{
-            fontSize: '1.5rem',
-            fontWeight: 700,
-            color: 'var(--text-primary)',
-            margin: 0,
-          }}
+      <div
+        style={{
+          marginBottom: '1.5rem',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'flex-end',
+          gap: '1rem',
+          flexWrap: 'wrap',
+        }}
+      >
+        <div>
+          <h1
+            style={{
+              fontSize: '1.5rem',
+              fontWeight: 700,
+              color: 'var(--text-primary)',
+              margin: 0,
+            }}
+          >
+            Audit Logs
+          </h1>
+          <p
+            style={{
+              fontSize: '0.875rem',
+              color: 'var(--text-tertiary)',
+              marginTop: '0.25rem',
+            }}
+          >
+            Immutable trace of platform and governance actions.
+          </p>
+        </div>
+        {/*
+          AAT-WORKFLOW (Wave 9a): expose the Export CSV control as a
+          disabled button rather than missing entirely. The /audit-logs
+          API does not yet accept ?format=csv (audit-log.service exposes
+          listAudit() with JSON-only output), so wiring it up to a real
+          download is a Wave 10 follow-up.
+        */}
+        <Button
+          variant="outline"
+          size="sm"
+          disabled
+          title="Coming soon — CSV export wired in Wave 10"
         >
-          Audit Logs
-        </h1>
-        <p
-          style={{
-            fontSize: '0.875rem',
-            color: 'var(--text-tertiary)',
-            marginTop: '0.25rem',
-          }}
-        >
-          Immutable trace of platform and governance actions.
-        </p>
+          Export CSV
+        </Button>
       </div>
 
       {/* Filter bar */}

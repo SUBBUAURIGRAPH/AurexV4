@@ -15,6 +15,7 @@ import {
   EmissionStatus,
 } from '../../hooks/useEmissions';
 import type { Scope } from '../../hooks/useBaselines';
+import { useOnboarding } from '../../hooks/useOnboarding';
 import { useToast } from '../../contexts/ToastContext';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -116,6 +117,12 @@ export function EmissionsPage() {
     page,
     pageSize,
   });
+  // AAT-WORKFLOW (Wave 9a): when onboarding isn't done, the "Add Entry"
+  // button would 412 server-side — point the user to /onboarding instead.
+  const onboarding = useOnboarding();
+  const onboardingStatus = onboarding.data?.data?.status;
+  const onboardingDone =
+    onboardingStatus === 'COMPLETED' || onboardingStatus === 'SKIPPED';
 
   const updateStatus = useUpdateEmissionStatus();
 
@@ -458,11 +465,19 @@ export function EmissionsPage() {
       {!isError && (
         <Card padding="none">
           {!isLoading && emissions.length === 0 ? (
-            <EmptyState
-              title="No emissions recorded yet"
-              description="Start tracking your greenhouse gas emissions by adding your first entry."
-              action={{ label: 'Add Entry', onClick: () => navigate('/emissions/new') }}
-            />
+            onboardingDone ? (
+              <EmptyState
+                title="No emissions recorded yet"
+                description="Start tracking your greenhouse gas emissions by adding your first entry."
+                action={{ label: 'Add Entry', onClick: () => navigate('/emissions/new') }}
+              />
+            ) : (
+              <EmptyState
+                title="Finish onboarding to start logging emissions"
+                description="Aurex needs your org profile (name, region, sectors) before it can attribute emissions to you. The wizard takes about 90 seconds."
+                action={{ label: 'Open onboarding wizard', onClick: () => navigate('/onboarding') }}
+              />
+            )
           ) : (
             <>
               {/* Select-all header checkbox */}

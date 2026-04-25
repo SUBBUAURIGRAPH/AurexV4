@@ -304,7 +304,15 @@ function DataTab() {
         <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', marginBottom: '1.25rem' }}>
           Irreversible actions. Proceed with caution.
         </p>
-        <Button variant="danger" size="sm">Delete Account</Button>
+        {/* AAT-WORKFLOW (Wave 9a): account deletion API isn't built — disable so the click is honest. */}
+        <Button
+          variant="danger"
+          size="sm"
+          disabled
+          title="Coming soon — email support@aurex.in to request account deletion"
+        >
+          Delete Account
+        </Button>
       </Card>
     </div>
   );

@@ -18,7 +18,8 @@ export function IntegrationsPage() {
           <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>Integrations</h2>
           <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)' }}>Connect enterprise systems and monitor integration health.</p>
         </div>
-        <Button>Connect Integration</Button>
+        {/* AAT-WORKFLOW (Wave 9a): integrations catalogue is mock data — disable until backend lands. */}
+        <Button disabled title="Coming soon — integration marketplace in Wave 10">Connect Integration</Button>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem' }}>
@@ -32,7 +33,7 @@ export function IntegrationsPage() {
             </div>
             <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', marginBottom: '1rem' }}>{item.category}</p>
             <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>Last sync: {item.lastSync}</p>
-            <Button size="sm" variant="outline">Configure</Button>
+            <Button size="sm" variant="outline" disabled title="Coming soon — Wave 10">Configure</Button>
           </Card>
         ))}
       </div>

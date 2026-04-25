@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
+import { NextStepsWidget } from '../../components/dashboard/NextStepsWidget';
 import { useAnalyticsSummary, useAnalyticsTrend, useAnalyticsBreakdown, useAnalyticsTopSources } from '../../hooks/useAnalytics';
 
 /* ============================================
@@ -178,6 +179,9 @@ export function DashboardPage() {
         </h2>
         <p style={{ fontSize: '0.9375rem', color: 'var(--text-tertiary)' }}>{formatDate()}</p>
       </div>
+
+      {/* AAT-WORKFLOW (Wave 9a): linear setup checklist surfaces what's next. */}
+      <NextStepsWidget />
 
       {/* Row 1: Stat Cards */}
       <div

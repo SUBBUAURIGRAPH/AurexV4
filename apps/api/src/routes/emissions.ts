@@ -8,6 +8,7 @@ import {
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
 import { requireOrgRole } from '../middleware/org-role.js';
+import { requireOnboardingComplete } from '../middleware/onboarding-gate.js';
 import { logger } from '../lib/logger.js';
 import * as emissionsService from '../services/emissions.service.js';
 import { exportEmissionsCsv } from '../services/export.service.js';
@@ -38,6 +39,7 @@ emissionsRouter.use(requireAuth, requireOrgScope);
  */
 emissionsRouter.post(
   '/bulk-status',
+  requireOnboardingComplete,
   requireRole('manager', 'org_admin', 'super_admin'),
   async (req, res, next) => {
     try {
@@ -62,7 +64,7 @@ emissionsRouter.post(
  */
 const CONTRIBUTOR_ROLES = ['MAKER', 'CHECKER', 'APPROVER', 'MANAGER', 'ORG_ADMIN', 'SUPER_ADMIN'];
 
-emissionsRouter.post('/', requireOrgRole(...CONTRIBUTOR_ROLES), async (req, res, next) => {
+emissionsRouter.post('/', requireOnboardingComplete, requireOrgRole(...CONTRIBUTOR_ROLES), async (req, res, next) => {
   try {
     const data = createEmissionSchema.parse(req.body);
 
@@ -183,7 +185,7 @@ emissionsRouter.get('/:id', async (req, res, next) => {
  *
  * Must be registered before PATCH /:id to avoid route conflict.
  */
-emissionsRouter.patch('/:id/status', async (req, res, next) => {
+emissionsRouter.patch('/:id/status', requireOnboardingComplete, async (req, res, next) => {
   try {
     const id = req.params.id as string;
     const { status } = updateEmissionStatusSchema.parse(req.body);
@@ -274,7 +276,7 @@ emissionsRouter.patch('/:id/status', async (req, res, next) => {
  * PATCH /:id — Update emission record
  * Only if status is DRAFT or REJECTED.
  */
-emissionsRouter.patch('/:id', requireOrgRole(...CONTRIBUTOR_ROLES), async (req, res, next) => {
+emissionsRouter.patch('/:id', requireOnboardingComplete, requireOrgRole(...CONTRIBUTOR_ROLES), async (req, res, next) => {
   try {
     const id = req.params.id as string;
     const data = updateEmissionSchema.parse(req.body);
@@ -295,7 +297,7 @@ emissionsRouter.patch('/:id', requireOrgRole(...CONTRIBUTOR_ROLES), async (req, 
  * DELETE /:id — Delete emission record
  * Only if status is DRAFT.
  */
-emissionsRouter.delete('/:id', requireOrgRole('MANAGER', 'ORG_ADMIN', 'SUPER_ADMIN'), async (req, res, next) => {
+emissionsRouter.delete('/:id', requireOnboardingComplete, requireOrgRole('MANAGER', 'ORG_ADMIN', 'SUPER_ADMIN'), async (req, res, next) => {
   try {
     const id = req.params.id as string;
     await emissionsService.deleteEmission(id, req.orgId!);

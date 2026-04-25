@@ -2,6 +2,7 @@ import { Router, type IRouter } from 'express';
 import { createBaselineSchema, updateBaselineSchema } from '@aurex/shared';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
+import { requireOnboardingComplete } from '../middleware/onboarding-gate.js';
 import { logger } from '../lib/logger.js';
 import * as baselineService from '../services/baseline.service.js';
 
@@ -15,6 +16,7 @@ baselineRouter.use(requireAuth, requireOrgScope);
  */
 baselineRouter.post(
   '/',
+  requireOnboardingComplete,
   requireRole('manager', 'org_admin', 'super_admin'),
   async (req, res, next) => {
     try {
@@ -77,6 +79,7 @@ baselineRouter.get('/:id', async (req, res, next) => {
  */
 baselineRouter.patch(
   '/:id',
+  requireOnboardingComplete,
   requireRole('manager', 'org_admin', 'super_admin'),
   async (req, res, next) => {
     try {
@@ -104,6 +107,7 @@ baselineRouter.patch(
  */
 baselineRouter.delete(
   '/:id',
+  requireOnboardingComplete,
   requireRole('manager', 'org_admin', 'super_admin'),
   async (req, res, next) => {
     try {
