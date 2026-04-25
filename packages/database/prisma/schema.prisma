@@ -1085,6 +1085,18 @@ model Issuance {
   requestedAt         DateTime @default(now()) @map("requested_at")
   issuedAt            DateTime? @map("issued_at")
   serialBlockId       String?  @map("serial_block_id") @db.Uuid
+  // ── Biocarbon Sprint 2 — SDK tokenization (AAT-ε / AV4-373) ──────────────
+  // Append-only mint trail. Populated by `tokenization.service.ts` after a
+  // successful BCR lock + Aurigraph DLT `contracts.deploy(UC_CARBON, …)`.
+  // Idempotency: presence of `tokenizationContractId` short-circuits a
+  // re-tokenize call. None of these fields ever transition back to NULL —
+  // a failed mint records FAILED + leaves contract/tx fields unset.
+  tokenizationStatus     TokenizationStatus? @map("tokenization_status")
+  tokenizationContractId String?  @map("tokenization_contract_id") @db.VarChar(255)
+  tokenizationTxHash     String?  @map("tokenization_tx_hash") @db.VarChar(255)
+  bcrSerialId            String?  @map("bcr_serial_id") @db.VarChar(255)
+  bcrLockId              String?  @map("bcr_lock_id") @db.VarChar(255)
+  tokenizedAt            DateTime? @map("tokenized_at")
   createdAt           DateTime @default(now()) @map("created_at")
   updatedAt           DateTime @updatedAt @map("updated_at")
 
@@ -1093,6 +1105,8 @@ model Issuance {
   serialBlock CreditUnitBlock?  @relation(fields: [serialBlockId], references: [id])
 
   @@index([activityId, status])
+  @@index([tokenizationContractId])
+  @@index([bcrSerialId])
   @@map("issuances")
 }
 
@@ -1101,6 +1115,18 @@ enum IssuanceStatus {
   APPROVED    @map("approved")
   ISSUED      @map("issued")
   REJECTED    @map("rejected")
+}
+
+/// Biocarbon SDK tokenization lifecycle (AAT-ε / AV4-373). Populated on
+/// `Issuance.tokenizationStatus` after `tokenization.service.tokenizeIssuance`.
+///
+///   PENDING — lock acquired, mint attempted but not yet observed durable
+///   MINTED  — `contracts.deploy(UC_CARBON, …)` succeeded; contractId + txHash set
+///   FAILED  — confirmLock or deployContract failed; lock released best-effort
+enum TokenizationStatus {
+  PENDING @map("pending")
+  MINTED  @map("minted")
+  FAILED  @map("failed")
 }
 
 enum CreditUnitType {
