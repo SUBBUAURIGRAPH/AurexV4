@@ -40,6 +40,8 @@ import { pddsRouter } from './routes/pdds.js';
 import { adminRetentionRouter } from './routes/admin-retention.js';
 // A6.4 Phase C (AAT-2): corresponding adjustments / BTR export
 import { correspondingAdjustmentsRouter } from './routes/corresponding-adjustments.js';
+// AAT-θ / AV4-354: KYC / CDD / AML / CTF adapter (BCR binding requirement B15)
+import { kycRouter } from './routes/kyc.js';
 // AV4-338 / AAT-7: retention header + nightly archival worker
 import { retentionHeaderMiddleware } from './middleware/retention-header.js';
 import { startRetentionWorker } from './workers/retention-archival.worker.js';
@@ -116,6 +118,8 @@ app.use('/api/v1/pdds', pddsRouter);
 app.use('/api/v1/admin/retention', adminRetentionRouter);
 // A6.4 Phase C (AAT-2)
 app.use('/api/v1/corresponding-adjustments', correspondingAdjustmentsRouter);
+// AAT-θ / AV4-354: KYC / CDD / AML / CTF adapter (BCR binding requirement B15)
+app.use('/api/v1/kyc', kycRouter);
 
 // ADM-052: RFC 7807 error handler
 app.use(errorHandler);

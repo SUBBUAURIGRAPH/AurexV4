@@ -1714,3 +1714,91 @@ model DelistRequest {
   @@index([bcrSerialId])
   @@map("delist_requests")
 }
+
+// ─── Biocarbon Sprint 3 — KYC / CDD / AML / CTF adapter (AAT-θ / AV4-354) ──
+// Satisfies BCR binding requirement B15: "KYC / CDD / AML / CTF + tax
+// compliance on marketplace" (docs/BIOCARBON_TOKENIZATION_GUIDELINES_RESEARCH.md).
+// Also seeds B16 (beneficiary identity verification) ahead of the BCR
+// retirement pass-through implemented in AAT-ι.
+//
+// The adapter pattern mirrors the BCR adapter exactly (Sprint 1):
+//   - Default `disabled` adapter — no-op, returns `synced=false` with a
+//     "vendor onboarding pending" reason. No network side-effects until a
+//     vendor (Sumsub / Onfido / Persona) contract is signed.
+//   - `mock` adapter — in-memory state machine for tests + Aurigraph DLT
+//     V12 sandbox.
+//   - Reserved `sumsub` / `onfido` / `persona` slots — throw at startup
+//     until the concrete adapter lands.
+//
+// `KycVerification` rows attach to either a User (org-scoped onboarding
+// flow) or to a free-standing beneficiary identity (B16: external retiree
+// not in the User table). `KycVerificationEvent` is the append-only audit
+// trail mirroring `BcrRegistrySyncEvent`.
+
+enum KycSubjectKind {
+  USER        @map("user")
+  BENEFICIARY @map("beneficiary")
+}
+
+enum KycLevel {
+  BASIC    @map("basic")
+  ENHANCED @map("enhanced")
+}
+
+enum KycStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  REVOKED
+}
+
+enum KycEventType {
+  START_VERIFICATION
+  GET_STATUS
+  MARK_BENEFICIARY
+  REVOKE
+  LIST_FOR_SUBJECT
+}
+
+model KycVerification {
+  id              String                @id @default(uuid()) @db.Uuid
+  subjectKind     KycSubjectKind        @map("subject_kind")
+  subjectRef      String                @map("subject_ref") @db.VarChar(255)
+  level           KycLevel              @default(BASIC)
+  status          KycStatus             @default(PENDING)
+  vendorName      String?               @map("vendor_name") @db.VarChar(64)
+  vendorRef       String?               @map("vendor_ref") @db.VarChar(255)
+  riskScore       Int?                  @map("risk_score")
+  sanctionsHit    Boolean?              @map("sanctions_hit")
+  beneficiaryRef  String?               @map("beneficiary_ref") @db.VarChar(255)
+  attestations    Json?
+  lastCheckedAt   DateTime?             @map("last_checked_at")
+  revokedAt       DateTime?             @map("revoked_at")
+  revokedReason   String?               @map("revoked_reason") @db.Text
+  createdAt       DateTime              @default(now()) @map("created_at")
+  updatedAt       DateTime              @updatedAt @map("updated_at")
+
+  events          KycVerificationEvent[]
+
+  @@unique([subjectKind, subjectRef, vendorRef])
+  @@index([subjectKind, subjectRef])
+  @@index([status])
+  @@map("kyc_verifications")
+}
+
+model KycVerificationEvent {
+  id              String           @id @default(uuid()) @db.Uuid
+  verificationId  String           @map("verification_id") @db.Uuid
+  verification    KycVerification  @relation(fields: [verificationId], references: [id], onDelete: Cascade)
+  eventType       KycEventType     @map("event_type")
+  adapterName     String           @map("adapter_name") @db.VarChar(64)
+  synced          Boolean          @default(false)
+  reason          String?          @db.Text
+  requestPayload  Json?            @map("request_payload")
+  responsePayload Json?            @map("response_payload")
+  createdAt       DateTime         @default(now()) @map("created_at")
+
+  @@index([verificationId])
+  @@index([eventType, createdAt])
+  @@map("kyc_verification_events")
+}
