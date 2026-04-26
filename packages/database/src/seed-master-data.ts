@@ -666,6 +666,23 @@ async function seedE2eAdminUser() {
     create: { id: ORG_ID, name: ORG_NAME, slug: 'e2e-test-org', isActive: true },
   });
 
+  // `requireOnboardingComplete` blocks writes if no row or status is IN_PROGRESS.
+  // A6.4 E2E (AV4-339) needs full lifecycle API access without the wizard.
+  await prisma.onboardingProgress.upsert({
+    where: { orgId: ORG_ID },
+    create: {
+      orgId: ORG_ID,
+      status: 'SKIPPED',
+      currentStep: 1,
+      completedSteps: [],
+      completedAt: new Date(),
+    },
+    update: {
+      status: 'SKIPPED',
+      completedAt: new Date(),
+    },
+  });
+
   // Upsert user
   const existing = await prisma.user.findUnique({ where: { email: ADMIN_EMAIL } });
   let userId: string;

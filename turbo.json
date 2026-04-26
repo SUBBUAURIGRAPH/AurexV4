@@ -32,6 +32,7 @@
     "test:nginx:headers": { "cache": false },
     "test:nginx:routing": { "cache": false },
     "test:nginx:performance": { "cache": false },
+    "test:a6.4:e2e": { "cache": false },
     "lint": {
       "dependsOn": ["^build"]
     },
