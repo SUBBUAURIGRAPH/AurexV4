@@ -10,6 +10,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
 import { requireOrgRole } from '../middleware/org-role.js';
 import { requireOnboardingComplete } from '../middleware/onboarding-gate.js';
+import { requireActiveSubscription } from '../middleware/subscription-active-gate.js';
 import * as brsrService from '../services/brsr.service.js';
 import {
   renderBrsrPdf,
@@ -76,7 +77,7 @@ brsrRouter.get('/responses', requireOrgScope, async (req, res, next) => {
   }
 });
 
-brsrRouter.put('/responses', requireOrgScope, requireOnboardingComplete, async (req, res, next) => {
+brsrRouter.put('/responses', requireOrgScope, requireOnboardingComplete, requireActiveSubscription, async (req, res, next) => {
   try {
     const data = upsertBrsrResponseSchema.parse(req.body);
     const row = await brsrService.upsertResponse(req.orgId!, req.user!.sub, data);

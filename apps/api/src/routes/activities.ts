@@ -4,6 +4,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
 import { requireOrgRole } from '../middleware/org-role.js';
 import { requireOnboardingComplete } from '../middleware/onboarding-gate.js';
+import { requireActiveSubscription } from '../middleware/subscription-active-gate.js';
 import * as activityService from '../services/activity.service.js';
 import * as reversalService from '../services/reversal.service.js';
 
@@ -58,7 +59,7 @@ activitiesRouter.get('/', async (req, res, next) => {
 });
 
 /** POST / — create activity (manager+) */
-activitiesRouter.post('/', requireOnboardingComplete, requireOrgRole(...WRITE_ROLES), async (req, res, next) => {
+activitiesRouter.post('/', requireOnboardingComplete, requireActiveSubscription, requireOrgRole(...WRITE_ROLES), async (req, res, next) => {
   try {
     const data = createActivitySchema.parse(req.body);
     const activity = await activityService.createActivity({
@@ -97,7 +98,7 @@ activitiesRouter.get('/:id', async (req, res, next) => {
 });
 
 /** PATCH /:id — only while DRAFT or REJECTED (see service guard) */
-activitiesRouter.patch('/:id', requireOnboardingComplete, requireOrgRole(...WRITE_ROLES), async (req, res, next) => {
+activitiesRouter.patch('/:id', requireOnboardingComplete, requireActiveSubscription, requireOrgRole(...WRITE_ROLES), async (req, res, next) => {
   try {
     const data = updateActivitySchema.parse(req.body);
     const updated = await activityService.updateActivity(
@@ -117,7 +118,7 @@ activitiesRouter.patch('/:id', requireOnboardingComplete, requireOrgRole(...WRIT
 });
 
 /** POST /:id/submit — DRAFT → SUBMITTED (manager+) */
-activitiesRouter.post('/:id/submit', requireOnboardingComplete, requireOrgRole(...WRITE_ROLES), async (req, res, next) => {
+activitiesRouter.post('/:id/submit', requireOnboardingComplete, requireActiveSubscription, requireOrgRole(...WRITE_ROLES), async (req, res, next) => {
   try {
     const row = await activityService.submitActivity(req.params.id as string, req.orgId!, req.user!.sub);
     res.json({ data: row });

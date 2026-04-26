@@ -3,6 +3,7 @@ import { createTargetSchema, updateTargetSchema, recordProgressSchema } from '@a
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
 import { requireOnboardingComplete } from '../middleware/onboarding-gate.js';
+import { requireActiveSubscription } from '../middleware/subscription-active-gate.js';
 import { logger } from '../lib/logger.js';
 import * as targetService from '../services/target.service.js';
 
@@ -16,7 +17,7 @@ targetRouter.use(requireAuth, requireOrgScope);
  */
 targetRouter.post(
   '/',
-  requireOnboardingComplete,
+  requireOnboardingComplete, requireActiveSubscription,
   requireRole('manager', 'org_admin', 'super_admin'),
   async (req, res, next) => {
     try {
@@ -78,7 +79,7 @@ targetRouter.get('/:id', async (req, res, next) => {
  */
 targetRouter.patch(
   '/:id/approve',
-  requireOnboardingComplete,
+  requireOnboardingComplete, requireActiveSubscription,
   requireRole('org_admin', 'super_admin'),
   async (req, res, next) => {
     try {
@@ -100,7 +101,7 @@ targetRouter.patch(
  */
 targetRouter.patch(
   '/:id',
-  requireOnboardingComplete,
+  requireOnboardingComplete, requireActiveSubscription,
   requireRole('manager', 'org_admin', 'super_admin'),
   async (req, res, next) => {
     try {
@@ -128,7 +129,7 @@ targetRouter.patch(
  */
 targetRouter.post(
   '/:id/progress',
-  requireOnboardingComplete,
+  requireOnboardingComplete, requireActiveSubscription,
   requireRole('manager', 'org_admin', 'super_admin'),
   async (req, res, next) => {
     try {
