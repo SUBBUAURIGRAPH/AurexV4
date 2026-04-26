@@ -1689,12 +1689,29 @@ model Retirement {
   txHash                   String?                 @map("tx_hash") @db.VarChar(255)
   status                   RetirementInitiationStatus @default(INITIATED)
   bcrSyncedAt              DateTime?               @map("bcr_synced_at")
+  // ── AAT-R4 / AV4-438 — EU CSRD ESRS E1-7 granular retirement disclosure ──
+  // Denormalized from Issuance → Activity → Methodology at retirement-creation
+  // time so non-netted CSRD exports can be produced without joins, and so the
+  // disclosure record survives upstream master-data changes (e.g. methodology
+  // version bumps, registry reclassification). Backfilled for pre-existing
+  // rows by `backfillRetirementGranularity()` in retirement-csrd-export.service.ts.
+  methodologyCode                 String?  @map("methodology_code") @db.VarChar(100)
+  projectType                     String?  @map("project_type") @db.VarChar(64)
+  isRemoval                       Boolean  @default(false) @map("is_removal")
+  bufferPoolContributionPct       Decimal? @map("buffer_pool_pct") @db.Decimal(5, 2)
+  hostCountryIso                  String?  @map("host_country_iso") @db.VarChar(2)
+  corsiaEligible                  Boolean  @default(false) @map("corsia_eligible")
+  ccpEligible                     Boolean  @default(false) @map("ccp_eligible")
+  correspondingAdjustmentApplied  Boolean  @default(false) @map("ca_applied")
   createdAt                DateTime                @default(now()) @map("created_at")
   updatedAt                DateTime                @updatedAt @map("updated_at")
 
   @@unique([issuanceId, kycVerificationId])
   @@index([bcrSerialId])
   @@index([status])
+  @@index([retiredByOrgId, createdAt])
+  @@index([methodologyCode])
+  @@index([hostCountryIso])
   @@map("retirements")
 }
 

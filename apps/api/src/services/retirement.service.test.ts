@@ -7,8 +7,12 @@ const { mockPrisma } = vi.hoisted(() => ({
     issuance: {
       findUnique: vi.fn(),
     },
+    activity: {
+      findUnique: vi.fn(),
+    },
     retirement: {
       findUnique: vi.fn(),
+      findMany: vi.fn(),
       create: vi.fn(),
       update: vi.fn(),
     },
@@ -29,6 +33,8 @@ import {
   IssuanceNotMintedError,
   KycNotApprovedError,
   RetirementDivergenceError,
+  classifyProjectType,
+  resolveRetirementGranularity,
   retireToken,
   type KycLookup,
   type RetireTokenOpts,
@@ -145,10 +151,27 @@ function makeStubAurigraphAdapter(opts: { burn?: ReturnType<typeof vi.fn> } = {}
 beforeEach(() => {
   vi.clearAllMocks();
   mockPrisma.issuance.findUnique.mockReset();
+  mockPrisma.activity.findUnique.mockReset();
   mockPrisma.retirement.findUnique.mockReset();
+  mockPrisma.retirement.findMany.mockReset();
   mockPrisma.retirement.create.mockReset();
   mockPrisma.retirement.update.mockReset();
   mockPrisma.auditLog.create.mockResolvedValue({});
+  // Default activity fixture used by retirement.service when it
+  // denormalises CSRD granularity fields. Individual tests override.
+  mockPrisma.activity.findUnique.mockResolvedValue({
+    id: ACTIVITY_ID,
+    methodologyId: '00000000-0000-4000-8000-0000000000a1',
+    technologyType: 'reforestation',
+    hostCountry: 'KE',
+    isRemoval: true,
+    bufferPoolContributionPct: 20,
+    methodology: {
+      id: '00000000-0000-4000-8000-0000000000a1',
+      code: 'AR-AMS-0007',
+    },
+    hostAuthorization: null,
+  });
 });
 
 // ── Tests ─────────────────────────────────────────────────────────────────
@@ -435,5 +458,188 @@ describe('retireToken — chain burn failure', () => {
 
     // No audit log row for retirement.initiated when the burn failed.
     expect(mockPrisma.auditLog.create).not.toHaveBeenCalled();
+  });
+});
+
+// ── AAT-R4 / AV4-438 — CSRD ESRS E1-7 denormalisation ─────────────────────
+
+describe('classifyProjectType — ESRS E1-7 bucket mapping', () => {
+  it('classifies REDD+ methodologies', () => {
+    expect(
+      classifyProjectType({
+        methodologyCode: 'VM0007',
+        technologyType: 'forest-conservation',
+        isRemoval: false,
+      }),
+    ).toBe('redd_plus');
+    expect(
+      classifyProjectType({
+        methodologyCode: 'A6.4-REDD-001',
+        technologyType: null,
+        isRemoval: false,
+      }),
+    ).toBe('redd_plus');
+  });
+
+  it('classifies afforestation/reforestation methodologies', () => {
+    expect(
+      classifyProjectType({
+        methodologyCode: 'AR-AMS-0007',
+        technologyType: 'reforestation',
+        isRemoval: true,
+      }),
+    ).toBe('arr');
+  });
+
+  it('classifies cookstove methodologies', () => {
+    expect(
+      classifyProjectType({
+        methodologyCode: 'AMS-II.G',
+        technologyType: 'cookstove',
+        isRemoval: false,
+      }),
+    ).toBe('cookstove');
+  });
+
+  it('classifies renewable energy methodologies', () => {
+    expect(
+      classifyProjectType({
+        methodologyCode: 'AMS-I.D',
+        technologyType: 'solar PV',
+        isRemoval: false,
+      }),
+    ).toBe('renewable_energy');
+  });
+
+  it('falls through to other_removal/other_reduction based on isRemoval', () => {
+    expect(
+      classifyProjectType({
+        methodologyCode: 'XYZ-999',
+        technologyType: 'unknown',
+        isRemoval: true,
+      }),
+    ).toBe('other_removal');
+    expect(
+      classifyProjectType({
+        methodologyCode: null,
+        technologyType: null,
+        isRemoval: false,
+      }),
+    ).toBe('other_reduction');
+  });
+});
+
+describe('resolveRetirementGranularity — denormalisation snapshot', () => {
+  it('reads methodology code, host country, removal flag, buffer pct from Activity', async () => {
+    mockPrisma.activity.findUnique.mockResolvedValue({
+      id: ACTIVITY_ID,
+      methodologyId: '00000000-0000-4000-8000-0000000000a1',
+      technologyType: 'reforestation',
+      hostCountry: 'KE',
+      isRemoval: true,
+      bufferPoolContributionPct: 20,
+      methodology: { id: 'm1', code: 'AR-AMS-0007' },
+      hostAuthorization: null,
+    });
+
+    const issuance = buildIssuanceFixture() as unknown as Parameters<
+      typeof resolveRetirementGranularity
+    >[0];
+    const snap = await resolveRetirementGranularity(issuance);
+
+    expect(snap.methodologyCode).toBe('AR-AMS-0007');
+    expect(snap.projectType).toBe('arr');
+    expect(snap.isRemoval).toBe(true);
+    expect(snap.bufferPoolContributionPct).toBe(20);
+    expect(snap.hostCountryIso).toBe('KE');
+    expect(snap.corsiaEligible).toBe(false);
+    expect(snap.ccpEligible).toBe(false);
+    expect(snap.correspondingAdjustmentApplied).toBe(false);
+  });
+
+  it('flags CORSIA-eligible when a HostAuthorization exists', async () => {
+    mockPrisma.activity.findUnique.mockResolvedValue({
+      id: ACTIVITY_ID,
+      methodologyId: 'm1',
+      technologyType: 'cookstove',
+      hostCountry: 'IN',
+      isRemoval: false,
+      bufferPoolContributionPct: 0,
+      methodology: { id: 'm1', code: 'AMS-II.G' },
+      hostAuthorization: { correspondingAdjustment: true },
+    });
+
+    const issuance = buildIssuanceFixture() as unknown as Parameters<
+      typeof resolveRetirementGranularity
+    >[0];
+    const snap = await resolveRetirementGranularity(issuance);
+    expect(snap.corsiaEligible).toBe(true);
+    expect(snap.correspondingAdjustmentApplied).toBe(true);
+    expect(snap.projectType).toBe('cookstove');
+  });
+
+  it('returns nulls/false when activity is missing (best-effort)', async () => {
+    mockPrisma.activity.findUnique.mockResolvedValue(null);
+
+    const issuance = buildIssuanceFixture() as unknown as Parameters<
+      typeof resolveRetirementGranularity
+    >[0];
+    const snap = await resolveRetirementGranularity(issuance);
+    expect(snap.methodologyCode).toBeNull();
+    expect(snap.projectType).toBeNull();
+    expect(snap.isRemoval).toBe(false);
+    expect(snap.bufferPoolContributionPct).toBeNull();
+  });
+
+  it('swallows DB errors and returns the fallback snapshot', async () => {
+    mockPrisma.activity.findUnique.mockRejectedValue(new Error('db down'));
+    const issuance = buildIssuanceFixture() as unknown as Parameters<
+      typeof resolveRetirementGranularity
+    >[0];
+    const snap = await resolveRetirementGranularity(issuance);
+    expect(snap.methodologyCode).toBeNull();
+    expect(snap.isRemoval).toBe(false);
+  });
+});
+
+describe('retireToken — CSRD denormalisation on creation (AAT-R4 / AV4-438)', () => {
+  it('persists methodologyCode/projectType/isRemoval/buffer/hostCountry from Activity+Methodology', async () => {
+    const issuance = buildIssuanceFixture();
+    mockPrisma.issuance.findUnique.mockResolvedValue(issuance);
+    mockPrisma.retirement.findUnique.mockResolvedValue(null);
+    mockPrisma.retirement.create.mockResolvedValue({
+      id: RETIREMENT_ID,
+      status: 'INITIATED',
+    });
+    mockPrisma.retirement.update.mockResolvedValue({});
+
+    mockPrisma.activity.findUnique.mockResolvedValue({
+      id: ACTIVITY_ID,
+      methodologyId: 'm1',
+      technologyType: 'reforestation',
+      hostCountry: 'BR',
+      isRemoval: true,
+      bufferPoolContributionPct: 25,
+      methodology: { id: 'm1', code: 'AR-AMS-0007' },
+      hostAuthorization: { correspondingAdjustment: true },
+    });
+
+    const aurigraphAdapter = makeStubAurigraphAdapter();
+
+    await retireToken(buildOpts(), {
+      aurigraphAdapter,
+      kycLookup: approvedKycLookup(),
+    });
+
+    expect(mockPrisma.retirement.create).toHaveBeenCalledTimes(1);
+    const data = mockPrisma.retirement.create.mock.calls[0]![0]!.data;
+    expect(data.methodologyCode).toBe('AR-AMS-0007');
+    expect(data.projectType).toBe('arr');
+    expect(data.isRemoval).toBe(true);
+    expect(data.bufferPoolContributionPct).toBe(25);
+    expect(data.hostCountryIso).toBe('BR');
+    expect(data.corsiaEligible).toBe(true);
+    expect(data.correspondingAdjustmentApplied).toBe(true);
+    expect(data.ccpEligible).toBe(false);
   });
 });

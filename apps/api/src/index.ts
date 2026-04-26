@@ -58,6 +58,8 @@ import { billingRouter } from './routes/billing.js';
 // AAT-9C / Wave 9c: persistence-audit GET endpoints (retirements + delist requests)
 import { retirementsRouter } from './routes/retirements.js';
 import { delistRequestsRouter } from './routes/delist-requests.js';
+// AAT-R4 / AV4-438: granular CSRD ESRS E1-7 retirement export + backfill (admin).
+import { adminRetirementsRouter } from './routes/admin-retirements.js';
 // AAT-367 / AV4-367: service-to-service identity federation (Aurex ↔ AWD2/HCE2/Aurigraph).
 import { federationRouter } from './routes/federation.js';
 import { adminFederationRouter } from './routes/admin-federation.js';
@@ -173,6 +175,8 @@ app.use('/api/v1/billing', billingRouter);
 // AAT-9C / Wave 9c: persistence-audit P0 — list endpoints for write-only entities.
 app.use('/api/v1/retirements', retirementsRouter);
 app.use('/api/v1/delist-requests', delistRequestsRouter);
+// AAT-R4 / AV4-438: SUPER_ADMIN-gated CSRD ESRS E1-7 export + backfill.
+app.use('/api/v1/admin/retirements', adminRetirementsRouter);
 // AAT-367 / AV4-367: service-to-service identity federation. Inbound
 // partner-signed JWTs land on `/api/v1/federation/*`; ops operations on
 // the partner key registry live under `/api/v1/admin/federation/*`.

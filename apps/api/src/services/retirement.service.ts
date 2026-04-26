@@ -222,6 +222,187 @@ async function loadIssuance(issuanceId: string) {
 type LoadedIssuance = NonNullable<Awaited<ReturnType<typeof loadIssuance>>>;
 
 /**
+ * AAT-R4 / AV4-438 — denormalised view of the Issuance + Activity +
+ * Methodology graph relevant to ESRS E1-7 disclosures. Resolved at retirement
+ * creation time so the Retirement row is self-contained for non-netted
+ * disclosure exports (CSRD requires per-retirement vintage / methodology /
+ * project-type / removal-vs-reduction / buffer / host-country granularity
+ * without joining against potentially-mutating master data).
+ *
+ * Loader is best-effort: a missing methodology row simply leaves the
+ * methodology fields null. A missing activity row (extremely unusual — the
+ * relation is required) leaves the activity fields null. We never throw
+ * from here — denormalisation must not block a chain burn.
+ */
+export interface RetirementGranularitySnapshot {
+  methodologyCode: string | null;
+  projectType: string | null;
+  isRemoval: boolean;
+  bufferPoolContributionPct: number | null;
+  hostCountryIso: string | null;
+  corsiaEligible: boolean;
+  ccpEligible: boolean;
+  correspondingAdjustmentApplied: boolean;
+}
+
+/**
+ * Map a Methodology code + Activity technologyType pair to one of the ESRS
+ * E1-7 project-type buckets. Conservative — we only emit a bucket when the
+ * tag is unambiguous; everything else falls into `other_reduction` or
+ * `other_removal` based on the activity's `isRemoval` flag.
+ */
+export function classifyProjectType(input: {
+  methodologyCode: string | null | undefined;
+  technologyType: string | null | undefined;
+  isRemoval: boolean;
+}): string {
+  const code = (input.methodologyCode ?? '').toUpperCase();
+  const tech = (input.technologyType ?? '').toLowerCase();
+
+  // REDD+ — methodology codes commonly start with VM00xx / AR-AMS for
+  // afforestation but REDD+ specifically tends to be VM0006/VM0007/VM0009/
+  // VM0015/VM0037 in voluntary registries; A6.4 uses TOOL14/REDD+ language.
+  if (
+    code.includes('REDD') ||
+    /\bVM000[679]\b/.test(code) ||
+    /\bVM001[57]\b/.test(code) ||
+    /\bVM0037\b/.test(code) ||
+    tech.includes('redd')
+  ) {
+    return 'redd_plus';
+  }
+
+  // Afforestation / Reforestation / Revegetation
+  if (
+    code.startsWith('AR-') ||
+    code.startsWith('AR_') ||
+    code.includes('AFFORESTATION') ||
+    code.includes('REFORESTATION') ||
+    tech.includes('afforestation') ||
+    tech.includes('reforestation') ||
+    tech.includes('arr')
+  ) {
+    return 'arr';
+  }
+
+  // Improved cookstoves — AMS-II.G is the canonical small-scale code.
+  if (
+    code.includes('AMS-II.G') ||
+    code.includes('AMS-I.E') ||
+    tech.includes('cookstove') ||
+    tech.includes('cook stove')
+  ) {
+    return 'cookstove';
+  }
+
+  // Renewable energy — AMS-I.* and many large-scale ACM codes.
+  if (
+    code.startsWith('AMS-I.') ||
+    code.startsWith('ACM000') ||
+    tech.includes('solar') ||
+    tech.includes('wind') ||
+    tech.includes('hydro') ||
+    tech.includes('renewable')
+  ) {
+    return 'renewable_energy';
+  }
+
+  return input.isRemoval ? 'other_removal' : 'other_reduction';
+}
+
+/**
+ * Resolve the denormalised CSRD-disclosure snapshot for an issuance. Loads
+ * the Activity (and via that the Methodology) to read methodology code,
+ * project-type, removal flag, buffer-pool %, and host country.
+ *
+ * Best-effort: if any join fails, we emit nulls/false for the missing
+ * fields so the retirement creation flow never aborts on a denorm miss.
+ */
+export async function resolveRetirementGranularity(
+  issuance: LoadedIssuance,
+): Promise<RetirementGranularitySnapshot> {
+  const fallback: RetirementGranularitySnapshot = {
+    methodologyCode: null,
+    projectType: null,
+    isRemoval: false,
+    bufferPoolContributionPct: null,
+    hostCountryIso: null,
+    corsiaEligible: false,
+    ccpEligible: false,
+    correspondingAdjustmentApplied: false,
+  };
+
+  try {
+    const activity = await prisma.activity.findUnique({
+      where: { id: issuance.activityId },
+      include: { methodology: true, hostAuthorization: true },
+    });
+    if (!activity) return fallback;
+
+    const methodology = activity.methodology ?? null;
+    const methodologyCode = methodology?.code ?? null;
+    const isRemoval = Boolean(activity.isRemoval);
+
+    // CORSIA eligibility: A6.4 issuances with host-country authorization
+    // for international transfer are CORSIA-relevant. The HostAuthorization
+    // row is the canonical signal; if absent, false.
+    const corsiaEligible = Boolean(activity.hostAuthorization);
+
+    // CCP / ICVCM-CCP labelling — Aurex doesn't carry an authoritative CCP
+    // flag at the activity level yet. Default false; future work can read
+    // off Methodology.notes / a dedicated CCP table.
+    const ccpEligible = false;
+
+    // CA applied — true when this issuance's host has an authorization with
+    // ITMO scope (i.e. the country has formally issued a corresponding
+    // adjustment for these units). We treat presence of HostAuthorization
+    // with `correspondingAdjustment === true` as the gate, and fall back
+    // to false when the column doesn't exist.
+    let correspondingAdjustmentApplied = false;
+    const ha = activity.hostAuthorization as
+      | (typeof activity.hostAuthorization & {
+          correspondingAdjustment?: boolean;
+          itmoScope?: boolean;
+        })
+      | null;
+    if (ha) {
+      correspondingAdjustmentApplied = Boolean(
+        ha.correspondingAdjustment ?? ha.itmoScope ?? false,
+      );
+    }
+
+    const bufferPct =
+      activity.bufferPoolContributionPct === null ||
+      activity.bufferPoolContributionPct === undefined
+        ? null
+        : Number(activity.bufferPoolContributionPct);
+
+    return {
+      methodologyCode,
+      projectType: classifyProjectType({
+        methodologyCode,
+        technologyType: activity.technologyType ?? null,
+        isRemoval,
+      }),
+      isRemoval,
+      bufferPoolContributionPct: Number.isFinite(bufferPct as number)
+        ? (bufferPct as number)
+        : null,
+      hostCountryIso: activity.hostCountry ?? null,
+      corsiaEligible,
+      ccpEligible,
+      correspondingAdjustmentApplied,
+    };
+  } catch (err) {
+    logger.warn(
+      { err: err instanceof Error ? err.message : String(err), issuanceId: issuance.id },
+      'resolveRetirementGranularity: denormalisation failed; emitting nulls',
+    );
+    return fallback;
+  }
+}
+
+/**
  * Verify the KYC verification id resolves to an APPROVED beneficiary
  * verification whose subject matches the payload's beneficiary. Throws
  * `KycNotApprovedError` for every failure mode (missing, not approved,
@@ -362,6 +543,12 @@ export async function retireToken(
     };
   }
 
+  // ── Step 3.5: resolve CSRD ESRS E1-7 granularity snapshot ───────────
+  // Denormalise methodology / project-type / removal / buffer / host
+  // country off the Activity → Methodology graph so the retirement row is
+  // self-contained for non-netted CSRD disclosures (AAT-R4 / AV4-438).
+  const granularity = await resolveRetirementGranularity(issuance);
+
   // ── Step 4: persist Retirement row (status=INITIATED) ────────────────
   const retirement = await prisma.retirement.create({
     data: {
@@ -377,6 +564,15 @@ export async function retireToken(
       retiredByOrgId: orgId,
       retirementCertificateUrl: payload.retirementCertificateUrl ?? null,
       status: 'INITIATED',
+      // CSRD ESRS E1-7 denormalised disclosure fields (AAT-R4 / AV4-438).
+      methodologyCode: granularity.methodologyCode,
+      projectType: granularity.projectType,
+      isRemoval: granularity.isRemoval,
+      bufferPoolContributionPct: granularity.bufferPoolContributionPct,
+      hostCountryIso: granularity.hostCountryIso,
+      corsiaEligible: granularity.corsiaEligible,
+      ccpEligible: granularity.ccpEligible,
+      correspondingAdjustmentApplied: granularity.correspondingAdjustmentApplied,
     },
   });
 
