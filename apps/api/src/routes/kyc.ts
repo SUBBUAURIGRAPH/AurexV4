@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
 import { requireOrgRole } from '../middleware/org-role.js';
 import * as kycService from '../services/kyc/kyc.service.js';
+import { DpdpConsentRequiredError } from '../services/kyc/kyc.service.js';
 
 /**
  * KYC / CDD / AML / CTF API (AAT-θ / AV4-354).
@@ -69,6 +70,23 @@ kycRouter.post(
       });
       res.status(202).json({ data: result });
     } catch (err) {
+      // AAT-R3 / AV4-429 — DPDP §6 verifiable-consent gate. Map the
+      // typed error to RFC 7807 412 Precondition Failed so callers can
+      // pop the consent capture sheet before retrying.
+      if (err instanceof DpdpConsentRequiredError) {
+        res.status(412).json({
+          type: 'https://aurex.in/problems/dpdp-consent-required',
+          title: 'Consent Required',
+          status: 412,
+          detail:
+            'Active DPDP consent for purpose=kyc_verification is required ' +
+            'before initiating KYC. Capture consent via ' +
+            'POST /api/v1/me/consent and retry.',
+          instance: req.originalUrl,
+          purpose: err.purpose,
+        });
+        return;
+      }
       next(err);
     }
   },

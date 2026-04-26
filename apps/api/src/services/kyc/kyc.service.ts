@@ -2,6 +2,10 @@ import { prisma } from '@aurex/database';
 import { logger } from '../../lib/logger.js';
 import { getKycAdapter } from './index.js';
 import { recordKycSyncEvent } from './sync-recorder.js';
+import {
+  CONSENT_PURPOSES,
+  hasActiveConsent,
+} from '../dpdp/consent.service.js';
 import type {
   KycAttestation,
   KycLevel,
@@ -9,6 +13,28 @@ import type {
   KycSubjectListEntry,
   KycVerificationStatus,
 } from './kyc-adapter.js';
+
+/**
+ * AAT-R3 / AV4-429 — DPDP §6 verifiable-consent gate. Thrown by
+ * `startVerification` when the data principal has not granted active
+ * consent for the `kyc_verification` purpose. The route handler maps
+ * this to a 412 Precondition Failed with RFC 7807 type
+ * `/problems/dpdp-consent-required`.
+ *
+ * Beneficiary KYC is exempt — beneficiaries are external third parties
+ * that don't have a User row, and the consent-capture obligation falls
+ * on the beneficiary's own jurisdiction (see retirement.service docs).
+ */
+export class DpdpConsentRequiredError extends Error {
+  readonly purpose: string;
+  readonly userId: string;
+  constructor(userId: string, purpose: string) {
+    super(`DPDP consent required for purpose=${purpose}`);
+    this.name = 'DpdpConsentRequiredError';
+    this.userId = userId;
+    this.purpose = purpose;
+  }
+}
 
 /**
  * KYC service — thin orchestration layer between the route handlers and
@@ -142,6 +168,28 @@ export interface StartVerificationServiceResult {
 export async function startVerification(
   params: StartVerificationServiceParams,
 ): Promise<StartVerificationServiceResult> {
+  // AAT-R3 / AV4-429 — DPDP §6 verifiable-consent gate. KYC is sensitive
+  // personal data; before kicking the adapter we require an active
+  // ConsentRecord{purpose:"kyc_verification", granted:true} for the
+  // calling user. The User-kind path uses `subjectRef` (which is a User
+  // id by contract). Beneficiary-kind is exempt (see
+  // DpdpConsentRequiredError docstring).
+  if (params.subjectKind === 'user') {
+    const consentSubject = params.subjectRef ?? params.userId ?? null;
+    if (consentSubject) {
+      const ok = await hasActiveConsent(
+        consentSubject,
+        CONSENT_PURPOSES.KYC_VERIFICATION,
+      );
+      if (!ok) {
+        throw new DpdpConsentRequiredError(
+          consentSubject,
+          CONSENT_PURPOSES.KYC_VERIFICATION,
+        );
+      }
+    }
+  }
+
   const adapter = getKycAdapter();
   const adapterPayload = {
     subjectKind: params.subjectKind,

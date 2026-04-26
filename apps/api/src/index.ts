@@ -68,6 +68,9 @@ import { adminQuotasRouter } from './routes/admin-quotas.js';
 // regulatory-landscape scanner (counterpart to the Claude-driven internal
 // spec-compliance pipeline at AV4-405 / AAT-405).
 import { adminResearchRouter } from './routes/admin-research.js';
+// AAT-R3 / AV4-428, AV4-429, AV4-430, AV4-432: India DPDP Act 2023 compliance.
+// Owns /me/consent, /me/data-*, /admin/dpdp/* paths under /api/v1.
+import { dpdpRouter } from './routes/dpdp.js';
 // AV4-338 / AAT-7: retention header + nightly archival worker
 import { retentionHeaderMiddleware } from './middleware/retention-header.js';
 import { startRetentionWorker } from './workers/retention-archival.worker.js';
@@ -180,6 +183,10 @@ app.use('/api/v1/quotas', quotasRouter);
 app.use('/api/v1/admin/quotas', adminQuotasRouter);
 // AAT-DEEPRESEARCH: Google Deep Research (Gemini) admin endpoints.
 app.use('/api/v1/admin/research', adminResearchRouter);
+// AAT-R3 / AV4-428, AV4-429, AV4-430, AV4-432: India DPDP Act 2023 compliance.
+// The router owns its full paths (/me/consent, /me/data-*, /admin/dpdp/*)
+// so it mounts at the API root.
+app.use('/api/v1', dpdpRouter);
 
 // ADM-052: RFC 7807 error handler
 app.use(errorHandler);

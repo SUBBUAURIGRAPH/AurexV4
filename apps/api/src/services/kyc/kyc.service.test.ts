@@ -19,6 +19,21 @@ const { mockPrisma } = vi.hoisted(() => ({
 
 vi.mock('@aurex/database', () => ({ prisma: mockPrisma }));
 
+// AAT-R3 / AV4-429: the new DPDP consent gate inside startVerification calls
+// hasActiveConsent(). The original suite predates that gate and seeds USER
+// verifications without consent rows — short-circuit the gate to true here
+// so the suite stays focused on KYC adapter behaviour. The new
+// `kyc.consent-gate.test.ts` covers the gate behaviour explicitly.
+const { mockHasActiveConsent } = vi.hoisted(() => ({
+  mockHasActiveConsent: vi.fn().mockResolvedValue(true),
+}));
+vi.mock('../dpdp/consent.service.js', () => ({
+  CONSENT_PURPOSES: {
+    KYC_VERIFICATION: 'kyc_verification',
+  },
+  hasActiveConsent: mockHasActiveConsent,
+}));
+
 import { __resetKycAdapterCache } from './index.js';
 import {
   markBeneficiaryVerified,

@@ -45,6 +45,9 @@ model User {
   workflowEnablements OrgWorkflowEnablement[] @relation("workflowEnabler")
   brsrResponses      BrsrResponse[]    @relation("brsrResponsesCreator")
   emailVerifications EmailVerification[]
+  // AAT-R3 / AV4-428, AV4-430: India DPDP Act 2023 compliance back-relations.
+  consentRecords        ConsentRecord[]
+  dataPrincipalRequests DataPrincipalRequest[]
 
   @@index([email])
   @@index([role])
@@ -2425,4 +2428,107 @@ enum RegulatoryResearchRunStatus {
   PENDING   @map("pending")
   SUCCESS   @map("success")
   FAILED    @map("failed")
+}
+
+// ─── AAT-R3 — India DPDP Act 2023 compliance ────────────────────────────────
+//
+// Three append-only / mutable models implementing DPDP §6 (consent),
+// §11–§14 (Data Principal rights / DSARs) and §8 (data breach intimation
+// to the Data Protection Board within 72 hours).
+//
+// Tickets: AV4-428 (granular consent), AV4-429 (verifiable consent gate
+// on KYC sensitive-data flow), AV4-430 (Data Principal rights endpoints),
+// AV4-432 (breach incident tracking + DPB reporting deadline).
+
+/// AV4-428 — granular per-purpose consent capture. DPDP §6 requires every
+/// processing purpose to be backed by a free, specific, informed and
+/// unambiguous affirmative action. We capture the exact text shown to the
+/// data principal at the moment of consent (`consentText`) plus the
+/// versioned consent notice id (`consentVersion`) so future audit reviews
+/// can prove what was on the screen.
+///
+/// Withdrawal is a soft-flip: `withdrawnAt` is set when the principal
+/// withdraws — the row is never deleted (DPDP §11 right-to-correct does
+/// not require deletion of the audit trail).
+model ConsentRecord {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  purpose         String   @db.VarChar(100)
+  granted         Boolean
+  grantedAt       DateTime @map("granted_at") @default(now())
+  withdrawnAt     DateTime? @map("withdrawn_at")
+  consentText     String   @map("consent_text") @db.Text
+  consentVersion  String   @map("consent_version") @db.VarChar(20)
+  ipAddress       String?  @map("ip_address") @db.VarChar(45)
+  userAgent       String?  @map("user_agent") @db.VarChar(500)
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+  @@index([purpose, granted])
+  @@map("consent_records")
+}
+
+/// AV4-430 — Data Principal request (DSAR). Captures the user-initiated
+/// access / correction / erasure requests required by DPDP §11–§14.
+/// Lifecycle is operator-driven (admin marks complete or rejects); the
+/// model intentionally stores both `responseUrl` (signed S3 link to the
+/// JSON export, when applicable) and `responseNotes` (free-text answer
+/// for correction/erasure requests where there is no artefact).
+model DataPrincipalRequest {
+  id              String    @id @default(uuid()) @db.Uuid
+  userId          String    @map("user_id") @db.Uuid
+  requestType     String    @map("request_type") @db.VarChar(20)
+  status          String    @default("pending") @db.VarChar(20)
+  requestNotes    String?   @map("request_notes") @db.Text
+  responseUrl     String?   @map("response_url") @db.VarChar(500)
+  responseNotes   String?   @map("response_notes") @db.Text
+  requestedAt     DateTime  @map("requested_at") @default(now())
+  completedAt     DateTime? @map("completed_at")
+  rejectedAt      DateTime? @map("rejected_at")
+  rejectedReason  String?   @map("rejected_reason") @db.Text
+  handlerUserId   String?   @map("handler_user_id") @db.Uuid
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([status])
+  @@map("data_principal_requests")
+}
+
+/// AV4-432 — personal data breach incident. DPDP §8 requires intimation
+/// to the Data Protection Board within 72 hours of detection. We compute
+/// the reporting deadline at create time (`detectedAt + 72h`) and surface
+/// it on the API; the `breach-reminder.service.ts` daily scan flags
+/// rows that crossed the deadline without `reportedToDpb=true`.
+///
+/// Status lifecycle:
+///   open       — just detected, containment in progress
+///   contained  — bleed stopped (e.g. credentials rotated)
+///   resolved   — root cause fixed
+///   reported   — DPB intimation sent (also requires reportedToDpb=true
+///                 + reportedAt set)
+model DataBreachIncident {
+  id                String   @id @default(uuid()) @db.Uuid
+  detectedAt        DateTime @map("detected_at")
+  reportedAt        DateTime? @map("reported_at")
+  affectedUserCount Int      @default(0) @map("affected_user_count")
+  affectedDataTypes String[] @map("affected_data_types") @default([])
+  severity          String   @db.VarChar(20)
+  description       String   @db.Text
+  containmentNotes  String?  @map("containment_notes") @db.Text
+  remediationNotes  String?  @map("remediation_notes") @db.Text
+  status            String   @default("open") @db.VarChar(20)
+  reportedToDpb     Boolean  @default(false) @map("reported_to_dpb")
+  dpbReferenceId    String?  @map("dpb_reference_id") @db.VarChar(100)
+  reportedByUserId  String?  @map("reported_by_user_id") @db.Uuid
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@index([detectedAt])
+  @@map("data_breach_incidents")
 }
