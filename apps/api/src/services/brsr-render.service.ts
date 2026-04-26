@@ -26,6 +26,10 @@
  * via Prisma and never mutate state.
  */
 
+import { readFileSync } from 'node:fs';
+import { dirname, resolve as resolvePath } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import PDFDocument from 'pdfkit';
 
 import { prisma } from '@aurex/database';
@@ -717,6 +721,218 @@ export async function renderBrsrXbrl(
   lines.push('');
 
   return lines.join('\n');
+}
+
+// ─── XSD validation (AAT-R2 / AV4-426) ────────────────────────────────
+
+/**
+ * SEBI BRSR Core XSD bundled-schema version. Bumped whenever the
+ * vendored XSD at `./brsr/sebi-brsr-core.xsd` is replaced. The
+ * placeholder ships as `0.0.0-placeholder` so downstream filters can
+ * spot warn-mode validation in the API response.
+ *
+ * IMPORTANT: when the canonical SEBI XSD is dropped in, change this
+ * constant to the SEBI taxonomy version (e.g. `2024-04`) and flip
+ * `validateBrsrXbrl` from warn-mode to hard-fail (see route).
+ */
+export const BRSR_XSD_VERSION = '0.0.0-placeholder';
+
+/**
+ * Filesystem path to the vendored SEBI BRSR Core XSD. Resolved off
+ * `import.meta.url` so the lookup works both in dev (tsx) and after
+ * tsc emits to `dist/` (the file is copied alongside via the loader
+ * fallback below).
+ */
+const _moduleDir = dirname(fileURLToPath(import.meta.url));
+export const BRSR_XSD_PATH = resolvePath(
+  _moduleDir,
+  'brsr',
+  'sebi-brsr-core.xsd',
+);
+
+/**
+ * Result returned by `validateBrsrXbrl`. `valid === true` means *no*
+ * structural errors were detected by the placeholder validator; it
+ * does **NOT** imply SEBI-certified compliance — see XBRL_TAXONOMY_GAPS
+ * + the placeholder XSD docblock for the full caveat.
+ */
+export interface BrsrXsdValidationResult {
+  valid: boolean;
+  errors: string[];
+  /**
+   * Bundled XSD version used for the validation pass. Surfaced in the
+   * API response so dashboards can flag warn-mode filings.
+   */
+  xsdVersion: string;
+  /**
+   * `true` until the canonical SEBI XSD replaces the vendored
+   * placeholder. Operators should treat any `placeholder: true`
+   * validation result as advisory only.
+   */
+  placeholder: boolean;
+}
+
+/**
+ * Lazily load the vendored XSD body. We never use it for *real* XSD
+ * validation (that would require libxmljs2, which isn't installed in
+ * this monorepo's API image — adding a native dep is out of scope for
+ * the warn-mode gate); instead we keep the load behind a try so a
+ * missing-file misdeploy doesn't break the render path.
+ *
+ * Cached after first read because the file is small and the render
+ * route can be hammered by Generate-button retries.
+ */
+let _cachedXsd: string | null = null;
+function loadVendoredXsd(): string | null {
+  if (_cachedXsd !== null) return _cachedXsd;
+  try {
+    _cachedXsd = readFileSync(BRSR_XSD_PATH, 'utf-8');
+    return _cachedXsd;
+  } catch (err) {
+    logger.warn(
+      { err, path: BRSR_XSD_PATH },
+      'BRSR XSD not found on disk — running structural-only validation',
+    );
+    return null;
+  }
+}
+
+/**
+ * Structural / pure-JS validation pass for a BRSR XBRL document.
+ *
+ * AAT-R2 / AV4-426: SEBI mandates BRSR Core XBRL filings validate
+ * against the SEBI XSD. The canonical XSD wasn't fetchable in this
+ * build environment, so this validator runs a regex/structural-grade
+ * check that detects the most common malformation modes (missing
+ * namespace, missing context/unit blocks, missing contextRef on facts).
+ * It is NOT a substitute for true XSD validation — when the canonical
+ * SEBI XSD is vendored at `./brsr/sebi-brsr-core.xsd` and a real XSD
+ * validator (e.g. libxmljs2, native dep) is wired in, replace the body
+ * of this function. The route consumer (`apps/api/src/routes/brsr.ts`)
+ * is wired to surface errors in the API response without blocking the
+ * download (warn-mode); flip to hard-fail by changing the route to
+ * return 422 on `valid === false`.
+ *
+ * Returns:
+ *   - `valid: true`  when no structural defect detected.
+ *   - `valid: false` + `errors[]` when defects are present. Errors are
+ *     human-readable and ordered by appearance in the doc.
+ */
+export function validateBrsrXbrl(xml: string): BrsrXsdValidationResult {
+  const errors: string[] = [];
+
+  if (typeof xml !== 'string' || xml.length === 0) {
+    return {
+      valid: false,
+      errors: ['Empty or non-string XBRL payload'],
+      xsdVersion: BRSR_XSD_VERSION,
+      placeholder: true,
+    };
+  }
+
+  // Force the XSD load attempt so misdeploys (XSD missing) get logged
+  // even though we don't currently use the contents. Surfacing a hint
+  // when the file is missing helps operators diagnose container builds.
+  const xsdBody = loadVendoredXsd();
+  if (xsdBody === null) {
+    errors.push(
+      `Vendored SEBI BRSR Core XSD not found at ${BRSR_XSD_PATH} — ` +
+        'falling back to structural validation. Replace the placeholder ' +
+        'XSD when the canonical SEBI taxonomy is published.',
+    );
+  }
+
+  // ── 1. Well-formed XML preamble ───────────────────────────────────────
+  if (!xml.trimStart().startsWith('<?xml')) {
+    errors.push('Missing XML declaration (`<?xml version="1.0" …?>`)');
+  }
+
+  // ── 2. Root element + xbrl-instance-2003 namespace ────────────────────
+  const xbrlOpen = /<xbrl[\s>]/.exec(xml);
+  if (!xbrlOpen) {
+    errors.push('Missing root <xbrl> element');
+  }
+  if (!xml.includes('xmlns="http://www.xbrl.org/2003/instance"')) {
+    errors.push(
+      'Missing default xbrl-instance-2003 namespace declaration ' +
+        '(`xmlns="http://www.xbrl.org/2003/instance"`)',
+    );
+  }
+
+  // ── 3. SEBI BRSR Core namespace ───────────────────────────────────────
+  if (!xml.includes(BRSR_XBRL_NAMESPACE)) {
+    errors.push(
+      `Missing SEBI BRSR Core namespace declaration (${BRSR_XBRL_NAMESPACE})`,
+    );
+  }
+
+  // ── 4. At least one <context> with start/end period ──────────────────
+  const contextMatch = /<context\b[^>]*\bid="([^"]+)"/i.exec(xml);
+  if (!contextMatch) {
+    errors.push('Missing <context id="…"> block');
+  } else {
+    if (!/<startDate>\s*\d{4}-\d{2}-\d{2}\s*<\/startDate>/.test(xml)) {
+      errors.push('Missing or malformed <startDate> in reporting context');
+    }
+    if (!/<endDate>\s*\d{4}-\d{2}-\d{2}\s*<\/endDate>/.test(xml)) {
+      errors.push('Missing or malformed <endDate> in reporting context');
+    }
+    if (!/<entity>[\s\S]*?<identifier\b[^>]*>[^<]+<\/identifier>/i.test(xml)) {
+      errors.push('Missing <entity><identifier> in reporting context');
+    }
+  }
+
+  // ── 5. At least one <unit> declaration ───────────────────────────────
+  if (!/<unit\b[^>]*\bid=/.test(xml)) {
+    errors.push('Missing <unit id="…"> declaration');
+  }
+
+  // ── 6. All <brsr:…> facts must carry contextRef ──────────────────────
+  // We deliberately accept the comment lines (which start with `<!--`)
+  // and only flag genuine element opening tags. Self-closing tags are
+  // accepted as long as they carry contextRef.
+  const factPattern = new RegExp(
+    `<${BRSR_XBRL_PREFIX}:([A-Za-z0-9_]+)\\b([^>]*)>`,
+    'g',
+  );
+  const seenFactNames = new Set<string>();
+  let factCount = 0;
+  let m: RegExpExecArray | null;
+  while ((m = factPattern.exec(xml)) !== null) {
+    factCount += 1;
+    const elementName = m[1] ?? 'unknown';
+    const attrChunk = m[2] ?? '';
+    if (!/\bcontextRef\s*=\s*"[^"]+"/i.test(attrChunk)) {
+      // Cap the per-doc error list so a malformed render doesn't blow
+      // the response payload — first 5 are typically enough to root-cause.
+      if (seenFactNames.size < 5) {
+        seenFactNames.add(elementName);
+        errors.push(
+          `Fact <${BRSR_XBRL_PREFIX}:${elementName}> is missing contextRef attribute`,
+        );
+      }
+    }
+  }
+
+  // ── 7. Closing root tag ──────────────────────────────────────────────
+  if (xbrlOpen && !xml.includes('</xbrl>')) {
+    errors.push('Missing closing </xbrl> tag (truncated document?)');
+  }
+
+  // Warn — but don't error — when the doc has zero facts. Some orgs file
+  // empty-shell BRSR placeholders during the initial reporting cycle.
+  if (factCount === 0) {
+    logger.info(
+      'BRSR XBRL has zero brsr:* facts — likely an empty-shell placeholder',
+    );
+  }
+
+  return {
+    valid: errors.length === 0,
+    errors,
+    xsdVersion: BRSR_XSD_VERSION,
+    placeholder: true,
+  };
 }
 
 /**

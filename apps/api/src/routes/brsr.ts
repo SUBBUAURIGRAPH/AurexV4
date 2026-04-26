@@ -15,6 +15,7 @@ import * as brsrService from '../services/brsr.service.js';
 import {
   renderBrsrPdf,
   renderBrsrXbrl,
+  validateBrsrXbrl,
 } from '../services/brsr-render.service.js';
 
 export const brsrRouter: IRouter = Router();
@@ -166,6 +167,48 @@ brsrRouter.get(
 
       // format === 'xbrl'
       const xml = await renderBrsrXbrl(req.orgId!, year);
+
+      // AAT-R2 / AV4-426: SEBI XSD validation. Warn-mode for now —
+      // we still emit the XBRL even when validation fails so operators
+      // can iterate, but the result is surfaced via response headers
+      // (download path) or the JSON body (validate=true path) so
+      // dashboards + the BRSR Builder UI can flag warn-mode filings.
+      // Flip to hard-fail (return 422) once the canonical SEBI XSD
+      // replaces the vendored placeholder — see BRSR_XSD_VERSION.
+      const xsdValidation = validateBrsrXbrl(xml);
+      if (!xsdValidation.valid) {
+        // Don't fail the request; just log. Keeps the warn-mode
+        // contract explicit in the server log even when the caller
+        // didn't ask for the validate=true JSON envelope.
+        // eslint-disable-next-line no-console
+        console.warn(
+          '[brsr] XBRL warn-mode validation failed',
+          xsdValidation.errors,
+        );
+      }
+
+      // ── JSON envelope: ?validate=true returns { data: { xml,
+      //    xsdValidation } } so the BRSR Builder can surface the
+      //    validation result inline without re-uploading the file
+      //    through a second endpoint. Default behaviour stays the
+      //    binary attachment download for backwards compat with the
+      //    existing Generate button.
+      const wantValidateEnvelope =
+        typeof req.query.validate === 'string' &&
+        ['1', 'true', 'yes'].includes(req.query.validate.toLowerCase());
+
+      if (wantValidateEnvelope) {
+        res.json({
+          data: {
+            xml,
+            xsdValidation,
+            fiscalYear: `${year}-${String((year + 1) % 100).padStart(2, '0')}`,
+            orgSlug,
+          },
+        });
+        return;
+      }
+
       const filename = `brsr-${orgSlug}-${year}.xbrl`;
       const buf = Buffer.from(xml, 'utf-8');
       res.setHeader('Content-Type', 'application/xml; charset=utf-8');
@@ -174,6 +217,23 @@ brsrRouter.get(
         `attachment; filename="${filename}"`,
       );
       res.setHeader('Content-Length', buf.byteLength.toString());
+      // AAT-R2 / AV4-426: surface the warn-mode XSD validation summary
+      // in response headers so dashboards + e2e tests can detect bad
+      // filings without re-parsing the body.
+      res.setHeader(
+        'X-Brsr-Xsd-Valid',
+        xsdValidation.valid ? 'true' : 'false',
+      );
+      res.setHeader('X-Brsr-Xsd-Version', xsdValidation.xsdVersion);
+      if (xsdValidation.placeholder) {
+        res.setHeader('X-Brsr-Xsd-Placeholder', 'true');
+      }
+      if (!xsdValidation.valid) {
+        res.setHeader(
+          'X-Brsr-Xsd-Error-Count',
+          String(xsdValidation.errors.length),
+        );
+      }
       res.send(buf);
     } catch (err) {
       next(err);

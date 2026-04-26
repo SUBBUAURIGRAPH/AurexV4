@@ -227,6 +227,10 @@ describe('GET /api/v1/brsr/responses/:year/render?format=xbrl', () => {
       'attachment; filename="brsr-acme-2024.xbrl"',
     );
     expect(res.headers['Content-Length']).toBeDefined();
+    // AAT-R2 / AV4-426: warn-mode XSD validation surfaces via headers.
+    expect(res.headers['X-Brsr-Xsd-Valid']).toBe('true');
+    expect(res.headers['X-Brsr-Xsd-Version']).toBeDefined();
+    expect(res.headers['X-Brsr-Xsd-Placeholder']).toBe('true');
 
     const xml =
       res.body instanceof Buffer
@@ -237,6 +241,46 @@ describe('GET /api/v1/brsr/responses/:year/render?format=xbrl', () => {
     expect(xml).toContain('xmlns:brsr=');
     expect(xml).toContain('<brsr:P1_E_1');
     expect(xml).toContain('</xbrl>');
+  });
+
+  it('returns a JSON envelope with xsdValidation when ?validate=true', async () => {
+    mockPrisma.brsrResponse.findMany.mockResolvedValue([
+      {
+        id: 'resp-1',
+        orgId: ORG_ID,
+        indicatorId: 'ind-1',
+        fiscalYear: '2024-25',
+        value: 'Trained 100 employees',
+        notes: null,
+        indicator: {
+          id: 'ind-1',
+          principleId: 'p1',
+          section: 'SECTION_C',
+          indicatorType: 'ESSENTIAL',
+          code: 'P1-E-1',
+          title: 'Training on principles',
+          description: null,
+        },
+      },
+    ]);
+
+    const res = await getRequest(
+      '/api/v1/brsr/responses/2024/render?format=xbrl&validate=true',
+      authHeader(),
+    );
+
+    expect(res.status).toBe(200);
+    const body = res.body as Record<string, unknown>;
+    const data = body.data as Record<string, unknown>;
+    expect(typeof data.xml).toBe('string');
+    expect(String(data.xml)).toContain('<xbrl');
+    const xsdValidation = data.xsdValidation as Record<string, unknown>;
+    expect(xsdValidation.valid).toBe(true);
+    expect(Array.isArray(xsdValidation.errors)).toBe(true);
+    expect(xsdValidation.placeholder).toBe(true);
+    expect(typeof xsdValidation.xsdVersion).toBe('string');
+    expect(data.fiscalYear).toBe('2024-25');
+    expect(data.orgSlug).toBe('acme');
   });
 
   it('returns 400 for an unknown format', async () => {

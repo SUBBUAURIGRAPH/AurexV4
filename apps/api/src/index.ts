@@ -22,6 +22,8 @@ import { approvalsRouter } from './routes/approvals.js';
 import { workflowsRouter } from './routes/workflows.js';
 import { esgRouter } from './routes/esg.js';
 import { brsrRouter } from './routes/brsr.js';
+// AAT-R2 / AV4-427: BRSR Core assurance-readiness admin operations.
+import { adminBrsrRouter } from './routes/admin-brsr.js';
 import { onboardingRouter } from './routes/onboarding.js';
 import { securityRouter } from './routes/security.js';
 import { suppliersRouter } from './routes/suppliers.js';
@@ -124,6 +126,9 @@ app.use('/api/v1/approvals', approvalsRouter);
 app.use('/api/v1/workflows', workflowsRouter);
 app.use('/api/v1/esg', esgRouter);
 app.use('/api/v1/brsr', brsrRouter);
+// AAT-R2 / AV4-427: BRSR assurance-status admin route. Mounted under
+// /api/v1/admin/brsr/* so it can co-exist with future admin BRSR ops.
+app.use('/api/v1/admin/brsr', adminBrsrRouter);
 app.use('/api/v1/onboarding', onboardingRouter);
 app.use('/api/v1/suppliers', suppliersRouter);
 // Article 6.4 / Paris Agreement Crediting Mechanism

@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AAT-R2 / AV4-426 — PLACEHOLDER SEBI BRSR Core XBRL XSD.
+
+  ████ DO NOT SHIP TO PRODUCTION AS-IS ████
+
+  This is a *minimal* structural sketch used by Aurex to perform a
+  warn-mode validation pass on generated BRSR XBRL output. The real
+  SEBI BRSR Core XBRL XSD is published by SEBI under
+  https://www.sebi.gov.in/sebi_data/commondocs/... but was not
+  fetchable by the agent that scaffolded this gap (network-restricted
+  build environment + no stable canonical URL on sebi.gov.in at the
+  time of writing — Apr 2026).
+
+  Replacement procedure (when the canonical SEBI XSD is available):
+    1. Download the BRSR Core XBRL taxonomy bundle from sebi.gov.in.
+    2. Replace this file with the canonical `xbrl-instance` schema +
+       the BRSR Core taxonomy schema (you'll likely have multiple .xsd
+       files — wire them in as <xs:include> / <xs:import>).
+    3. Bump `BRSR_XSD_VERSION` in brsr-render.service.ts.
+    4. Flip `validateBrsrXbrl` from warn-mode to hard-fail by changing
+       the route to return 422 on `valid === false`.
+    5. Delete this notice block.
+
+  What this placeholder validates today:
+    • XML is well-formed (delegated to the XML parser, not XSD).
+    • Root element is `<xbrl>` in the xbrl-instance-2003 namespace.
+    • The doc declares the SEBI BRSR Core namespace at
+      `http://www.sebi.gov.in/xbrl/2023/brsr-core`.
+    • At least one `<context>` and one `<unit>` child element exists.
+    • Reporting period (`<startDate>` + `<endDate>`) is present.
+    • All facts (`<brsr:*>` elements) carry a `contextRef` attribute.
+
+  What this placeholder DOES NOT validate (delegated to the real XSD):
+    • Element-level cardinality vs. the BRSR principle catalogue.
+    • Datatype conformance (decimals, percentages, monetary units).
+    • Linkbase wiring (label, presentation, calculation, reference).
+    • XBRL Dimensions (xbrldi:explicitMember) for table indicators.
+    • Footnote linkbase, schemaRef, role/arcrole declarations.
+
+  Compliance note (BRSR Core / SEBI LODR Reg. 34 (2)(f)):
+    Filings emitted in warn-mode against this placeholder are NOT
+    SEBI-certified. Treat as advisory until the canonical XSD lands.
+-->
+<xs:schema
+  xmlns:xs="http://www.w3.org/2001/XMLSchema"
+  xmlns:xbrli="http://www.xbrl.org/2003/instance"
+  xmlns:brsr="http://www.sebi.gov.in/xbrl/2023/brsr-core"
+  targetNamespace="http://www.sebi.gov.in/xbrl/2023/brsr-core"
+  elementFormDefault="qualified">
+
+  <!--
+    Top-level wrapper. The real SEBI taxonomy uses xbrl-instance-2003's
+    `<xbrli:xbrl>` directly; this placeholder declares a sibling root
+    `brsrCore` so a future per-tenant validator can assert "doc was
+    generated with the BRSR Core profile" without depending on the
+    canonical taxonomy being on disk.
+  -->
+  <xs:element name="brsrCore">
+    <xs:complexType>
+      <xs:sequence>
+        <xs:element name="P1" minOccurs="0" maxOccurs="unbounded" type="xs:anyType"/>
+        <xs:element name="P2" minOccurs="0" maxOccurs="unbounded" type="xs:anyType"/>
+        <xs:element name="P3" minOccurs="0" maxOccurs="unbounded" type="xs:anyType"/>
+        <xs:element name="P4" minOccurs="0" maxOccurs="unbounded" type="xs:anyType"/>
+        <xs:element name="P5" minOccurs="0" maxOccurs="unbounded" type="xs:anyType"/>
+        <xs:element name="P6" minOccurs="0" maxOccurs="unbounded" type="xs:anyType"/>
+        <xs:element name="P7" minOccurs="0" maxOccurs="unbounded" type="xs:anyType"/>
+        <xs:element name="P8" minOccurs="0" maxOccurs="unbounded" type="xs:anyType"/>
+        <xs:element name="P9" minOccurs="0" maxOccurs="unbounded" type="xs:anyType"/>
+      </xs:sequence>
+    </xs:complexType>
+  </xs:element>
+
+  <!--
+    Loose `kgCO2e` and `count` measures referenced by the renderer's
+    `<unit>` blocks. Real taxonomy declares these under
+    iso4217 / xbrli-pure / xbrli-shares.
+  -->
+  <xs:simpleType name="kgCO2eMeasure">
+    <xs:restriction base="xs:string"/>
+  </xs:simpleType>
+
+  <xs:simpleType name="countMeasure">
+    <xs:restriction base="xs:string"/>
+  </xs:simpleType>
+
+</xs:schema>

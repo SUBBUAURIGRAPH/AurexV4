@@ -684,6 +684,34 @@ model BrsrResponse {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  // ── AAT-R2 / AV4-427: assurance-readiness audit metadata ────────────
+  // SEBI mandates reasonable assurance on BRSR Core indicators for the
+  // top-1000 listed companies on a glide path. These fields surface the
+  // provenance, evidence, and sign-off chain an external assurance
+  // auditor needs to attest a row.
+  //
+  //   • dataProvenance   — short opaque tag identifying the source-of-truth
+  //                        for the response value (e.g. "meter:utility-invoice-2025-Q3"
+  //                        or "hr-system:sap-success-factors").
+  //   • evidenceUrls     — array of supporting-document URLs (PDF invoices,
+  //                        signed attestations, scanned letters, etc.).
+  //   • lastReviewedBy   — User.id of the most recent reviewer (admin or
+  //                        auditor user). Nullable until first review.
+  //   • lastReviewedAt   — timestamp of the last review action.
+  //   • assuranceStatus  — coarse audit-status enum, stored as a VarChar
+  //                        rather than a Prisma enum to keep the migration
+  //                        cheap and to allow per-tenant extensions
+  //                        without a schema change.
+  //                          - "unaudited"           (default)
+  //                          - "internal_review"
+  //                          - "limited_assurance"
+  //                          - "reasonable_assurance"
+  dataProvenance  String?   @map("data_provenance") @db.VarChar(255)
+  evidenceUrls    String[]  @map("evidence_urls") @default([])
+  lastReviewedBy  String?   @map("last_reviewed_by") @db.Uuid
+  lastReviewedAt  DateTime? @map("last_reviewed_at")
+  assuranceStatus String    @default("unaudited") @map("assurance_status") @db.VarChar(32)
+
   org       Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
   indicator BrsrIndicator @relation(fields: [indicatorId], references: [id])
   user      User          @relation("brsrResponsesCreator", fields: [createdBy], references: [id])
@@ -691,6 +719,7 @@ model BrsrResponse {
   @@unique([orgId, indicatorId, fiscalYear])
   @@index([orgId])
   @@index([indicatorId])
+  @@index([assuranceStatus])
   @@map("brsr_responses")
 }
 

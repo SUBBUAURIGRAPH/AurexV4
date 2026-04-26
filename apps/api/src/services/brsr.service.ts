@@ -2,6 +2,36 @@ import { prisma } from '@aurex/database';
 import type { PaginatedResponse } from '@aurex/shared';
 import { logger } from '../lib/logger.js';
 import { AppError } from '../middleware/error-handler.js';
+import { recordAudit } from './audit-log.service.js';
+
+/**
+ * AAT-R2 / AV4-427 — Assurance status enum surfaced as a string union
+ * to keep the column un-Prisma-enumed (cheaper migration; per-tenant
+ * extensibility). The four values track the SEBI BRSR Core glide path:
+ *
+ *   - "unaudited"            — default, fresh response value
+ *   - "internal_review"      — reviewed by an internal preparer/checker
+ *   - "limited_assurance"    — third-party reviewed at limited level
+ *   - "reasonable_assurance" — third-party reviewed at reasonable level
+ *                              (the SEBI mandate for top-1000 listed cos.)
+ *
+ * Any extension MUST be additive — downstream BI dashboards filter on
+ * exact string match.
+ */
+export const BRSR_ASSURANCE_STATUSES = [
+  'unaudited',
+  'internal_review',
+  'limited_assurance',
+  'reasonable_assurance',
+] as const;
+
+export type BrsrAssuranceStatus = (typeof BRSR_ASSURANCE_STATUSES)[number];
+
+export function isBrsrAssuranceStatus(
+  v: string,
+): v is BrsrAssuranceStatus {
+  return (BRSR_ASSURANCE_STATUSES as readonly string[]).includes(v);
+}
 
 export interface BrsrPrincipleResult {
   id: string;
@@ -36,6 +66,13 @@ export interface BrsrResponseResult {
   createdAt: Date;
   updatedAt: Date;
   indicator?: BrsrIndicatorResult;
+  // AAT-R2 / AV4-427 — assurance-readiness audit metadata. See the
+  // matching prisma fields on BrsrResponse for the full contract.
+  dataProvenance: string | null;
+  evidenceUrls: string[];
+  lastReviewedBy: string | null;
+  lastReviewedAt: Date | null;
+  assuranceStatus: BrsrAssuranceStatus;
 }
 
 export async function listPrinciples(params: {
@@ -131,7 +168,19 @@ export async function getIndicator(id: string): Promise<BrsrIndicatorResult> {
 export async function upsertResponse(
   orgId: string,
   createdBy: string,
-  data: { indicatorId: string; fiscalYear: string; value?: unknown; notes?: string },
+  data: {
+    indicatorId: string;
+    fiscalYear: string;
+    value?: unknown;
+    notes?: string;
+    // AAT-R2 / AV4-427 — opt-in assurance fields on upsert. None of
+    // these promote a row to a higher assurance tier; that's gated to
+    // the admin route. Provenance + evidenceUrls can be set by the
+    // preparer at write time so the assurance auditor sees the chain
+    // on first review.
+    dataProvenance?: string | null;
+    evidenceUrls?: string[];
+  },
 ): Promise<BrsrResponseResult> {
   const indicator = await prisma.brsrIndicator.findUnique({ where: { id: data.indicatorId } });
   if (!indicator) throw new AppError(404, 'Not Found', 'Indicator not found');
@@ -151,14 +200,153 @@ export async function upsertResponse(
       value: data.value as never,
       notes: data.notes ?? null,
       createdBy,
+      dataProvenance: data.dataProvenance ?? null,
+      evidenceUrls: data.evidenceUrls ?? [],
+      // assuranceStatus deliberately defaults via prisma to "unaudited";
+      // promoting a status is gated to the admin route.
     },
     update: {
       value: data.value as never,
       notes: data.notes ?? null,
+      // Only overwrite provenance + evidence on update if the caller
+      // explicitly passed values — `undefined` keeps the prior value.
+      ...(data.dataProvenance !== undefined
+        ? { dataProvenance: data.dataProvenance }
+        : {}),
+      ...(data.evidenceUrls !== undefined
+        ? { evidenceUrls: data.evidenceUrls }
+        : {}),
     },
   });
   logger.info({ orgId, indicatorId: data.indicatorId, fiscalYear: data.fiscalYear }, 'BRSR response upserted');
   return row as unknown as BrsrResponseResult;
+}
+
+// ─── AAT-R2 / AV4-427: assurance-status admin operations ──────────────
+
+/**
+ * Result envelope for the admin assurance-set route.
+ */
+export interface SetAssuranceResult {
+  response: BrsrResponseResult;
+  /**
+   * The assurance status before the set call — useful for the audit
+   * log diff. When the row was already at the requested status this
+   * equals `response.assuranceStatus`.
+   */
+  previousStatus: BrsrAssuranceStatus;
+}
+
+/**
+ * Promote / demote a BRSR response's assurance status. Records an
+ * `AuditLog` entry on every state change so an external auditor can
+ * reconstruct the review history end-to-end.
+ *
+ * Auth contract: gated to admin users at the route layer. Any caller
+ * passing through this function is assumed to be authorised; the
+ * service itself trusts the orgId/userId tuple.
+ *
+ * Audit log shape (action: `brsr.assurance.update`):
+ *   - resource    = `BrsrResponse`
+ *   - resourceId  = response.id
+ *   - oldValue    = { assuranceStatus: previousStatus, lastReviewedBy, lastReviewedAt }
+ *   - newValue    = { assuranceStatus: nextStatus,     lastReviewedBy, lastReviewedAt }
+ */
+export async function setAssurance(
+  responseId: string,
+  reviewerUserId: string,
+  data: {
+    assuranceStatus: BrsrAssuranceStatus;
+    /**
+     * Optional override — defaults to `reviewerUserId`. Surfaced so
+     * the admin route can attribute a sign-off to a delegated auditor
+     * (e.g. an external auditor user record) while keeping the JWT
+     * caller identity for the AuditLog row.
+     */
+    lastReviewedBy?: string | null;
+    /**
+     * Optional override — defaults to `new Date()`. Useful for
+     * back-dating a sign-off captured offline.
+     */
+    lastReviewedAt?: Date | null;
+    /** Optional ip address for the audit row. */
+    ipAddress?: string;
+  },
+): Promise<SetAssuranceResult> {
+  if (!isBrsrAssuranceStatus(data.assuranceStatus)) {
+    throw new AppError(
+      400,
+      'Bad Request',
+      `Invalid assurance status: "${data.assuranceStatus}" ` +
+        `(expected one of ${BRSR_ASSURANCE_STATUSES.join(', ')})`,
+    );
+  }
+
+  const existing = await prisma.brsrResponse.findUnique({
+    where: { id: responseId },
+    select: {
+      id: true,
+      orgId: true,
+      assuranceStatus: true,
+      lastReviewedBy: true,
+      lastReviewedAt: true,
+    },
+  });
+  if (!existing) {
+    throw new AppError(404, 'Not Found', `BRSR response ${responseId} not found`);
+  }
+
+  const previousStatus = (existing.assuranceStatus ?? 'unaudited') as BrsrAssuranceStatus;
+  const reviewedAt = data.lastReviewedAt ?? new Date();
+  const reviewedBy =
+    data.lastReviewedBy === undefined ? reviewerUserId : data.lastReviewedBy;
+
+  const updated = await prisma.brsrResponse.update({
+    where: { id: responseId },
+    data: {
+      assuranceStatus: data.assuranceStatus,
+      lastReviewedBy: reviewedBy,
+      lastReviewedAt: reviewedAt,
+    },
+    include: { indicator: true },
+  });
+
+  // Audit-log every status change, even no-op writes — auditors need
+  // a record of "reviewer X re-confirmed unaudited" as much as a
+  // promotion. recordAudit is best-effort; failures are swallowed.
+  await recordAudit({
+    orgId: existing.orgId,
+    userId: reviewerUserId,
+    action: 'brsr.assurance.update',
+    resource: 'BrsrResponse',
+    resourceId: responseId,
+    oldValue: {
+      assuranceStatus: previousStatus,
+      lastReviewedBy: existing.lastReviewedBy,
+      lastReviewedAt: existing.lastReviewedAt?.toISOString() ?? null,
+    },
+    newValue: {
+      assuranceStatus: data.assuranceStatus,
+      lastReviewedBy: reviewedBy,
+      lastReviewedAt: reviewedAt.toISOString(),
+    },
+    ...(data.ipAddress ? { ipAddress: data.ipAddress } : {}),
+  });
+
+  logger.info(
+    {
+      responseId,
+      previousStatus,
+      nextStatus: data.assuranceStatus,
+      reviewerUserId,
+    },
+    'BRSR assurance status updated',
+  );
+
+  return {
+    response: updated as unknown as BrsrResponseResult,
+    previousStatus,
+  };
 }
 
 export async function listResponses(

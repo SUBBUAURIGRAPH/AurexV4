@@ -33,6 +33,7 @@ vi.mock('@aurex/database', () => ({ prisma: mockPrisma }));
 import {
   BRSR_XBRL_NAMESPACE,
   BRSR_XBRL_PREFIX,
+  BRSR_XSD_VERSION,
   XBRL_TAXONOMY_GAPS,
   escapeXml,
   fiscalYearToPeriod,
@@ -40,6 +41,7 @@ import {
   indicatorCodeToXbrlName,
   renderBrsrPdf,
   renderBrsrXbrl,
+  validateBrsrXbrl,
   yearToFiscalYear,
 } from './brsr-render.service.js';
 
@@ -361,5 +363,133 @@ describe('renderBrsrXbrl', () => {
     expect(xml).toContain(
       '<brsr:P1_E_2 contextRef="ctx-2024-25">Contains &lt;tag&gt; &amp; &quot;quotes&quot;</brsr:P1_E_2>',
     );
+  });
+});
+
+// ─── XSD validation (AAT-R2 / AV4-426) ────────────────────────────────
+
+describe('validateBrsrXbrl', () => {
+  it('returns valid=true for a well-formed BRSR XBRL document produced by renderBrsrXbrl', async () => {
+    mockPrisma.brsrResponse.findMany.mockResolvedValue([
+      response({
+        indicatorOpts: { code: 'P1-E-1', principleId: 'p1' },
+        value: 'Trained 100 employees',
+      }),
+      response({
+        indicatorOpts: { code: 'P3-E-1', principleId: 'p3' },
+        value: 42,
+      }),
+    ]);
+
+    const xml = await renderBrsrXbrl(ORG_ID, 2024);
+    const result = validateBrsrXbrl(xml);
+
+    expect(result.valid).toBe(true);
+    expect(result.errors).toEqual([]);
+    expect(result.xsdVersion).toBe(BRSR_XSD_VERSION);
+    // Until the canonical SEBI XSD ships, validation always runs in
+    // placeholder/warn-mode.
+    expect(result.placeholder).toBe(true);
+  });
+
+  it('flags an empty payload', () => {
+    const result = validateBrsrXbrl('');
+    expect(result.valid).toBe(false);
+    expect(result.errors[0]).toMatch(/Empty or non-string XBRL payload/);
+  });
+
+  it('flags a doc that is missing the SEBI BRSR Core namespace', () => {
+    const xml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<xbrl xmlns="http://www.xbrl.org/2003/instance">',
+      '  <context id="c1"><entity><identifier scheme="x">y</identifier></entity>',
+      '    <period><startDate>2024-04-01</startDate><endDate>2025-03-31</endDate></period>',
+      '  </context>',
+      '  <unit id="INR"><measure>iso4217:INR</measure></unit>',
+      '</xbrl>',
+    ].join('\n');
+
+    const result = validateBrsrXbrl(xml);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('SEBI BRSR Core'))).toBe(true);
+  });
+
+  it('flags missing context / unit / period blocks', () => {
+    const xml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<xbrl xmlns="http://www.xbrl.org/2003/instance"',
+      `      xmlns:brsr="${BRSR_XBRL_NAMESPACE}">`,
+      '</xbrl>',
+    ].join('\n');
+
+    const result = validateBrsrXbrl(xml);
+    expect(result.valid).toBe(false);
+    // All three structural defects are flagged.
+    expect(result.errors.some((e) => e.includes('<context'))).toBe(true);
+    expect(result.errors.some((e) => e.includes('<unit'))).toBe(true);
+  });
+
+  it('flags brsr:* facts that are missing contextRef', () => {
+    const xml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<xbrl xmlns="http://www.xbrl.org/2003/instance"',
+      `      xmlns:brsr="${BRSR_XBRL_NAMESPACE}">`,
+      '  <context id="c1"><entity><identifier scheme="x">y</identifier></entity>',
+      '    <period><startDate>2024-04-01</startDate><endDate>2025-03-31</endDate></period>',
+      '  </context>',
+      '  <unit id="INR"><measure>iso4217:INR</measure></unit>',
+      '  <brsr:P1_E_1>missing contextRef</brsr:P1_E_1>',
+      '</xbrl>',
+    ].join('\n');
+
+    const result = validateBrsrXbrl(xml);
+    expect(result.valid).toBe(false);
+    expect(
+      result.errors.some((e) =>
+        e.match(/Fact <brsr:P1_E_1> is missing contextRef/),
+      ),
+    ).toBe(true);
+  });
+
+  it('flags a truncated document missing </xbrl>', () => {
+    const xml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<xbrl xmlns="http://www.xbrl.org/2003/instance"',
+      `      xmlns:brsr="${BRSR_XBRL_NAMESPACE}">`,
+      '  <context id="c1"><entity><identifier scheme="x">y</identifier></entity>',
+      '    <period><startDate>2024-04-01</startDate><endDate>2025-03-31</endDate></period>',
+      '  </context>',
+      '  <unit id="INR"><measure>iso4217:INR</measure></unit>',
+      // intentionally NOT closed
+    ].join('\n');
+
+    const result = validateBrsrXbrl(xml);
+    expect(result.valid).toBe(false);
+    expect(result.errors.some((e) => e.includes('</xbrl>'))).toBe(true);
+  });
+
+  it('caps the per-document fact-error list to keep payloads small', () => {
+    const factsMissingCtx = Array.from({ length: 25 })
+      .map((_, idx) => `  <brsr:P1_E_${idx + 1}>x</brsr:P1_E_${idx + 1}>`)
+      .join('\n');
+    const xml = [
+      '<?xml version="1.0" encoding="UTF-8"?>',
+      '<xbrl xmlns="http://www.xbrl.org/2003/instance"',
+      `      xmlns:brsr="${BRSR_XBRL_NAMESPACE}">`,
+      '  <context id="c1"><entity><identifier scheme="x">y</identifier></entity>',
+      '    <period><startDate>2024-04-01</startDate><endDate>2025-03-31</endDate></period>',
+      '  </context>',
+      '  <unit id="INR"><measure>iso4217:INR</measure></unit>',
+      factsMissingCtx,
+      '</xbrl>',
+    ].join('\n');
+
+    const result = validateBrsrXbrl(xml);
+    expect(result.valid).toBe(false);
+    // Cap at 5 fact-level error rows + the structural ones above.
+    const factErrors = result.errors.filter((e) =>
+      e.includes('missing contextRef'),
+    );
+    expect(factErrors.length).toBeLessThanOrEqual(5);
   });
 });
