@@ -29,25 +29,17 @@ const navItems: NavItem[] = [
     ),
     children: [
       { label: 'Add Entry', path: '/emissions/new' },
-      { label: 'Scope 1 - Direct', path: '/emissions?scope=1' },
-      { label: 'Scope 2 - Indirect', path: '/emissions?scope=2' },
-      { label: 'Scope 3 - Value Chain', path: '/emissions?scope=3' },
+      { label: 'Scope 1 — Direct', path: '/emissions?scope=1' },
+      { label: 'Scope 2 — Indirect', path: '/emissions?scope=2' },
+      { label: 'Scope 3 — Value Chain', path: '/emissions?scope=3' },
       { label: 'Bulk Upload', path: '/emissions/import' },
       { label: 'Baselines', path: '/emissions/baselines' },
       { label: 'Targets', path: '/emissions/targets' },
+      { label: 'Analytics', path: '/analytics' },
     ],
   },
   {
-    label: 'Analytics',
-    path: '/analytics',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Reports',
+    label: 'Reporting',
     path: '/reports',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -60,33 +52,8 @@ const navItems: NavItem[] = [
       { label: 'Build TCFD Report', path: '/reports/build/tcfd' },
       { label: 'Build CDP Report', path: '/reports/build/cdp' },
       { label: 'Build Custom Report', path: '/reports/build/custom' },
-    ],
-  },
-  {
-    label: 'Teams',
-    path: '/teams',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" /><circle cx="8.5" cy="7" r="4" /><path d="M20 8v6" /><path d="M23 11h-6" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Operations',
-    path: '/integrations',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="2" y="2" width="8" height="8" /><rect x="14" y="2" width="8" height="8" /><rect x="2" y="14" width="8" height="8" /><rect x="14" y="14" width="8" height="8" />
-      </svg>
-    ),
-    children: [
-      { label: 'Integrations', path: '/integrations' },
-      { label: 'Compliance', path: '/compliance' },
-      { label: 'Audit Logs', path: '/audit-logs' },
-      // AAT-10B / Wave 10b: split billing into manage + invoices.
-      { label: 'Billing', path: '/billing/manage' },
-      { label: 'Invoices', path: '/billing/invoices' },
-      { label: 'Support', path: '/support' },
+      { label: 'Frameworks Hub (TCFD/GRI/CDP/SASB/ISSB)', path: '/frameworks' },
+      { label: 'BRSR Builder (India)', path: '/brsr' },
     ],
   },
   {
@@ -105,44 +72,46 @@ const navItems: NavItem[] = [
     ],
   },
   {
-    label: 'ESG Reporting',
-    path: '/frameworks',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" /><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
-      </svg>
-    ),
-    children: [
-      { label: 'Frameworks Hub (TCFD/GRI/CDP/SASB/ISSB)', path: '/frameworks' },
-      { label: 'BRSR Builder (India)', path: '/brsr' },
-    ],
-  },
-  {
-    label: 'Suppliers',
-    path: '/suppliers',
-    icon: (
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="1" y="3" width="15" height="13" /><polygon points="16 8 20 8 23 11 23 16 16 16 16 8" /><circle cx="5.5" cy="18.5" r="2.5" /><circle cx="18.5" cy="18.5" r="2.5" />
-      </svg>
-    ),
-  },
-  {
-    label: 'Approvals',
+    label: 'Workflows',
     path: '/approvals',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
       </svg>
     ),
+    children: [
+      { label: 'Approvals', path: '/approvals' },
+      { label: 'Suppliers', path: '/suppliers' },
+      { label: 'Teams', path: '/teams' },
+    ],
   },
   {
-    label: 'Get Started',
-    path: '/onboarding',
+    label: 'Billing',
+    path: '/billing/manage',
     icon: (
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+        <rect x="2" y="5" width="20" height="14" rx="2" /><line x1="2" y1="10" x2="22" y2="10" /><line x1="6" y1="15" x2="10" y2="15" />
       </svg>
     ),
+    children: [
+      { label: 'Manage Subscription', path: '/billing/manage' },
+      { label: 'Invoices', path: '/billing/invoices' },
+    ],
+  },
+  {
+    label: 'Operations',
+    path: '/integrations',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="2" y="2" width="8" height="8" /><rect x="14" y="2" width="8" height="8" /><rect x="2" y="14" width="8" height="8" /><rect x="14" y="14" width="8" height="8" />
+      </svg>
+    ),
+    children: [
+      { label: 'Integrations', path: '/integrations' },
+      { label: 'Compliance', path: '/compliance' },
+      { label: 'Audit Logs', path: '/audit-logs' },
+      { label: 'Support', path: '/support' },
+    ],
   },
   {
     label: 'Settings',
