@@ -56,3 +56,6 @@ Thumbs.db
 
 # Vite dev-server timestamp artifacts
 vite.config.ts.timestamp-*.mjs
+
+# Graphify generated graph + cache (regenerate locally via 'graphify .')
+graphify-out/
