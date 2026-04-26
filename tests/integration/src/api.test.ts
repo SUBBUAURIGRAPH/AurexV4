@@ -130,9 +130,12 @@ describe('Authenticated reads (with seeded test user)', () => {
 });
 
 describe('Authenticated validation paths', () => {
-  test('POST /api/v1/emissions with empty body returns 400', async () => {
+  test('POST /api/v1/emissions with empty body returns 412 when onboarding is incomplete (gate before validation)', async () => {
     const res = await request(app).post('/api/v1/emissions').set(auth()).send({});
-    expect(res.status).toBe(400);
+    // Stub has no OnboardingProgress row — requireOnboardingComplete runs before Zod
+    // (empty body would be 400 only after org is onboarded: SKIPPED|COMPLETED).
+    expect(res.status).toBe(412);
+    expect(res.body).toMatchObject({ type: 'https://aurex.in/errors/onboarding-incomplete' });
   });
 
   test('POST /api/v1/onboarding/steps/1 without name returns 400', async () => {
