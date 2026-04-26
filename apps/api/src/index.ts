@@ -59,6 +59,9 @@ import { delistRequestsRouter } from './routes/delist-requests.js';
 // AAT-367 / AV4-367: service-to-service identity federation (Aurex ↔ AWD2/HCE2/Aurigraph).
 import { federationRouter } from './routes/federation.js';
 import { adminFederationRouter } from './routes/admin-federation.js';
+// AAT-378 / AV4-378: tier quota gate dashboard + caller-org snapshot.
+import { quotasRouter } from './routes/quotas.js';
+import { adminQuotasRouter } from './routes/admin-quotas.js';
 // AV4-338 / AAT-7: retention header + nightly archival worker
 import { retentionHeaderMiddleware } from './middleware/retention-header.js';
 import { startRetentionWorker } from './workers/retention-archival.worker.js';
@@ -163,6 +166,9 @@ app.use('/api/v1/delist-requests', delistRequestsRouter);
 // the partner key registry live under `/api/v1/admin/federation/*`.
 app.use('/api/v1/federation', federationRouter);
 app.use('/api/v1/admin/federation', adminFederationRouter);
+// AAT-378 / AV4-378: tier quota gate dashboard.
+app.use('/api/v1/quotas', quotasRouter);
+app.use('/api/v1/admin/quotas', adminQuotasRouter);
 
 // ADM-052: RFC 7807 error handler
 app.use(errorHandler);

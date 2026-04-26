@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
 import { NextStepsWidget } from '../../components/dashboard/NextStepsWidget';
+import { QuotaWidget } from '../../components/dashboard/QuotaWidget';
 import { useAnalyticsSummary, useAnalyticsTrend, useAnalyticsBreakdown, useAnalyticsTopSources } from '../../hooks/useAnalytics';
 
 /* ============================================
@@ -182,6 +183,11 @@ export function DashboardPage() {
 
       {/* AAT-WORKFLOW (Wave 9a): linear setup checklist surfaces what's next. */}
       <NextStepsWidget />
+
+      {/* AAT-378 / AV4-378: top-3 quota utilisation snapshot. */}
+      <div style={{ marginBottom: '1.5rem' }}>
+        <QuotaWidget />
+      </div>
 
       {/* Row 1: Stat Cards */}
       <div

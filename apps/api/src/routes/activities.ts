@@ -5,6 +5,7 @@ import { requireOrgScope } from '../middleware/org-scope.js';
 import { requireOrgRole } from '../middleware/org-role.js';
 import { requireOnboardingComplete } from '../middleware/onboarding-gate.js';
 import { requireActiveSubscription } from '../middleware/subscription-active-gate.js';
+import { requireQuota } from '../middleware/quota-gate.js';
 import * as activityService from '../services/activity.service.js';
 import * as reversalService from '../services/reversal.service.js';
 
@@ -59,7 +60,7 @@ activitiesRouter.get('/', async (req, res, next) => {
 });
 
 /** POST / — create activity (manager+) */
-activitiesRouter.post('/', requireOnboardingComplete, requireActiveSubscription, requireOrgRole(...WRITE_ROLES), async (req, res, next) => {
+activitiesRouter.post('/', requireOnboardingComplete, requireActiveSubscription, requireQuota('activitiesActive'), requireOrgRole(...WRITE_ROLES), async (req, res, next) => {
   try {
     const data = createActivitySchema.parse(req.body);
     const activity = await activityService.createActivity({

@@ -5,6 +5,7 @@ import { requireOrgScope } from '../middleware/org-scope.js';
 import { requireOrgRole } from '../middleware/org-role.js';
 import { requireOnboardingComplete } from '../middleware/onboarding-gate.js';
 import { requireActiveSubscription } from '../middleware/subscription-active-gate.js';
+import { requireQuota } from '../middleware/quota-gate.js';
 import { logger } from '../lib/logger.js';
 import * as reportService from '../services/report.service.js';
 import { writeCsvBuffer } from '../services/csv-writer.js';
@@ -47,6 +48,7 @@ reportRouter.use(requireAuth, requireOrgScope);
 reportRouter.post(
   '/generate',
   requireOnboardingComplete, requireActiveSubscription,
+  requireQuota('reportsPerYear'),
   requireRole('manager', 'org_admin', 'super_admin'),
   async (req, res, next) => {
     try {

@@ -10,6 +10,7 @@ import { requireOrgScope } from '../middleware/org-scope.js';
 import { requireOrgRole } from '../middleware/org-role.js';
 import { requireOnboardingComplete } from '../middleware/onboarding-gate.js';
 import { requireActiveSubscription } from '../middleware/subscription-active-gate.js';
+import { requireQuota } from '../middleware/quota-gate.js';
 import { logger } from '../lib/logger.js';
 import * as emissionsService from '../services/emissions.service.js';
 import { exportEmissionsCsv } from '../services/export.service.js';
@@ -65,7 +66,7 @@ emissionsRouter.post(
  */
 const CONTRIBUTOR_ROLES = ['MAKER', 'CHECKER', 'APPROVER', 'MANAGER', 'ORG_ADMIN', 'SUPER_ADMIN'];
 
-emissionsRouter.post('/', requireOnboardingComplete, requireActiveSubscription, requireOrgRole(...CONTRIBUTOR_ROLES), async (req, res, next) => {
+emissionsRouter.post('/', requireOnboardingComplete, requireActiveSubscription, requireQuota('monthlyEmissionEntries'), requireOrgRole(...CONTRIBUTOR_ROLES), async (req, res, next) => {
   try {
     const data = createEmissionSchema.parse(req.body);
 
