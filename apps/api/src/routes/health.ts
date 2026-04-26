@@ -7,6 +7,11 @@ import {
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { requireAuth, requireRole } from '../middleware/auth.js';
 import { logger } from '../lib/logger.js';
+import {
+  MandrillTransport,
+  MandrillKeyMissingError,
+} from '../services/email/mandrill-transport.js';
+import type { EmailProvider } from '../services/email/transport.js';
 
 export const healthRouter: IRouter = Router();
 
@@ -73,11 +78,17 @@ healthRouter.get('/ready', async (_req, res) => {
 // ───────────────────────────────────────────────────────────────────────
 
 interface EmailHealthResponse {
+  /** Active outbound transport — driven by `EMAIL_TRANSPORT` (default `ses`). */
+  provider: EmailProvider;
   from: string;
   replyTo: string;
   region: string;
   awsCredentialsResolved: boolean;
   sesIdentityVerified: boolean | 'unknown';
+  /** AAT-MANDRILL: whether `MANDRILL_API_KEY` is present in the runtime env. */
+  mandrillKeyResolved: boolean;
+  /** AAT-MANDRILL: whether the `users/ping.json` probe succeeded ('PONG!'). */
+  mandrillIdentityVerified: boolean | 'unknown';
   lastSendOk: string | null;
   lastSendError: string | null;
   outboundQueue24h: { sent: number; failed: number; pending: number };
@@ -157,6 +168,39 @@ async function loadOutboundSummary(): Promise<{
   }
 }
 
+/**
+ * Resolve which transport is "active" for this runtime. Mirrors
+ * `transport.getTransport()` resolution but is duplicated here so the
+ * route module doesn't need to instantiate either client just to read
+ * the env var.
+ */
+function resolveActiveProvider(): EmailProvider {
+  const raw = process.env.EMAIL_TRANSPORT;
+  return raw === 'mandrill' ? 'mandrill' : 'ses';
+}
+
+/**
+ * AAT-MANDRILL: probe the Mandrill `users/ping.json` endpoint when the
+ * key is present. Returns three states identical to `probeSesIdentity`:
+ *   - true       : key valid, ping returned 'PONG!'.
+ *   - false      : key invalid (4xx) or response not 'PONG!'.
+ *   - 'unknown'  : network failure / can't reach Mandrill.
+ *
+ * Returns 'unknown' (rather than throwing) if the key is missing — the
+ * caller surfaces that separately via `mandrillKeyResolved`.
+ */
+async function probeMandrillIdentity(): Promise<boolean | 'unknown'> {
+  if (!process.env.MANDRILL_API_KEY) return 'unknown';
+  try {
+    const transport = new MandrillTransport();
+    return await transport.ping();
+  } catch (err) {
+    if (err instanceof MandrillKeyMissingError) return 'unknown';
+    logger.debug({ err }, 'Mandrill ping probe failed');
+    return 'unknown';
+  }
+}
+
 healthRouter.get(
   '/email',
   requireAuth,
@@ -166,15 +210,25 @@ healthRouter.get(
     const from = process.env.AURIGRAPH_EMAIL_FROM ?? 'noreply@aurex.in';
     const replyTo =
       process.env.AURIGRAPH_EMAIL_REPLY_TO ?? 'contact@aurex.in';
+    const provider = resolveActiveProvider();
+    const mandrillKeyResolved = Boolean(process.env.MANDRILL_API_KEY);
 
     // Test-mode stub — keeps unit tests deterministic and offline.
-    if (process.env.AWS_SES_MOCK_MODE === '1') {
+    // Either SES or Mandrill mock mode produces a deterministic payload.
+    if (
+      process.env.AWS_SES_MOCK_MODE === '1' ||
+      process.env.MANDRILL_MOCK_MODE === '1'
+    ) {
       const stub: EmailHealthResponse = {
+        provider,
         from,
         replyTo,
         region,
         awsCredentialsResolved: true,
         sesIdentityVerified: true,
+        mandrillKeyResolved,
+        mandrillIdentityVerified:
+          process.env.MANDRILL_MOCK_MODE === '1' ? true : 'unknown',
         lastSendOk: new Date().toISOString(),
         lastSendError: null,
         outboundQueue24h: { sent: 1, failed: 0, pending: 0 },
@@ -188,18 +242,37 @@ healthRouter.get(
       loadOutboundSummary(),
     ]);
 
-    // Identity probe needs creds to be useful; if creds unresolved we
-    // skip the SES call and report 'unknown' without burning a request.
-    const sesIdentityVerified: boolean | 'unknown' = awsCredentialsResolved
-      ? await probeSesIdentity(region, from)
-      : 'unknown';
+    // Identity probes — only run the active transport's probe with full
+    // weight. The inactive transport's status is reported best-effort
+    // (so a Mandrill-only deployment still gets visibility into AWS
+    // creds and vice-versa) but failure of the inactive probe must NOT
+    // fail the endpoint.
+    const safeUnknown = (): boolean | 'unknown' => 'unknown';
+    const sesIdentityVerified: boolean | 'unknown' =
+      provider === 'ses'
+        ? awsCredentialsResolved
+          ? await probeSesIdentity(region, from)
+          : 'unknown'
+        : awsCredentialsResolved
+          ? await probeSesIdentity(region, from).catch(safeUnknown)
+          : 'unknown';
+
+    const mandrillIdentityVerified: boolean | 'unknown' =
+      provider === 'mandrill'
+        ? await probeMandrillIdentity()
+        : mandrillKeyResolved
+          ? await probeMandrillIdentity().catch(safeUnknown)
+          : 'unknown';
 
     const body: EmailHealthResponse = {
+      provider,
       from,
       replyTo,
       region,
       awsCredentialsResolved,
       sesIdentityVerified,
+      mandrillKeyResolved,
+      mandrillIdentityVerified,
       lastSendOk: summary.lastSendOk,
       lastSendError: summary.lastSendError,
       outboundQueue24h: summary.outboundQueue24h,

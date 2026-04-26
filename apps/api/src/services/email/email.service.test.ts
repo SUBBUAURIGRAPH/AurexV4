@@ -54,6 +54,10 @@ const TRACKED_KEYS = [
   'AURIGRAPH_EMAIL_FROM',
   'AURIGRAPH_EMAIL_REPLY_TO',
   'AWS_SES_MOCK_MODE',
+  // AAT-MANDRILL — multi-provider façade.
+  'EMAIL_TRANSPORT',
+  'MANDRILL_API_KEY',
+  'MANDRILL_MOCK_MODE',
 ] as const;
 
 beforeEach(() => {
@@ -270,5 +274,100 @@ describe('sendEmail — live mode (SDK mocked)', () => {
 
     const sentCmd = sendMock.mock.calls[0]![0] as { input: { FromEmailAddress: string } };
     expect(sentCmd.input.FromEmailAddress).toBe('noreply@aurex.in');
+  });
+
+  it('SES success result carries provider="ses"', async () => {
+    sendMock.mockResolvedValueOnce({ MessageId: 'ses-provider-tag' });
+    const result = await sendEmail({
+      to: 'tag@example.com',
+      subject: 's',
+      html: '<p>x</p>',
+      templateKey: 'verification',
+    });
+    expect(result.provider).toBe('ses');
+  });
+});
+
+// ─── AAT-MANDRILL: routing through the Mandrill transport ──────────────
+//
+// We rely on `MANDRILL_MOCK_MODE=1` (or NODE_ENV=test) so the transport
+// short-circuits HTTP and pushes onto `_mandrillTestQueue`. No global
+// fetch mock needed for these tests — the email.service test-mode
+// short-circuit captures the email on `_testEmailQueue` and tags it
+// with `provider: 'mandrill'`.
+
+describe('sendEmail — Mandrill routing (AAT-MANDRILL)', () => {
+  beforeEach(() => {
+    process.env.NODE_ENV = 'test'; // satisfies Mandrill mock-mode
+    process.env.EMAIL_TRANSPORT = 'mandrill';
+  });
+
+  it('routes through Mandrill when EMAIL_TRANSPORT=mandrill', async () => {
+    const result = await sendEmail({
+      to: 'm@example.com',
+      subject: 'mandrill subject',
+      html: '<p>m</p>',
+      templateKey: 'welcome',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('unreachable');
+    expect(result.provider).toBe('mandrill');
+    // Mandrill mock-mode messageIds are `mandrill-mock-…`; SES is `mock-…`.
+    expect(result.messageId).toMatch(/^mandrill-mock-/);
+    // SES SDK must NOT have been touched.
+    expect(sendMock).not.toHaveBeenCalled();
+  });
+
+  it('records the provider on the in-memory test queue (no schema column)', async () => {
+    await sendEmail({
+      to: 'qrec@example.com',
+      subject: 'q',
+      html: '<p>q</p>',
+      templateKey: 'verification',
+    });
+
+    expect(_testEmailQueue).toHaveLength(1);
+    const queued = _testEmailQueue[0]!;
+    expect(queued.provider).toBe('mandrill');
+    expect(queued.templateKey).toBe('verification');
+  });
+
+  it('persists OutboundEmail row PENDING → SENT (no provider column writes)', async () => {
+    await sendEmail({
+      to: 'persist@example.com',
+      subject: 'p',
+      html: '<p>p</p>',
+      templateKey: 'payment-receipt',
+    });
+
+    // Audit row written exactly as in the SES path — no `provider` field
+    // because we deliberately avoided a schema migration. The provider
+    // is recovered from the runtime EMAIL_TRANSPORT env + log fields.
+    const createArg = mockPrisma.outboundEmail.create.mock.calls[0]![0];
+    expect(createArg.data.templateKey).toBe('payment-receipt');
+    expect(createArg.data.status).toBe('PENDING');
+    expect(createArg.data).not.toHaveProperty('provider');
+
+    const updateArg = mockPrisma.outboundEmail.update.mock.calls[0]![0];
+    expect(updateArg.data.status).toBe('SENT');
+    expect(updateArg.data.messageId).toMatch(/^mandrill-mock-/);
+  });
+
+  it('default (no EMAIL_TRANSPORT set) still routes through SES — no behaviour change', async () => {
+    delete process.env.EMAIL_TRANSPORT;
+    process.env.NODE_ENV = 'test';
+
+    const result = await sendEmail({
+      to: 'default@example.com',
+      subject: 'd',
+      html: '<p>d</p>',
+      templateKey: 'verification',
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error('unreachable');
+    expect(result.provider).toBe('ses');
+    expect(result.messageId).toMatch(/^mock-/);
   });
 });

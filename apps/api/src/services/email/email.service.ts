@@ -1,37 +1,51 @@
 /**
- * AAT-EMAIL / Wave 8b: SES v2 outbound email façade.
+ * AAT-EMAIL / Wave 8b + AAT-MANDRILL: outbound email façade.
  *
  * One entry point — `sendEmail({ to, subject, html, text? })` — used by
- * the auth + billing services. Two execution modes:
+ * the auth + billing services. Behaviour:
  *
- *   1. Live mode (default in dev/staging/prod):
- *      Constructs a memoised `SESv2Client` against AWS_REGION, builds a
- *      `SendEmailCommand`, fires it, persists the OutboundEmail audit
- *      row, returns `{ ok: true, messageId, recordId }`.
+ *   1. The active transport is resolved at call time via
+ *      `getTransport()` (see `transport.ts`):
+ *        - `EMAIL_TRANSPORT=ses`      → SES v2 (default)
+ *        - `EMAIL_TRANSPORT=mandrill` → Mandrill / Mailchimp Transactional
+ *      Default is SES so existing deployments are unchanged.
  *
- *   2. Test mode (NODE_ENV === 'test' OR AWS_SES_MOCK_MODE=1):
- *      Pushes the email onto the in-memory `_testEmailQueue` and returns
- *      a synthetic messageId (`mock-<uuid>`) without touching SES. Tests
- *      assert against the queue.
+ *   2. Test / mock modes (per-transport):
+ *        - SES: `NODE_ENV==='test'` or `AWS_SES_MOCK_MODE=1`
+ *               → push onto `_testEmailQueue`, synthetic `mock-…` id.
+ *        - Mandrill: `NODE_ENV==='test'` or `MANDRILL_MOCK_MODE=1`
+ *               → push onto `_mandrillTestQueue`, synthetic `mandrill-mock-…` id.
  *
- * Failure semantics: this is a "best effort" surface. A failed send must
- * never bubble up and break the calling flow (signup, payment) — we
- * persist FAILED + return `{ ok: false }`. Callers may log/alert; they
- * MUST NOT roll back the parent transaction.
+ *   3. Audit row: written on every call regardless of transport. We do
+ *      NOT store the provider name on `OutboundEmail` (no schema change
+ *      under AAT-MANDRILL — see runbook §"Provider switching"). The
+ *      provider is recovered from the `EMAIL_TRANSPORT` env var of the
+ *      runtime that produced the row, plus the structured logger fields
+ *      emitted alongside each send.
  *
- * Credentials: inherited from the standard AWS SDK env-var chain
- * (AWS_ACCESS_KEY_ID + AWS_SECRET_ACCESS_KEY OR an instance profile).
- * NEVER hard-code credentials here.
+ *   4. Failure semantics: best-effort. A failed send must never bubble
+ *      up and break the calling flow (signup, payment) — we persist
+ *      FAILED + return `{ ok: false }`. Callers may log/alert; they
+ *      MUST NOT roll back the parent transaction.
+ *
+ * Credentials:
+ *   - SES: standard AWS SDK env-var chain.
+ *   - Mandrill: `MANDRILL_API_KEY` env var.
+ *   NEVER hard-code credentials here.
  */
 
 import { prisma, type EmailStatus } from '@aurex/database';
-import {
-  SESv2Client,
-  SendEmailCommand,
-  type SendEmailCommandInput,
-  type SendEmailCommandOutput,
-} from '@aws-sdk/client-sesv2';
 import { logger } from '../../lib/logger.js';
+import {
+  getTransport,
+  type EmailProvider,
+  _resetSesClientForTests,
+} from './transport.js';
+import {
+  _resetMandrillTestQueue,
+  MandrillKeyMissingError,
+  MandrillSendError,
+} from './mandrill-transport.js';
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
@@ -51,20 +65,24 @@ export interface SendEmailSuccess {
   messageId: string;
   /** OutboundEmail.id — null when persistence itself failed. */
   recordId: string | null;
+  /** Which transport actually shipped the message. */
+  provider: EmailProvider;
 }
 
 export interface SendEmailFailure {
   ok: false;
   error: string;
   recordId: string | null;
+  /** Which transport was attempted. */
+  provider: EmailProvider;
 }
 
 export type SendEmailResult = SendEmailSuccess | SendEmailFailure;
 
 /**
- * Test-mode in-memory queue. Each entry mirrors what would have been
- * sent to SES so tests can assert on To/From/Subject/Body. Cleared
- * between tests via `_resetTestEmailQueue()`.
+ * Test-mode in-memory queue (SES path). Each entry mirrors what would
+ * have been sent to SES so tests can assert on To/From/Subject/Body.
+ * Cleared between tests via `_resetTestEmailQueue()`.
  */
 export interface QueuedTestEmail {
   to: string;
@@ -76,13 +94,19 @@ export interface QueuedTestEmail {
   templateKey: EmailTemplateKey;
   messageId: string;
   sentAt: Date;
+  provider: EmailProvider;
 }
 
 export const _testEmailQueue: QueuedTestEmail[] = [];
 
 export function _resetTestEmailQueue(): void {
   _testEmailQueue.length = 0;
+  _resetMandrillTestQueue();
 }
+
+// Re-export transport-reset helper for tests that previously imported it
+// from email.service directly.
+export { _resetSesClientForTests };
 
 /**
  * Typed error so callers (or future retry workers) can pattern-match on
@@ -102,41 +126,24 @@ export class EmailSendError extends Error {
 // ─── Config resolution ─────────────────────────────────────────────────
 
 interface ResolvedConfig {
-  region: string;
   from: string;
   replyTo: string | null;
   testMode: boolean;
 }
 
-function resolveConfig(): ResolvedConfig {
-  const region = process.env.AWS_REGION ?? 'ap-south-1';
+function resolveConfig(provider: EmailProvider): ResolvedConfig {
   const from = process.env.AURIGRAPH_EMAIL_FROM ?? 'noreply@aurex.in';
   const replyTo = process.env.AURIGRAPH_EMAIL_REPLY_TO ?? 'contact@aurex.in';
+  // Per-provider mock-mode short-circuit. Each transport also checks
+  // mock-mode internally (so callers can use the transport directly),
+  // but we mirror the test-mode book-keeping here so the audit row is
+  // marked SENT immediately and the test queue receives an entry that
+  // includes `templateKey`.
   const testMode =
-    process.env.NODE_ENV === 'test' || process.env.AWS_SES_MOCK_MODE === '1';
-  return { region, from, replyTo: replyTo === '' ? null : replyTo, testMode };
-}
-
-// ─── Client memoisation ────────────────────────────────────────────────
-
-let cachedClient: SESv2Client | null = null;
-let cachedRegion: string | null = null;
-
-function getSesClient(region: string): SESv2Client {
-  if (cachedClient && cachedRegion === region) return cachedClient;
-  cachedClient = new SESv2Client({ region });
-  cachedRegion = region;
-  return cachedClient;
-}
-
-/**
- * Test-only: drop the cached client so a subsequent test can rebuild it
- * with a fresh mock or a different region. Not exported as part of the
- * public surface.
- */
-export function _resetSesClientForTests(): void {
-  cachedClient = null;
-  cachedRegion = null;
+    process.env.NODE_ENV === 'test' ||
+    (provider === 'ses' && process.env.AWS_SES_MOCK_MODE === '1') ||
+    (provider === 'mandrill' && process.env.MANDRILL_MOCK_MODE === '1');
+  return { from, replyTo: replyTo === '' ? null : replyTo, testMode };
 }
 
 // ─── Persistence helpers ───────────────────────────────────────────────
@@ -206,16 +213,44 @@ async function markRowFailed(
  * the OutboundEmail audit table but never thrown to the caller.
  *
  * Returns:
- *   { ok: true,  messageId, recordId } on success.
- *   { ok: false, error,     recordId } on failure (no exception).
+ *   { ok: true,  messageId, recordId, provider } on success.
+ *   { ok: false, error,     recordId, provider } on failure (no exception).
+ *
+ * Backward-compatible with callers that only inspect `.ok` / `.messageId` /
+ * `.recordId` — `.provider` is additive.
  */
 export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult> {
-  const cfg = resolveConfig();
+  // Resolve transport — may throw MandrillKeyMissingError if EMAIL_TRANSPORT=
+  // mandrill and the API key is missing in a non-test env. Catch it here
+  // so the calling flow never sees an exception.
+  let transport;
+  try {
+    transport = getTransport();
+  } catch (err) {
+    const errMsg = err instanceof Error ? err.message : String(err);
+    const provider: EmailProvider =
+      err instanceof MandrillKeyMissingError ? 'mandrill' : 'ses';
+    logger.warn(
+      { err, to: input.to, templateKey: input.templateKey, provider },
+      'Email transport resolution failed (best-effort — caller continues)',
+    );
+    // We can't write a meaningful audit row without a transport; still
+    // attempt one so ops can see the failure.
+    const recordId = await persistInitialRow(input);
+    await markRowFailed(recordId, errMsg);
+    return { ok: false, error: errMsg, recordId, provider };
+  }
+
+  const provider = transport.providerName;
+  const cfg = resolveConfig(provider);
   const recordId = await persistInitialRow(input);
 
-  // ── Test mode short-circuit ─────────────────────────────────────────
+  // ── Test-mode short-circuit (mirrors original Wave 8b behaviour) ────
   if (cfg.testMode) {
-    const messageId = `mock-${Math.random().toString(36).slice(2, 12)}-${Date.now()}`;
+    const messageId =
+      provider === 'mandrill'
+        ? `mandrill-mock-${Math.random().toString(36).slice(2, 12)}-${Date.now()}`
+        : `mock-${Math.random().toString(36).slice(2, 12)}-${Date.now()}`;
     const queued: QueuedTestEmail = {
       to: input.to,
       from: cfg.from,
@@ -226,62 +261,51 @@ export async function sendEmail(input: SendEmailInput): Promise<SendEmailResult>
       templateKey: input.templateKey,
       messageId,
       sentAt: new Date(),
+      provider,
     };
     _testEmailQueue.push(queued);
     await markRowSent(recordId, messageId);
     logger.debug(
-      { to: input.to, templateKey: input.templateKey, messageId },
-      'Email queued in test mode (no SES call)',
+      { to: input.to, templateKey: input.templateKey, messageId, provider },
+      'Email queued in test mode (no provider call)',
     );
-    return { ok: true, messageId, recordId };
+    return { ok: true, messageId, recordId, provider };
   }
 
-  // ── Live mode: send via SES v2 ──────────────────────────────────────
-  const client = getSesClient(cfg.region);
-
-  const sesInput: SendEmailCommandInput = {
-    FromEmailAddress: cfg.from,
-    Destination: { ToAddresses: [input.to] },
-    Content: {
-      Simple: {
-        Subject: { Data: input.subject, Charset: 'UTF-8' },
-        Body: {
-          Html: { Data: input.html, Charset: 'UTF-8' },
-          ...(input.text
-            ? { Text: { Data: input.text, Charset: 'UTF-8' } }
-            : {}),
-        },
-      },
-    },
-    ...(cfg.replyTo ? { ReplyToAddresses: [cfg.replyTo] } : {}),
-  };
-
+  // ── Live mode: delegate to the active transport ─────────────────────
   try {
-    const out: SendEmailCommandOutput = await client.send(
-      new SendEmailCommand(sesInput),
-    );
-    const messageId = out.MessageId ?? '';
-    if (!messageId) {
-      // SES returned 200 but no MessageId — treat as soft failure so
-      // ops can investigate via the audit row.
-      const errMsg = 'SES SendEmail succeeded without MessageId';
-      await markRowFailed(recordId, errMsg);
-      logger.warn({ to: input.to, templateKey: input.templateKey }, errMsg);
-      return { ok: false, error: errMsg, recordId };
-    }
-    await markRowSent(recordId, messageId);
+    const sent = await transport.send({
+      to: input.to,
+      from: cfg.from,
+      ...(cfg.replyTo ? { replyTo: cfg.replyTo } : {}),
+      subject: input.subject,
+      html: input.html,
+      ...(input.text ? { text: input.text } : {}),
+    });
+    await markRowSent(recordId, sent.messageId);
     logger.info(
-      { to: input.to, templateKey: input.templateKey, messageId },
-      'Email sent via SES',
+      {
+        to: input.to,
+        templateKey: input.templateKey,
+        messageId: sent.messageId,
+        provider,
+      },
+      'Email sent',
     );
-    return { ok: true, messageId, recordId };
+    return { ok: true, messageId: sent.messageId, recordId, provider };
   } catch (err) {
-    const errMsg = err instanceof Error ? err.message : String(err);
+    // Map provider-specific errors to a single string for the audit row.
+    let errMsg: string;
+    if (err instanceof MandrillSendError) {
+      errMsg = `[mandrill:${err.code}] ${err.message}`;
+    } else {
+      errMsg = err instanceof Error ? err.message : String(err);
+    }
     await markRowFailed(recordId, errMsg);
     logger.warn(
-      { err, to: input.to, templateKey: input.templateKey },
+      { err, to: input.to, templateKey: input.templateKey, provider },
       'Email send failed (best-effort — caller continues)',
     );
-    return { ok: false, error: errMsg, recordId };
+    return { ok: false, error: errMsg, recordId, provider };
   }
 }

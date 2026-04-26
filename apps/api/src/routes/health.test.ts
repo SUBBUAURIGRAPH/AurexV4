@@ -155,6 +155,10 @@ const TRACKED_KEYS = [
   'AURIGRAPH_EMAIL_FROM',
   'AURIGRAPH_EMAIL_REPLY_TO',
   'AWS_SES_MOCK_MODE',
+  // AAT-MANDRILL — multi-provider façade.
+  'EMAIL_TRANSPORT',
+  'MANDRILL_API_KEY',
+  'MANDRILL_MOCK_MODE',
 ] as const;
 
 beforeEach(() => {
@@ -237,18 +241,26 @@ describe('GET /api/v1/health/email — live-mode shape', () => {
 
     expect(res.status).toBe(200);
     const body = res.body as Record<string, unknown>;
+    // AAT-MANDRILL added `provider`, `mandrillKeyResolved`,
+    // `mandrillIdentityVerified` to the response schema.
     expect(Object.keys(body).sort()).toEqual([
       'awsCredentialsResolved',
       'from',
       'lastSendError',
       'lastSendOk',
+      'mandrillIdentityVerified',
+      'mandrillKeyResolved',
       'outboundQueue24h',
+      'provider',
       'region',
       'replyTo',
       'sesIdentityVerified',
     ]);
+    expect(body.provider).toBe('ses');
     expect(body.awsCredentialsResolved).toBe(false);
     expect(body.sesIdentityVerified).toBe('unknown');
+    expect(body.mandrillKeyResolved).toBe(false);
+    expect(body.mandrillIdentityVerified).toBe('unknown');
     expect(body.lastSendOk).toBe('2026-04-25T10:00:00.000Z');
     expect(body.lastSendError).toBe('throttled');
     expect(body.outboundQueue24h).toEqual({ sent: 7, failed: 2, pending: 1 });
@@ -275,5 +287,38 @@ describe('GET /api/v1/health/email — live-mode shape', () => {
     expect(body.awsCredentialsResolved).toBe(true);
     expect(body.sesIdentityVerified).toBe(false);
     expect(sesSendMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─── AAT-MANDRILL ──────────────────────────────────────────────────────
+
+describe('GET /api/v1/health/email — Mandrill provider (AAT-MANDRILL)', () => {
+  it('surfaces provider="mandrill" + mandrill stub fields when MANDRILL_MOCK_MODE=1', async () => {
+    process.env.MANDRILL_MOCK_MODE = '1';
+    process.env.EMAIL_TRANSPORT = 'mandrill';
+    process.env.MANDRILL_API_KEY = 'md-test-key';
+
+    const res = await getRequest('/api/v1/health/email', adminAuthHeader());
+
+    expect(res.status).toBe(200);
+    const body = res.body as Record<string, unknown>;
+    expect(body.provider).toBe('mandrill');
+    expect(body.mandrillKeyResolved).toBe(true);
+    expect(body.mandrillIdentityVerified).toBe(true);
+    // Stub mode short-circuits; no SDK / fetch call should happen.
+    expect(sesSendMock).not.toHaveBeenCalled();
+  });
+
+  it('reports mandrillKeyResolved=false when MANDRILL_API_KEY is unset', async () => {
+    delete process.env.MANDRILL_API_KEY;
+    delete process.env.EMAIL_TRANSPORT; // default = ses
+    process.env.AWS_SES_MOCK_MODE = '1';
+
+    const res = await getRequest('/api/v1/health/email', adminAuthHeader());
+    const body = res.body as Record<string, unknown>;
+
+    expect(body.provider).toBe('ses');
+    expect(body.mandrillKeyResolved).toBe(false);
+    expect(body.mandrillIdentityVerified).toBe('unknown');
   });
 });

@@ -1,9 +1,9 @@
-# 10 — Email Transport Runbook (Amazon SES)
+# 10 — Email Transport Runbook (Amazon SES + Mandrill)
 
-**Purpose:** Operational runbook for Aurex's transactional outbound email pipeline. Covers first-time SES + DNS setup, daily ops commands, failure recovery, and template change-management.
+**Purpose:** Operational runbook for Aurex's transactional outbound email pipeline. Covers first-time SES + DNS setup, daily ops commands, failure recovery, template change-management, and provider switching between SES and Mandrill (Mailchimp Transactional).
 **Audience:** Aurex DevOps (deploys + DNS), Aurex Compliance (template approval), Aurex Engineering on-call (failure triage).
-**Owner:** AAT-11C / Wave 11c — operational glue around the AAT-EMAIL transport.
-**Companion docs:** [`./08-change-management.md`](./08-change-management.md); the SES façade lives at `apps/api/src/services/email/email.service.ts`; the diagnostic endpoint lives at `apps/api/src/routes/health.ts` (`GET /api/v1/health/email`).
+**Owner:** AAT-11C / Wave 11c — operational glue around the AAT-EMAIL transport. Mandrill provider added under AAT-MANDRILL.
+**Companion docs:** [`./08-change-management.md`](./08-change-management.md); the SES façade lives at `apps/api/src/services/email/email.service.ts`; per-provider transports at `apps/api/src/services/email/transport.ts` (SES) and `apps/api/src/services/email/mandrill-transport.ts` (Mandrill); the diagnostic endpoint lives at `apps/api/src/routes/health.ts` (`GET /api/v1/health/email`).
 
 ---
 
@@ -266,17 +266,146 @@ GET /api/v1/health/email
 │
 ├── 401/403         → not authenticated as SUPER_ADMIN; mint correct JWT.
 │
-├── awsCredentialsResolved == false
-│       → §2.1: re-check env vars / instance profile.
+├── provider == "ses" branch:
+│   ├── awsCredentialsResolved == false
+│   │       → §2.1: re-check env vars / instance profile.
+│   ├── sesIdentityVerified == false
+│   │       → §1.1: identity not verified in SES (or wrong region).
+│   ├── sesIdentityVerified == "unknown"
+│   │       → SES probe failed; check creds, then re-run.
+│   └── outboundQueue24h.failed > 0
+│           → §2.2: pull failures, group by error_message, follow §3.x.
 │
-├── sesIdentityVerified == false
-│       → §1.1: identity not verified in SES (or wrong region).
-│
-├── sesIdentityVerified == "unknown"
-│       → SES probe failed; check creds, then re-run.
-│
-├── outboundQueue24h.failed > 0
-│       → §2.2: pull failures, group by error_message, follow §3.x.
+├── provider == "mandrill" branch:
+│   ├── mandrillKeyResolved == false
+│   │       → §6.1: MANDRILL_API_KEY env var missing on the runtime.
+│   ├── mandrillIdentityVerified == false
+│   │       → §6.1: key is set but Mandrill rejected ping (key revoked / typo).
+│   ├── mandrillIdentityVerified == "unknown"
+│   │       → network reach to mandrillapp.com failed; check egress firewall.
+│   └── outboundQueue24h.failed > 0 with [mandrill:REJECTED] errors
+│           → §6.2: address-level rejection; sender authentication on Mailchimp.
 │
 └── all-green       → no action.
 ```
+
+---
+
+## 6. Provider switching (AAT-MANDRILL)
+
+Aurex supports two interchangeable outbound transports. The default is SES — switching to Mandrill is a deploy-time env var flip; no code change is required.
+
+### 6.1 How to switch — runtime env vars
+
+| Variable | SES default | Mandrill | Notes |
+|---|---|---|---|
+| `EMAIL_TRANSPORT` | unset / `ses` | `mandrill` | Selects which transport `email.service.sendEmail()` resolves at call time. |
+| `MANDRILL_API_KEY` | n/a | required | Mailchimp Transactional API key. Format: `md-…`. |
+| `MANDRILL_MOCK_MODE` | n/a | `1` for dev | Bypasses Mandrill HTTP; pushes onto an in-memory queue. Mirrors `AWS_SES_MOCK_MODE=1`. |
+
+To enable Mandrill in production:
+
+```bash
+# Add to the API runtime env (e.g. /etc/aurex/api.env or systemd unit)
+EMAIL_TRANSPORT=mandrill
+MANDRILL_API_KEY=md-<paste-from-mailchimp-dashboard>
+
+# Restart the API
+sudo systemctl restart aurexv4-api
+```
+
+Verify via `/health/email`:
+
+```bash
+curl -sS -H "Authorization: Bearer <admin-jwt>" \
+  https://aurex.in/api/v1/health/email | jq
+```
+
+Expected response (subset):
+
+```json
+{
+  "provider": "mandrill",
+  "mandrillKeyResolved": true,
+  "mandrillIdentityVerified": true,
+  ...
+}
+```
+
+To roll back to SES, unset `EMAIL_TRANSPORT` (or set it to `ses`) and restart. There is no data migration required either way — both transports write the same `OutboundEmail` audit-row schema (no `provider` column was added; see §6.5 for the rationale).
+
+### 6.2 Mandrill (Mailchimp Transactional) setup
+
+Mandrill is the transactional arm of Mailchimp. The product page and API reference:
+
+- Product: <https://mailchimp.com/developer/transactional/>
+- API reference: <https://mailchimp.com/developer/transactional/api/>
+- Pricing: pay-per-send credits; see <https://mailchimp.com/pricing/transactional-email/>. Aurex's transactional volume (verification + welcome + payment receipt) sits well within the entry tier; no commitment beyond credit top-ups is required.
+
+**Important:** V3's Mandrill keys were already invalid by the AAT-EMAIL audit (Wave 8b). Fresh keys are required — the V3 secrets cannot be reused.
+
+#### Step 1 — Obtain an API key
+
+1. Sign in to Mailchimp at <https://login.mailchimp.com/>.
+2. Open **Transactional → Settings → SMTP & API Info**.
+3. Click **+New API Key**, label it `aurex-prod` (or `aurex-staging`).
+4. Copy the generated key (`md-…`). It will only be shown once. Store it in the deploy secret store (1Password / Vault) under `MANDRILL_API_KEY`.
+
+#### Step 2 — Sender authentication on Mailchimp side
+
+Required for production deliverability. Without these records, Mandrill flags the messages as low-reputation and most receivers will spam-folder them.
+
+1. In Mailchimp Transactional, open **Settings → Domains**.
+2. Add `aurex.in`, click **Verify Domain**. Mailchimp emails a confirmation link to a `postmaster@`/`webmaster@`/`admin@` mailbox on `aurex.in`. Click the link.
+3. Under the same domain entry, click **View Settings** → **DKIM**. Mailchimp publishes two DNS records to add at the DNS provider for `aurex.in`:
+
+   | Host | Type | Value |
+   |---|---|---|
+   | `mte1._domainkey.aurex.in` | `TXT` | `<mailchimp-provided-DKIM>` |
+   | `mte2._domainkey.aurex.in` | `TXT` | `<mailchimp-provided-DKIM>` |
+
+4. Add a SPF record (or merge into the existing one — only one SPF record per domain):
+
+   ```
+   v=spf1 include:spf.mandrillapp.com include:amazonses.com ~all
+   ```
+
+   The `include:amazonses.com` term keeps SES sends valid in case of fallback; both transports are reachable from the same domain.
+
+5. Set up the **Return-Path** (envelope From) custom domain so Mandrill can sign bounces under your domain rather than `bounces.mandrillapp.com`. In **Settings → Sending Domains**, add `bounces.aurex.in` as a CNAME pointing to `mailchimp-cname-target` (the exact target is shown in the Mailchimp dashboard).
+6. Once DNS propagates (typically <1h, sometimes up to 24h), click **Test DNS Settings** in the Mailchimp dashboard. All three (DKIM-1, DKIM-2, Return-Path CNAME) must show **Valid** before production traffic.
+
+DMARC continues to use the existing record from §1.2 — Mandrill respects DMARC alignment when DKIM passes for the From domain.
+
+#### Step 3 — Pricing notes
+
+- Transactional credits are sold in blocks (e.g. 25 000 sends / month). Aurex's expected volume is <5 000/month (verification + welcome + receipt). Buy the smallest block first.
+- Mailchimp will downgrade reputation if the bounce rate exceeds 5% over 30 days — same threshold as SES (§3.1). The runbook for handling sustained bounces is identical: pause via `MANDRILL_MOCK_MODE=1`, investigate via `OutboundEmail.errorMessage` LIKE `%[mandrill:REJECTED]%`, fix upstream, unpause.
+
+### 6.3 Health probe details
+
+The `/health/email` endpoint executes a transport-specific probe in addition to the SES one already shipped under Wave 11c:
+
+| Field | Source | Meaning |
+|---|---|---|
+| `provider` | `EMAIL_TRANSPORT` env | The active transport (`ses` or `mandrill`). |
+| `mandrillKeyResolved` | `MANDRILL_API_KEY` env present? | Boolean — does the runtime see a key at all? |
+| `mandrillIdentityVerified` | `POST /api/1.0/users/ping.json` | `true` when Mandrill returns `"PONG!"`, `false` when it returns 4xx, `'unknown'` when the network call fails. |
+
+The two transports' probes run independently — even on a Mandrill-only deployment we still surface the SES status (and vice versa) so a planned rollback is never blocked on a missing probe.
+
+### 6.4 Error mapping — `OutboundEmail.errorMessage`
+
+Mandrill failures are tagged with a `[mandrill:<code>]` prefix on the audit row's `errorMessage` so SQL filters can distinguish them at a glance:
+
+| Code | Origin | Action |
+|---|---|---|
+| `[mandrill:NETWORK]` | Connection refused / 5xx / DNS failure | Check egress firewall to `mandrillapp.com:443`; surface short-term outages on the status page. |
+| `[mandrill:REJECTED]` | HTTP 200 with `status='rejected'` or `'invalid'` | Address-level reject. Inspect `errorMessage` for `reject_reason`; common values are `hard-bounce`, `soft-bounce`, `spam`, `unsub`. |
+| `[mandrill:BAD_RESPONSE]` | HTTP 200 with malformed body | Mandrill API contract drift. File a bug — should not appear in steady state. |
+
+The Mandrill transport does **not** retry — it mirrors the SES behaviour where the calling flow (signup, payment) must not be blocked. Future retry workers can re-process FAILED rows from `OutboundEmail` regardless of which transport originally tried.
+
+### 6.5 Why no `provider` column on `OutboundEmail`?
+
+We deliberately did **not** add a `provider` field to `OutboundEmail` under AAT-MANDRILL. The runtime always knows which transport is active (via `EMAIL_TRANSPORT`), and the structured logger emits a `provider` field on every send. Storing the column would be denormalised — the same row could only have been produced by one provider given a deployment's env. If a future cross-provider analytics need arises (e.g. blend deliverability across multiple deployments), the column can be added then; the migration is forward-compatible because every existing row was produced under exactly one of the two providers (SES, the old default).
