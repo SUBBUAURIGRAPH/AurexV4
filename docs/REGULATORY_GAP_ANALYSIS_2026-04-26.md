@@ -2,6 +2,20 @@
 
 _Generated 2026-04-26 via `gemini-2.5-flash` with Google Search grounding (60+ sources). Two-batch run via `apps/api/src/services/research/gemini-deep-research.ts`._
 
+## Status (2026-04-27)
+
+| Tier | Count | Status |
+|---|---|---|
+| **Engineering shipped** | 14 | Done — commits `e657081` (R1, carbon-market), `0b1cd5f` (R2, BRSR), `2d40cf7` (R3, DPDP), `8f6ab8e` (R4, CSRD). Deployed to prod. |
+| **Deferred — compliance/legal/vendor** | 6 | Labelled `compliance-blocker` with concrete next-action owner per ticket. |
+| **Backlog (P2 nice-to-haves)** | 4 | Open, low-priority. |
+
+**Shipped (Done):** AV4-417, AV4-419, AV4-420, AV4-421, AV4-422, AV4-423, AV4-424, AV4-426, AV4-427, AV4-428, AV4-429, AV4-430, AV4-432, AV4-438
+
+**Deferred (compliance-blocker):** AV4-416 (BCR vendor), AV4-431 (DPDP SDF assessment), AV4-433/434 (PCI-DSS RBI PA), AV4-435/436 (PMLA / FIU-IND)
+
+**Open backlog (P2):** AV4-418 (A6.4 registry interop), AV4-425 (Verra updates ongoing monitoring), AV4-437 (CBAM customer guidance), AV4-439 (CSRD framework alignment)
+
 ## Summary
 
 Aurex V4 has 24 active regulatory gaps spanning carbon-market standards (UNFCCC A6.4, ICVCM, CORSIA, Verra), India compliance (BRSR, DPDP, RBI PA, PMLA AML), and EU obligations (CBAM, CSRD). Highest severity is concentrated in **DPDP Act 2023** consent + breach notification (P0), **CORSIA Phase 2** Article 6 Authorized labels (P0), **AML/PMLA** Reporting Entity registration (P0), and **A6.4 host-country authorization forms** (P0). All gaps are tracked as AV4 tickets (AV4-416 through AV4-439).
