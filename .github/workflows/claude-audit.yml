@@ -1,0 +1,190 @@
+# AV4-405 / AAT-405 — Smart Contract & Protocol Audit
+#
+# Pipes V4 contract / chain-adapter / money-path / BCR-handoff / federation diffs
+# through the Claude Code CLI for a structured security + compliance audit.
+#
+# Required GitHub Actions secrets:
+#   ANTHROPIC_API_KEY  - Anthropic API key with Claude Code CLI access (P1)
+#
+# Session continuity:
+#   SESSION_ID is derived from "<repo>-<pr|run>" so re-runs on the same PR
+#   resume the same audit session (--session $SESSION_ID).
+#
+# Failure policy:
+#   - high/critical findings -> PR comment + workflow fails
+#   - low/medium findings    -> PR comment, workflow passes
+#
+name: Claude Audit (Protocol & Money-Path)
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+    paths:
+      - "packages/aurigraph-dlt-sdk/**"
+      - "apps/api/src/services/chains/**"
+      - "apps/api/src/services/billing/**"
+      - "apps/api/src/services/coupon.service.ts"
+      - "apps/api/src/services/registries/bcr/**"
+      - "apps/api/src/routes/awd2-handoff.ts"
+      - "apps/api/src/services/federation/**"
+  workflow_dispatch:
+    inputs:
+      base_ref:
+        description: "Base ref for diff (default: main)"
+        required: false
+        default: "main"
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  claude-audit:
+    name: Claude Code Audit
+    runs-on: self-hosted
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Compute session id
+        id: session
+        run: |
+          SESSION_ID="${{ github.repository }}-${{ github.event.pull_request.number || github.run_id }}"
+          # sanitize for shell var safety
+          SESSION_ID="$(echo "$SESSION_ID" | tr '/' '-')"
+          echo "session_id=$SESSION_ID" >> "$GITHUB_OUTPUT"
+          echo "Audit session: $SESSION_ID"
+
+      - name: Compute base ref
+        id: baseref
+        run: |
+          BASE="${{ github.base_ref || inputs.base_ref || 'main' }}"
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"
+          git fetch --no-tags --prune origin "$BASE" || true
+
+      - name: Build audit diff
+        id: diff
+        run: |
+          set -euo pipefail
+          BASE="${{ steps.baseref.outputs.base }}"
+          PATHS=(
+            "packages/aurigraph-dlt-sdk/"
+            "apps/api/src/services/chains/"
+            "apps/api/src/services/billing/"
+            "apps/api/src/services/coupon.service.ts"
+            "apps/api/src/services/registries/bcr/"
+            "apps/api/src/routes/awd2-handoff.ts"
+            "apps/api/src/services/federation/"
+          )
+          git diff "origin/${BASE}...HEAD" -- "${PATHS[@]}" > diff.patch || true
+          BYTES=$(wc -c < diff.patch | tr -d ' ')
+          echo "diff_bytes=$BYTES" >> "$GITHUB_OUTPUT"
+          echo "Audit diff: $BYTES bytes"
+
+      - name: Skip when diff empty
+        if: steps.diff.outputs.diff_bytes == '0'
+        run: |
+          echo "No changes in audit-scoped paths; skipping Claude audit."
+          echo '{"findings":[],"skipped":true,"reason":"empty diff"}' > audit.json
+
+      - name: Install Claude Code CLI
+        if: steps.diff.outputs.diff_bytes != '0'
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Run Claude audit
+        if: steps.diff.outputs.diff_bytes != '0'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SESSION_ID: ${{ steps.session.outputs.session_id }}
+        run: |
+          set -euo pipefail
+          claude -p "Audit the attached diff for security vulnerabilities, compliance gaps (BCR + A6.4 alignment), money-path bugs, and integration risks. Return a structured JSON report with fields: { severity, area, file, line, finding, recommendation, references }. severity must be one of: critical|high|medium|low|info. Top-level shape: {\"findings\":[...]}." \
+            --allowed-tools "read" \
+            --output-format json \
+            --system-prompt "You are the Aurigraph V4 protocol architect. Be precise; cite file paths + line numbers." \
+            --session "$SESSION_ID" \
+            < diff.patch \
+            > audit.json
+
+      - name: Upload audit artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-audit-${{ steps.session.outputs.session_id }}
+          path: |
+            audit.json
+            diff.patch
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Summarise findings + decide gate
+        id: gate
+        if: steps.diff.outputs.diff_bytes != '0'
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, sys
+          p = pathlib.Path("audit.json")
+          if not p.is_file():
+              print("audit.json missing"); sys.exit(0)
+          try:
+              data = json.loads(p.read_text())
+          except json.JSONDecodeError:
+              print("audit.json not JSON; treating as no findings")
+              data = {"findings": []}
+          findings = data.get("findings") or data.get("result", {}).get("findings") or []
+          high = [f for f in findings if str(f.get("severity","")).lower() in ("high","critical")]
+          med  = [f for f in findings if str(f.get("severity","")).lower() == "medium"]
+          low  = [f for f in findings if str(f.get("severity","")).lower() in ("low","info")]
+          summary_lines = [
+              f"### Claude Code Audit",
+              f"- session: `{os.environ.get('SESSION_ID','?')}`",
+              f"- findings: **{len(findings)}** (critical/high: {len(high)}, medium: {len(med)}, low/info: {len(low)})",
+              "",
+          ]
+          if high:
+              summary_lines.append("#### High / Critical")
+              for f in high[:25]:
+                  summary_lines.append(
+                      f"- **{f.get('severity','?').upper()}** `{f.get('file','?')}:{f.get('line','?')}` — {f.get('finding','')}"
+                  )
+                  if f.get("recommendation"):
+                      summary_lines.append(f"  - rec: {f['recommendation']}")
+          if med:
+              summary_lines.append("\n#### Medium")
+              for f in med[:25]:
+                  summary_lines.append(
+                      f"- `{f.get('file','?')}:{f.get('line','?')}` — {f.get('finding','')}"
+                  )
+          if low:
+              summary_lines.append(f"\n_+ {len(low)} low/info finding(s); see workflow artifact._")
+          if not findings:
+              summary_lines.append("_No findings._")
+          pathlib.Path("audit-comment.md").write_text("\n".join(summary_lines))
+          with open(os.environ["GITHUB_OUTPUT"],"a") as fh:
+              fh.write(f"high_count={len(high)}\n")
+              fh.write(f"total_count={len(findings)}\n")
+          PY
+        env:
+          SESSION_ID: ${{ steps.session.outputs.session_id }}
+
+      - name: Comment on PR
+        if: github.event_name == 'pull_request' && steps.diff.outputs.diff_bytes != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          if [ -f audit-comment.md ]; then
+            gh pr comment "$PR" --body-file audit-comment.md
+          fi
+
+      - name: Fail on high-severity findings
+        if: steps.gate.outputs.high_count != '' && steps.gate.outputs.high_count != '0'
+        run: |
+          echo "Audit found ${{ steps.gate.outputs.high_count }} high/critical finding(s)."
+          exit 1

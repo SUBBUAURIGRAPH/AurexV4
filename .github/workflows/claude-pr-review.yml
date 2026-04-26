@@ -1,0 +1,82 @@
+# AV4-405 / AAT-405 — Claude PR Review (advisory)
+#
+# Posts a structured Claude Code review as a PR comment when the bot is
+# explicitly requested as a reviewer (opt-in). Non-blocking.
+#
+# Required GitHub Actions secrets:
+#   ANTHROPIC_API_KEY  - Anthropic API key with Claude Code CLI access
+#
+# Trigger:
+#   - review_requested where the requested reviewer is `claude-bot`
+#     (or any user/team whose login starts with `claude`)
+#
+name: Claude PR Review (advisory)
+
+on:
+  pull_request:
+    types: [review_requested]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  review:
+    name: Claude advisory review
+    if: |
+      startsWith(github.event.requested_reviewer.login, 'claude') ||
+      startsWith(github.event.requested_team.slug, 'claude')
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Build PR diff
+        run: |
+          git fetch --no-tags origin "${{ github.base_ref }}" || true
+          git diff "origin/${{ github.base_ref }}...HEAD" > pr.patch || true
+          wc -c pr.patch
+
+      - name: Install Claude Code CLI
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Run Claude review
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SESSION_ID: ${{ github.repository }}-pr-${{ github.event.pull_request.number }}-review
+        run: |
+          set -euo pipefail
+          claude -p "Review this PR diff. Return a markdown comment with sections: Summary, Risks, Suggestions, Tests. Be terse. Cite file paths + line numbers." \
+            --allowed-tools "read" \
+            --output-format text \
+            --system-prompt "You are the Aurigraph V4 protocol architect. Advisory review only — never block." \
+            --session "$SESSION_ID" \
+            < pr.patch \
+            > review.md || echo "_Claude review failed; see workflow logs._" > review.md
+
+      - name: Comment review on PR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          {
+            echo "### Claude Code — Advisory Review"
+            echo
+            cat review.md
+          } > final.md
+          gh pr comment "$PR" --body-file final.md
+
+      - name: Upload review artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: claude-review-pr-${{ github.event.pull_request.number }}
+          path: |
+            review.md
+            pr.patch
+          if-no-files-found: ignore
+          retention-days: 30

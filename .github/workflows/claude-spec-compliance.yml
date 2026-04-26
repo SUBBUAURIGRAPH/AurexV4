@@ -1,0 +1,145 @@
+# AV4-405 / AAT-405 — Spec Compliance Diff
+#
+# When a spec doc on `main` changes, runs Claude Code CLI to diff the spec
+# against the current implementation and emits a JSON gap report. P0/P1 gaps
+# auto-create Jira tickets (idempotent on a content-hash globalId).
+#
+# Required GitHub Actions secrets:
+#   ANTHROPIC_API_KEY  - Anthropic API key with Claude Code CLI access
+#   JIRA_USER_EMAIL    - Jira Cloud account email (e.g. sjoish12@gmail.com)
+#   JIRA_API_TOKEN     - Atlassian API token
+#
+# Optional:
+#   JIRA_BASE_URL      - default: https://aurigraphdlt.atlassian.net
+#   JIRA_PROJECT_KEY   - default: AV4
+#
+name: Claude Spec Compliance Diff
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/BIOCARBON_*.md"
+      - "docs/A6_4_*.md"
+      - "docs/PRICING.md"
+  workflow_dispatch:
+    inputs:
+      specs:
+        description: "Comma-separated spec paths to diff (default: all biocarbon/A6_4/PRICING)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  spec-diff:
+    name: Spec vs Implementation
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 50
+
+      - name: Compute changed spec set
+        id: specs
+        run: |
+          set -euo pipefail
+          if [ -n "${{ github.event.inputs.specs }}" ]; then
+            IFS=',' read -r -a SPECS <<< "${{ github.event.inputs.specs }}"
+          else
+            mapfile -t SPECS < <(git diff --name-only "${{ github.event.before || 'HEAD~1' }}" HEAD -- 'docs/BIOCARBON_*.md' 'docs/A6_4_*.md' 'docs/PRICING.md' 2>/dev/null || true)
+          fi
+          : > changed_specs.txt
+          for f in "${SPECS[@]}"; do
+            [ -z "$f" ] && continue
+            [ -f "$f" ] || continue
+            printf '\n\n===== SPEC: %s =====\n\n' "$f" >> changed_specs.txt
+            cat "$f" >> changed_specs.txt
+          done
+          BYTES=$(wc -c < changed_specs.txt | tr -d ' ')
+          echo "bytes=$BYTES" >> "$GITHUB_OUTPUT"
+          echo "Spec bundle: $BYTES bytes"
+
+      - name: Skip when no spec changes
+        if: steps.specs.outputs.bytes == '0'
+        run: |
+          echo "No spec changes detected; skipping."
+          echo '[]' > spec-gaps.json
+
+      - name: Install Claude Code CLI
+        if: steps.specs.outputs.bytes != '0'
+        run: |
+          curl -fsSL https://claude.ai/install.sh | bash
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Run Claude spec diff
+        if: steps.specs.outputs.bytes != '0'
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SESSION_ID: ${{ github.repository }}-spec-${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          claude -p "Diff the attached spec doc(s) against the current implementation in this repo. Return a JSON array of gaps with fields: { spec_path, spec_section, impl_path_expected, impl_status: 'missing'|'partial'|'drifted', priority: 'P0'|'P1'|'P2', summary }. Top-level shape must be {\"gaps\":[...]}." \
+            --allowed-tools "read,grep,glob" \
+            --output-format json \
+            --system-prompt "Aurigraph V4 protocol architect — your job is to find spec/implementation drift" \
+            --session "$SESSION_ID" \
+            < changed_specs.txt \
+            > spec-gaps.json
+
+      - name: Upload spec-gaps artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: spec-gaps-${{ github.run_id }}
+          path: |
+            spec-gaps.json
+            changed_specs.txt
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Create Jira tickets for P0/P1 gaps
+        if: steps.specs.outputs.bytes != '0'
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL || 'https://aurigraphdlt.atlassian.net' }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_PROJECT_KEY: ${{ secrets.JIRA_PROJECT_KEY || 'AV4' }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "$JIRA_API_TOKEN" ] || [ -z "$JIRA_USER_EMAIL" ]; then
+            echo "Jira creds missing; skipping ticket creation. Add JIRA_USER_EMAIL + JIRA_API_TOKEN secrets."
+            exit 0
+          fi
+          python3 scripts/jira/create-spec-gap-ticket.py \
+            --gaps spec-gaps.json \
+            --workflow-url "$WORKFLOW_RUN_URL"
+
+      - name: Comment on commit (if gaps)
+        if: steps.specs.outputs.bytes != '0'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess
+          p = pathlib.Path("spec-gaps.json")
+          if not p.is_file(): raise SystemExit(0)
+          try: data = json.loads(p.read_text())
+          except Exception: raise SystemExit(0)
+          gaps = data.get("gaps", data) if isinstance(data, dict) else data
+          if not isinstance(gaps, list): raise SystemExit(0)
+          hi = [g for g in gaps if str(g.get("priority","")).upper() in ("P0","P1")]
+          if not hi: raise SystemExit(0)
+          lines = [f"### Spec Compliance Diff", "", f"Found **{len(hi)}** P0/P1 gap(s):"]
+          for g in hi[:25]:
+              lines.append(f"- [{g.get('priority','?')}] `{g.get('spec_path','?')}` — {g.get('summary','')}")
+          lines.append("")
+          lines.append(f"Workflow: {os.environ['WORKFLOW_RUN_URL']}")
+          pathlib.Path("commit-comment.md").write_text("\n".join(lines))
+          subprocess.check_call(["gh","api","-X","POST",
+              f"/repos/{os.environ['GITHUB_REPOSITORY']}/commits/{os.environ['GITHUB_SHA']}/comments",
+              "-f", f"body=@commit-comment.md"])
+          PY
+        continue-on-error: true
