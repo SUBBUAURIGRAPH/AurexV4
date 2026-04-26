@@ -953,6 +953,17 @@ const BCR_METHODOLOGIES: Array<{
   summary: string;
   referenceUrl: string;
   effectiveFrom: Date;
+  /** AAT-R1 / AV4-424 — sunset date for legacy (TOOL30) cookstove methodologies. */
+  effectiveUntil?: Date | null;
+  /** AAT-R1 / AV4-420 — ICVCM Core Carbon Principles eligibility. */
+  ccpEligible?: boolean;
+  ccpAssessmentDate?: Date | null;
+  ccpAssessmentSourceUrl?: string | null;
+  /** AAT-R1 / AV4-417 — UNFCCC PACM-METH-XXX approval URL + date. */
+  approvalSourceUrl?: string | null;
+  approvalDate?: Date | null;
+  /** Override for cataloue notes (otherwise notes = summary). */
+  notes?: string | null;
 }> = [
   {
     code: 'VM0042',
@@ -1020,6 +1031,59 @@ const BCR_METHODOLOGIES: Array<{
     referenceUrl: 'https://cdm.unfccc.int/methodologies/DB/G2EGV0G84HE7AYV2DOO48L97IRL3OK',
     effectiveFrom: new Date('2013-04-26'),
   },
+  // ── AAT-R1 / AV4-424 — Verra VM0050 cookstove transition (2027+ vintages) ──
+  // Replaces TOOL30-based AMS-II.G / AMS-II.E paths starting with the 2027
+  // vintage. ICVCM CCP-eligible. The validator in
+  // `methodology.service.validateCookstoveFnrb` enforces the cutoff.
+  {
+    code: 'VM0050',
+    name: 'Energy efficiency and fuel switch measures in thermal applications (cookstove transition)',
+    version: '1.0',
+    category: 'SMALL_SCALE',
+    sectoralScope: 3, // Energy demand (cookstove)
+    summary:
+      'Replaces non-renewable biomass cookstoves with efficient or fuel-switched alternatives. fNRB calculated via MoFuSS or SB-approved successor — TOOL30 not permitted. ICVCM CCP-eligible.',
+    referenceUrl: 'https://verra.org/methodologies/vm0050-energy-efficiency-fuel-switch-thermal-applications/',
+    effectiveFrom: new Date('2024-09-01'),
+    ccpEligible: true,
+    ccpAssessmentDate: new Date('2024-08-01'),
+    ccpAssessmentSourceUrl: 'https://icvcm.org/assessment-platform/vm0050/',
+    notes:
+      'Mandatory replacement for AMS-II.G / AMS-II.E for vintages ≥2027 (TOOL30 fNRB deprecated).',
+  },
+  // ── AAT-R1 / AV4-421 + AV4-424 — legacy cookstove methodologies (sunset 2026-12-31) ──
+  // Marked effectiveUntil = 2026-12-31 because the TOOL30 fNRB calculation
+  // was retired by the SB. Kept in the catalogue (isActive=true via the
+  // upsert below) so historical issuances can still resolve their
+  // methodology row, but the validator rejects 2027+ vintage uses.
+  {
+    code: 'AMS-II.G',
+    name: 'Energy efficiency measures in thermal applications of non-renewable biomass',
+    version: '12.0',
+    category: 'SMALL_SCALE',
+    sectoralScope: 3,
+    summary:
+      'Improved cookstoves replacing non-renewable biomass — TOOL30-based fNRB. Sunset 2026-12-31; vintages ≥2027 must migrate to VM0050 or use MoFuSS.',
+    referenceUrl: 'https://cdm.unfccc.int/methodologies/DB/4O1B83EBKZJYBSPTUF3W3GTBP5GFKR',
+    effectiveFrom: new Date('2014-09-26'),
+    effectiveUntil: new Date('2026-12-31'),
+    notes:
+      'TOOL30 deprecated by SB. Vintages ≥2027 must use VM0050 (Verra) or MoFuSS-based fNRB; see methodology.service.validateCookstoveFnrb.',
+  },
+  {
+    code: 'AMS-II.E',
+    name: 'Energy efficiency and fuel switching for buildings',
+    version: '13.0',
+    category: 'SMALL_SCALE',
+    sectoralScope: 3,
+    summary:
+      'Cookstove + thermal-energy retrofits in residential / commercial buildings. TOOL30-based fNRB. Sunset 2026-12-31.',
+    referenceUrl: 'https://cdm.unfccc.int/methodologies/DB/Y9IDH7EOQX9IRMD4HE6MMW2W66O4ZE',
+    effectiveFrom: new Date('2014-09-26'),
+    effectiveUntil: new Date('2026-12-31'),
+    notes:
+      'TOOL30 deprecated by SB. Vintages ≥2027 must use VM0050 (Verra) or MoFuSS-based fNRB; see methodology.service.validateCookstoveFnrb.',
+  },
 ];
 
 async function seedA64Methodologies() {
@@ -1074,10 +1138,14 @@ async function seedBcrMethodologies() {
     // (registryCategory = BCR), AFOLU sectoral scope (14), and carries
     // CO2 by default. VM0007 (REDD+) and VM0033 (wetland restoration)
     // also include CH4 + N2O because soil/peat fluxes are non-CO2 dominant.
+    // AAT-R1 / AV4-421 + 424: AMS-II.G / AMS-II.E / VM0050 are cookstove
+    // methodologies — gases include CO2 + CH4 + N2O.
     const gases =
       m.code === 'VM0007' || m.code === 'VM0033'
         ? ['CO2', 'CH4', 'N2O']
-        : ['CO2'];
+        : m.code === 'AMS-II.G' || m.code === 'AMS-II.E' || m.code === 'VM0050'
+          ? ['CO2', 'CH4', 'N2O']
+          : ['CO2'];
     const sharedFields = {
       name: m.name,
       version: m.version,
@@ -1087,11 +1155,18 @@ async function seedBcrMethodologies() {
       summary: m.summary,
       referenceUrl: m.referenceUrl,
       effectiveFrom: m.effectiveFrom,
-      effectiveUntil: null,
+      effectiveUntil: m.effectiveUntil ?? null,
       isActive: true,
       isBcrEligible: true,
       gases,
-      notes: m.summary,
+      notes: m.notes ?? m.summary,
+      // AAT-R1 / AV4-417 — approval tracking (optional; nullable)
+      approvalSourceUrl: m.approvalSourceUrl ?? null,
+      approvalDate: m.approvalDate ?? null,
+      // AAT-R1 / AV4-420 — ICVCM CCP eligibility
+      ccpEligible: m.ccpEligible ?? false,
+      ccpAssessmentDate: m.ccpAssessmentDate ?? null,
+      ccpAssessmentSourceUrl: m.ccpAssessmentSourceUrl ?? null,
     };
     await prisma.methodology.upsert({
       where: { code: m.code },
@@ -1099,9 +1174,11 @@ async function seedBcrMethodologies() {
       create: { code: m.code, ...sharedFields },
     });
   }
+  const ccpCount = BCR_METHODOLOGIES.filter((m) => m.ccpEligible).length;
   console.log(
     `  Methodology: ${BCR_METHODOLOGIES.length} BCR-eligible rows upserted ` +
-      `(VM0042 / VM0007 / VM0033 / AR-AMS series)`,
+      `(VM0042 / VM0050 / VM0007 / VM0033 / AR-AMS / AMS-II series, ` +
+      `${ccpCount} ICVCM CCP-eligible)`,
   );
 }
 

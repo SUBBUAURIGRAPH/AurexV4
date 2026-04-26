@@ -57,6 +57,20 @@ export const methodologyCatalogueEntrySchema = z
     effectiveUntil: z.string().datetime().nullable(),
     /** Free-text supplementary notes; null when none. */
     notes: z.string().max(4000).nullable(),
+    // ── AAT-R1 / AV4-417 — methodology approval tracking ──────────────
+    /** Canonical UNFCCC PACM-METH-XXX approval URL; null when not yet captured. */
+    approvalSourceUrl: z.string().url().max(500).nullable().optional(),
+    /** ISO-8601 datetime — when the SB approved this methodology. */
+    approvalDate: z.string().datetime().nullable().optional(),
+    /** ISO-8601 datetime — last time Aurex confirmed the row is current. */
+    lastReviewedAt: z.string().datetime().nullable().optional(),
+    // ── AAT-R1 / AV4-420 — ICVCM CCP eligibility ──────────────────────
+    /** True iff ICVCM has assessed and tagged the methodology CCP-eligible. */
+    ccpEligible: z.boolean().default(false),
+    /** ISO-8601 datetime — formal ICVCM assessment decision date. */
+    ccpAssessmentDate: z.string().datetime().nullable().optional(),
+    /** ICVCM Assessment Procedure source URL. */
+    ccpAssessmentSourceUrl: z.string().url().max(500).nullable().optional(),
   })
   .superRefine((entry, ctx) => {
     if (entry.effectiveUntil) {

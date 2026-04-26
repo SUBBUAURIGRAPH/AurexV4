@@ -62,6 +62,14 @@ interface MethodologyRow {
   isBcrEligible: boolean;
   gases: string[];
   notes: string | null;
+  // AAT-R1 / AV4-417 — approval tracking
+  approvalSourceUrl?: string | null;
+  approvalDate?: Date | null;
+  lastReviewedAt?: Date | null;
+  // AAT-R1 / AV4-420 — ICVCM CCP eligibility
+  ccpEligible?: boolean;
+  ccpAssessmentDate?: Date | null;
+  ccpAssessmentSourceUrl?: string | null;
 }
 
 /**
@@ -89,6 +97,16 @@ function rowToEntry(row: MethodologyRow): MethodologyCatalogueEntry {
     effectiveFrom: row.effectiveFrom.toISOString(),
     effectiveUntil: row.effectiveUntil ? row.effectiveUntil.toISOString() : null,
     notes: row.notes ?? row.summary ?? null,
+    // AAT-R1 / AV4-417 — approval tracking
+    approvalSourceUrl: row.approvalSourceUrl ?? null,
+    approvalDate: row.approvalDate ? row.approvalDate.toISOString() : null,
+    lastReviewedAt: row.lastReviewedAt ? row.lastReviewedAt.toISOString() : null,
+    // AAT-R1 / AV4-420 — ICVCM CCP eligibility
+    ccpEligible: row.ccpEligible ?? false,
+    ccpAssessmentDate: row.ccpAssessmentDate
+      ? row.ccpAssessmentDate.toISOString()
+      : null,
+    ccpAssessmentSourceUrl: row.ccpAssessmentSourceUrl ?? null,
   };
 }
 
@@ -281,4 +299,82 @@ export async function getMethodologyById(id: string) {
   const m = await prisma.methodology.findUnique({ where: { id } });
   if (!m) throw new AppError(404, 'Not Found', 'Methodology not found');
   return m;
+}
+
+// ── AAT-R1 / AV4-421, AV4-424 — cookstove fNRB validator ───────────────────
+
+/**
+ * Methodology codes whose baseline depends on a fraction-of-non-renewable-
+ * biomass (fNRB) calculation. Aurex tracks the AMS-II.G and AMS-II.E
+ * thermal-energy-efficiency cookstove paths from the CDM AMS series; both
+ * historically used the deprecated TOOL30 default fNRB. ICVCM's 2025 CCP
+ * assessment requires MoFuSS or one of the SB's new fNRB tools for any
+ * vintage 2027+ activity. VM0050 (Verra) replaces this for 2027+ vintages.
+ */
+const COOKSTOVE_FNRB_METHODOLOGY_CODES = new Set<string>([
+  'AMS-II.G',
+  'AMS-II.E',
+]);
+
+/**
+ * Vintage cutoff after which TOOL30-based fNRB calculations are no longer
+ * accepted. Applies to both AMS-II.G and AMS-II.E. 2027+ vintages MUST use
+ * MoFuSS or a successor SB-approved fNRB tool, OR migrate to VM0050.
+ */
+const TOOL30_DEPRECATION_VINTAGE = 2027;
+
+export interface CookstoveFnrbValidationInput {
+  methodologyCode: string;
+  /** The fNRB tool referenced by the methodology / monitoring plan. */
+  fnrbTool: string;
+  /** Vintage year being claimed by the issuance. */
+  vintage: number;
+}
+
+export interface CookstoveFnrbValidationResult {
+  /** True iff `errors` is empty. */
+  ok: boolean;
+  /** Structured error list (empty when ok=true). */
+  errors: Array<{
+    code: string;
+    message: string;
+  }>;
+}
+
+/**
+ * AV4-421 / AV4-424 — validate a cookstove activity's fNRB calculation
+ * against ICVCM CCP + Verra VM0050 transition rules.
+ *
+ * Rule: if the methodology code is one of the AMS-II.G / AMS-II.E
+ * cookstove paths AND the vintage is 2027 or later, a TOOL30-based fNRB
+ * is rejected. Caller should migrate to VM0050 or the new MoFuSS-based
+ * SB tool. Pre-2027 vintages remain valid for backward compatibility.
+ */
+export function validateCookstoveFnrb(
+  input: CookstoveFnrbValidationInput,
+): CookstoveFnrbValidationResult {
+  const errors: Array<{ code: string; message: string }> = [];
+
+  const isCookstoveCode = COOKSTOVE_FNRB_METHODOLOGY_CODES.has(
+    input.methodologyCode,
+  );
+  if (!isCookstoveCode) {
+    return { ok: true, errors };
+  }
+
+  const usesTool30 =
+    /tool[\s_-]*30/i.test(input.fnrbTool) ||
+    input.fnrbTool.toUpperCase() === 'TOOL30';
+
+  if (usesTool30 && input.vintage >= TOOL30_DEPRECATION_VINTAGE) {
+    errors.push({
+      code: 'COOKSTOVE_FNRB_TOOL30_DEPRECATED',
+      message:
+        `Methodology ${input.methodologyCode} with vintage ${input.vintage} ` +
+        `cannot use TOOL30 fNRB (deprecated for vintages ≥${TOOL30_DEPRECATION_VINTAGE}). ` +
+        `Use MoFuSS, the SB-approved fNRB tool, or migrate to VM0050.`,
+    });
+  }
+
+  return { ok: errors.length === 0, errors };
 }

@@ -22,6 +22,7 @@ import {
   getCatalogue,
   MethodologyNotBcrEligibleError,
   MethodologyNotFoundError,
+  validateCookstoveFnrb,
 } from './methodology.service.js';
 
 // ── Fixtures ──────────────────────────────────────────────────────────────
@@ -243,5 +244,75 @@ describe('assertBcrEligible', () => {
     await expect(assertBcrEligible('VM0042')).rejects.toBeInstanceOf(
       MethodologyNotBcrEligibleError,
     );
+  });
+});
+
+// ── AAT-R1 / AV4-421 + AV4-424 — cookstove fNRB validator ──────────────────
+
+describe('validateCookstoveFnrb', () => {
+  it('returns ok=true for non-cookstove methodologies regardless of vintage/tool', () => {
+    const r = validateCookstoveFnrb({
+      methodologyCode: 'VM0042',
+      fnrbTool: 'TOOL30',
+      vintage: 2030,
+    });
+    expect(r.ok).toBe(true);
+    expect(r.errors).toHaveLength(0);
+  });
+
+  it('returns ok=true for AMS-II.G cookstove with TOOL30 + vintage <2027', () => {
+    const r = validateCookstoveFnrb({
+      methodologyCode: 'AMS-II.G',
+      fnrbTool: 'TOOL30',
+      vintage: 2026,
+    });
+    expect(r.ok).toBe(true);
+    expect(r.errors).toHaveLength(0);
+  });
+
+  it('rejects AMS-II.G cookstove with TOOL30 + vintage >=2027', () => {
+    const r = validateCookstoveFnrb({
+      methodologyCode: 'AMS-II.G',
+      fnrbTool: 'TOOL30',
+      vintage: 2027,
+    });
+    expect(r.ok).toBe(false);
+    expect(r.errors[0]?.code).toBe('COOKSTOVE_FNRB_TOOL30_DEPRECATED');
+    expect(r.errors[0]?.message).toMatch(/MoFuSS|VM0050/);
+  });
+
+  it('rejects AMS-II.E cookstove with TOOL30 + vintage 2028', () => {
+    const r = validateCookstoveFnrb({
+      methodologyCode: 'AMS-II.E',
+      fnrbTool: 'tool 30',
+      vintage: 2028,
+    });
+    expect(r.ok).toBe(false);
+    expect(r.errors[0]?.code).toBe('COOKSTOVE_FNRB_TOOL30_DEPRECATED');
+  });
+
+  it('accepts AMS-II.G cookstove with MoFuSS + vintage 2027', () => {
+    const r = validateCookstoveFnrb({
+      methodologyCode: 'AMS-II.G',
+      fnrbTool: 'MoFuSS',
+      vintage: 2027,
+    });
+    expect(r.ok).toBe(true);
+    expect(r.errors).toHaveLength(0);
+  });
+
+  it('end-to-end: cookstove activity vintage=2027 with TOOL30 returns validator error (AV4-424)', () => {
+    // Simulates an ingest call from awd2-import / activity creation that
+    // would hand the validator the methodology code + monitoring fNRB tool
+    // + claimed vintage. This is the contract the orchestrator depends on.
+    const ingest = {
+      methodologyCode: 'AMS-II.G',
+      fnrbTool: 'TOOL30',
+      vintage: 2027,
+    };
+    const r = validateCookstoveFnrb(ingest);
+    expect(r.ok).toBe(false);
+    expect(r.errors).toHaveLength(1);
+    expect(r.errors[0]?.code).toBe('COOKSTOVE_FNRB_TOOL30_DEPRECATED');
   });
 });

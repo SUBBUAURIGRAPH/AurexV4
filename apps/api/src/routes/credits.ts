@@ -79,7 +79,13 @@ creditsRouter.get('/blocks', async (req, res, next) => {
   }
 });
 
-/** GET /blocks/:serialFirst — lookup block by its first serial number */
+/**
+ * GET /blocks/:serialFirst — lookup block by its first serial number.
+ *
+ * AAT-R1 / AV4-422: the response includes the new CORSIA-labelling fields
+ * `corsiaPhaseEligibility` (null | "phase1" | "phase2" | "phase2_authorized_imp")
+ * and `articleSixAuthorizedAt` populated by `registry-label.service.applyCorsiaLabels`.
+ */
 creditsRouter.get('/blocks/:serialFirst', async (req, res, next) => {
   try {
     const row = await creditsService.getBlockBySerialRange(

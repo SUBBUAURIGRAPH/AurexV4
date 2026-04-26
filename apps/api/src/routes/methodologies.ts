@@ -9,6 +9,12 @@ methodologiesRouter.use(requireAuth);
 /**
  * GET / — list A6.4 methodologies (read-only catalogue).
  * Query: category (BASELINE_AND_MONITORING | REMOVAL | SMALL_SCALE | CONSOLIDATED | CDM_TRANSITION)
+ *
+ * AAT-R1: rows include the AV4-417 approval tracking fields
+ * (`approvalSourceUrl`, `approvalDate`, `lastReviewedAt`) and the AV4-420
+ * ICVCM CCP fields (`ccpEligible`, `ccpAssessmentDate`,
+ * `ccpAssessmentSourceUrl`). The fields are nullable on the catalogue and
+ * default to `null` / `false` for legacy rows.
  */
 methodologiesRouter.get('/', async (req, res, next) => {
   try {

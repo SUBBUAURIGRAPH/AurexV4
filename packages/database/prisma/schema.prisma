@@ -820,6 +820,20 @@ model Methodology {
   /// AAT-π / AV4-368: free-text notes for the catalogue surface. Visible
   /// to external consumers via the public catalogue endpoint.
   notes           String?  @db.Text
+  // ── AAT-R1 / AV4-417 — methodology-approval tracking ──────────────────
+  // PACM Supervisory Body publishes new methodology approvals on a rolling
+  // cadence; capture the canonical UNFCCC URL + the SB approval date + the
+  // last time Aurex confirmed the row is still current.
+  approvalSourceUrl String? @map("approval_source_url") @db.VarChar(500)
+  approvalDate      DateTime? @map("approval_date")
+  lastReviewedAt    DateTime? @map("last_reviewed_at")
+  // ── AAT-R1 / AV4-420 — ICVCM Core Carbon Principles eligibility ───────
+  // Set to true once ICVCM's Assessment Procedure has issued a CCP-eligibility
+  // decision on the methodology (or category). Source URL points to the ICVCM
+  // assessment page; assessment date is the formal decision date.
+  ccpEligible              Boolean   @default(false) @map("ccp_eligible")
+  ccpAssessmentDate        DateTime? @map("ccp_assessment_date")
+  ccpAssessmentSourceUrl   String?   @map("ccp_assessment_source_url") @db.VarChar(500)
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @updatedAt @map("updated_at")
 
@@ -959,6 +973,23 @@ model HostAuthorization {
   validUntil       DateTime? @map("valid_until")
   revokedAt        DateTime? @map("revoked_at")
   revokedReason    String?   @map("revoked_reason") @db.Text
+  // ── AAT-R1 / AV4-419 — UNFCCC FORM-GOV-002 / 003 / 010 capture ────────
+  // The 2025-revision host-country authorisation forms introduced stricter
+  // granularity (multi-use, explicit duration, vintage-range tagging). These
+  // fields capture the form metadata so Aurex can reproduce the full
+  // authorisation envelope on credit issuance.
+  formVersion      String?  @map("form_version") @db.VarChar(50)
+  /// Multi-use authorisation flags from FORM-GOV-002. Allowed entries
+  /// (canonical lower-case): "ndc" | "oimp_corsia" | "oimp_other".
+  /// Empty array preserves backward-compatible behaviour (use authorizedFor).
+  authorizedUses   String[] @default([]) @map("authorized_uses")
+  /// Explicit authorisation duration in months. Captured separately from
+  /// validFrom/validUntil because some host countries issue rolling
+  /// "auto-renew unless revoked" forms with a duration but no fixed end.
+  durationMonths   Int?     @map("duration_months")
+  /// Vintage-range / project-category tags (e.g. "vintage:2025-2030",
+  /// "category:afolu"). Free-form opaque tokens — schema is forward-compatible.
+  granularityTags  String[] @default([]) @map("granularity_tags")
   createdAt        DateTime  @default(now()) @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
 
@@ -1227,6 +1258,18 @@ model CreditUnitBlock {
   holderAccountId String @map("holder_account_id") @db.Uuid
   authorizationStatus AuthorizationScope @map("authorization_status")
   caStatus      CorrespondingAdjustmentStatus @default(NOT_REQUIRED) @map("ca_status")
+  // ── AAT-R1 / AV4-422 — CORSIA Phase 2 (2027+) Article-6-Authorized IMP labels ──
+  // Populated by `registry-label.service.applyCorsiaLabels` based on the
+  // existing `authorizationStatus` + the activity's host LoA + vintage.
+  // Allowed values (string token, forward-compatible):
+  //   null                        — pre-CORSIA / non-CORSIA-eligible
+  //   "phase1"                    — Phase 1 (2024-2026) eligible
+  //   "phase2"                    — Phase 2 (2027+) eligible, not authorized
+  //   "phase2_authorized_imp"     — Phase 2 + Article-6 IMP-authorized
+  corsiaPhaseEligibility    String?   @map("corsia_phase_eligibility") @db.VarChar(20)
+  /// Set when the host country issued the IMP authorisation, used as the
+  /// audit trail on the unit. Distinct from `firstTransferAt` (CA trigger).
+  articleSixAuthorizedAt    DateTime? @map("article_six_authorized_at")
   firstTransferAt DateTime? @map("first_transfer_at")
   retirementStatus RetirementStatus @default(ACTIVE) @map("retirement_status")
   retirementNarrative String? @map("retirement_narrative") @db.Text
