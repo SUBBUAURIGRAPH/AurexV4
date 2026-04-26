@@ -2233,3 +2233,75 @@ enum RenewalAttemptStatus {
   FAILED         @map("failed")         // capture failed or expired without payment
   CANCELLED      @map("cancelled")
 }
+
+// ─── AAT-367 / AV4-367: Service-to-service identity federation ─────────
+//
+// Bidirectional federation of trust between Aurex and partner registries
+// (AWD2, HCE2, Aurigraph DLT). The legacy direct AWD2 → Aurex handoff
+// route (`/api/v1/awd2/handoff`, AAT-ξ) keeps its own RS256-signed
+// envelope. This namespace adds:
+//
+//   * FederationKey      — partner public keys (PEM, RS256). Aurex looks
+//                          these up by `keyId` (kid claim in the JWT) when
+//                          verifying inbound calls.
+//   * FederationCallLog  — audit trail of every inbound + outbound
+//                          federation call. Best-effort writes — failure
+//                          to log never aborts the underlying business
+//                          operation.
+//
+// Aurex's own OUTBOUND private key is NOT stored in the DB — it lives in
+// `AUREX_FEDERATION_PRIVATE_KEY_PEM` (env) or the file pointed to by
+// `AUREX_FEDERATION_PRIVATE_KEY_FILE`. Partners register Aurex's public
+// key on their side out-of-band.
+model FederationKey {
+  id              String              @id @default(uuid()) @db.Uuid
+  partner         FederationPartner   @map("partner")
+  keyId           String              @unique @map("key_id") @db.VarChar(128)
+  publicKeyPem    String              @map("public_key_pem") @db.Text
+  algorithm       String              @default("RS256") @db.VarChar(16)
+  isActive        Boolean             @default(true) @map("is_active")
+  rotatedAt       DateTime?           @map("rotated_at")
+  expiresAt       DateTime?           @map("expires_at")
+  notes           String?             @db.Text
+  createdAt       DateTime            @default(now()) @map("created_at")
+  updatedAt       DateTime            @updatedAt @map("updated_at")
+
+  @@index([partner, isActive])
+  @@map("federation_keys")
+}
+
+model FederationCallLog {
+  id             String              @id @default(uuid()) @db.Uuid
+  direction      FederationDirection @map("direction")
+  partner        FederationPartner
+  keyId          String?             @map("key_id") @db.VarChar(128)
+  endpoint       String              @db.VarChar(255)
+  status         FederationStatus    @default(PENDING)
+  httpStatus     Int?                @map("http_status")
+  errorMessage   String?             @map("error_message") @db.Text
+  requestId      String?             @map("request_id") @db.VarChar(128)
+  latencyMs      Int?                @map("latency_ms")
+  createdAt      DateTime            @default(now()) @map("created_at")
+
+  @@index([direction, partner, createdAt])
+  @@index([status, createdAt])
+  @@map("federation_call_logs")
+}
+
+enum FederationPartner {
+  AWD2      @map("awd2")
+  HCE2      @map("hce2")
+  AURIGRAPH @map("aurigraph")
+}
+
+enum FederationDirection {
+  INBOUND  @map("inbound")
+  OUTBOUND @map("outbound")
+}
+
+enum FederationStatus {
+  PENDING   @map("pending")
+  SUCCESS   @map("success")
+  FAILED    @map("failed")
+  REJECTED  @map("rejected")
+}

@@ -56,6 +56,9 @@ import { billingRouter } from './routes/billing.js';
 // AAT-9C / Wave 9c: persistence-audit GET endpoints (retirements + delist requests)
 import { retirementsRouter } from './routes/retirements.js';
 import { delistRequestsRouter } from './routes/delist-requests.js';
+// AAT-367 / AV4-367: service-to-service identity federation (Aurex ↔ AWD2/HCE2/Aurigraph).
+import { federationRouter } from './routes/federation.js';
+import { adminFederationRouter } from './routes/admin-federation.js';
 // AV4-338 / AAT-7: retention header + nightly archival worker
 import { retentionHeaderMiddleware } from './middleware/retention-header.js';
 import { startRetentionWorker } from './workers/retention-archival.worker.js';
@@ -155,6 +158,11 @@ app.use('/api/v1/billing', billingRouter);
 // AAT-9C / Wave 9c: persistence-audit P0 — list endpoints for write-only entities.
 app.use('/api/v1/retirements', retirementsRouter);
 app.use('/api/v1/delist-requests', delistRequestsRouter);
+// AAT-367 / AV4-367: service-to-service identity federation. Inbound
+// partner-signed JWTs land on `/api/v1/federation/*`; ops operations on
+// the partner key registry live under `/api/v1/admin/federation/*`.
+app.use('/api/v1/federation', federationRouter);
+app.use('/api/v1/admin/federation', adminFederationRouter);
 
 // ADM-052: RFC 7807 error handler
 app.use(errorHandler);

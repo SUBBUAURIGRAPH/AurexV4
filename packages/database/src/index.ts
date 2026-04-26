@@ -29,3 +29,14 @@ export type {
   OutboundEmail,
   EmailStatus,
 } from '@prisma/client';
+
+// AAT-367 / AV4-367: re-export federation model types + enums so the
+// api package can express federation behaviour without depending on
+// @prisma/client directly.
+export type {
+  FederationKey,
+  FederationCallLog,
+  FederationPartner,
+  FederationDirection,
+  FederationStatus,
+} from '@prisma/client';
