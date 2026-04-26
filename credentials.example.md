@@ -63,6 +63,27 @@ Use the same names as `.env.example` in the repo you are working on. Examples:
 
 ---
 
+## Google Deep Research (Gemini) — AAT-DEEPRESEARCH
+
+Powers the weekly external regulatory landscape scan
+(`.github/workflows/gemini-regulatory-research.yml`) and the on-demand
+`POST /api/v1/admin/research/run` endpoint. Counterpart to the internal
+Claude-driven spec-compliance pipeline (AV4-405 / AAT-405).
+
+- **API key (preferred name)**: `GOOGLE_AI_API_KEY`
+- **API key (alias, also accepted)**: `GEMINI_API_KEY`
+- **Where to get one**: https://aistudio.google.com/apikey — standalone Gemini API key, NO Google Cloud project required.
+- **Optional model overrides**:
+  - `GEMINI_QUICK_MODEL` (default `gemini-2.5-flash`)
+  - `GEMINI_STANDARD_MODEL` (default `gemini-2.5-pro`)
+  - `GEMINI_DEEP_RESEARCH_MODEL` (default `gemini-2.5-pro-deep-research` — set to `gemini-2.5-pro` if your tier doesn't have deep-research access)
+- **Mock mode for local/test**: `GEMINI_MOCK_MODE=1` — returns deterministic stub findings, no HTTP call.
+- **GitHub Actions secret** (for the weekly workflow): `AUREX_ADMIN_TOKEN` — a long-lived super-admin JWT issued out-of-band and rotated every 90 days. Used to call `https://aurex.in/api/v1/admin/research/run`.
+
+See `docs/REGULATORY_RESEARCH_AUTOMATION.md` for the full runbook.
+
+---
+
 ## SSL / TLS (optional — Aurex.in / edge nginx)
 
 **Prefer paths to PEM files** on the machine that terminates HTTPS (e.g. after **Certbot**). Do **not** paste full certificate or private-key PEM bodies into this file; use a vault or files under `/etc/letsencrypt/` (or your CA layout) and reference them here for your own `source` / copy-paste.

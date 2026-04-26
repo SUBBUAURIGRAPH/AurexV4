@@ -62,6 +62,10 @@ import { adminFederationRouter } from './routes/admin-federation.js';
 // AAT-378 / AV4-378: tier quota gate dashboard + caller-org snapshot.
 import { quotasRouter } from './routes/quotas.js';
 import { adminQuotasRouter } from './routes/admin-quotas.js';
+// AAT-DEEPRESEARCH: Google Deep Research (Gemini) adapter — external
+// regulatory-landscape scanner (counterpart to the Claude-driven internal
+// spec-compliance pipeline at AV4-405 / AAT-405).
+import { adminResearchRouter } from './routes/admin-research.js';
 // AV4-338 / AAT-7: retention header + nightly archival worker
 import { retentionHeaderMiddleware } from './middleware/retention-header.js';
 import { startRetentionWorker } from './workers/retention-archival.worker.js';
@@ -169,6 +173,8 @@ app.use('/api/v1/admin/federation', adminFederationRouter);
 // AAT-378 / AV4-378: tier quota gate dashboard.
 app.use('/api/v1/quotas', quotasRouter);
 app.use('/api/v1/admin/quotas', adminQuotasRouter);
+// AAT-DEEPRESEARCH: Google Deep Research (Gemini) admin endpoints.
+app.use('/api/v1/admin/research', adminResearchRouter);
 
 // ADM-052: RFC 7807 error handler
 app.use(errorHandler);

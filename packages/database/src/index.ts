@@ -40,3 +40,12 @@ export type {
   FederationDirection,
   FederationStatus,
 } from '@prisma/client';
+
+// AAT-DEEPRESEARCH: re-export RegulatoryResearchRun model + status enum
+// so the api package can persist Gemini Deep Research audit rows without
+// depending on @prisma/client directly. External counterpart to the
+// internal spec-compliance pipeline (AV4-405 / AAT-405).
+export type {
+  RegulatoryResearchRun,
+  RegulatoryResearchRunStatus,
+} from '@prisma/client';

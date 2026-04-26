@@ -1,0 +1,191 @@
+# AAT-DEEPRESEARCH — Weekly regulatory landscape scan via Google Deep Research (Gemini).
+#
+# External counterpart to the Claude-driven internal spec-compliance pipeline
+# (`.github/workflows/claude-spec-compliance.yml`, AV4-405 / AAT-405). Where
+# that workflow detects DRIFT between local specs and implementation, this
+# workflow scans the wider regulatory landscape (UNFCCC SB updates, BCR
+# procedure changes, SEBI BRSR Core revisions, Verra methodology releases,
+# Gold Standard) and files Jira tickets for findings that aren't reflected
+# in any spec doc.
+#
+# Required GitHub Actions secrets:
+#   AUREX_ADMIN_TOKEN  - Long-lived super-admin JWT for `/admin/research/run`.
+#                        Provisioned out-of-band — see runbook.
+#   JIRA_USER_EMAIL    - Jira Cloud account email
+#   JIRA_API_TOKEN     - Atlassian API token
+#
+# Optional:
+#   AUREX_API_BASE_URL - default: https://aurex.in
+#   JIRA_BASE_URL      - default: https://aurigraphdlt.atlassian.net
+#   JIRA_PROJECT_KEY   - default: AV4
+#
+# The Gemini API key itself lives in the API server's deploy env
+# (GOOGLE_AI_API_KEY) — this workflow only proxies through the admin route.
+name: Gemini Regulatory Research
+
+on:
+  schedule:
+    # Every Monday 02:00 UTC.
+    - cron: "0 2 * * 1"
+  workflow_dispatch:
+    inputs:
+      topics:
+        description: "Comma-separated topic list to override the default curation"
+        required: false
+        default: ""
+      depth:
+        description: "Research depth: quick | standard | deep"
+        required: false
+        default: "deep"
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  research:
+    name: Regulatory landscape scan
+    runs-on: self-hosted
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Run Gemini Deep Research per curated topic
+        env:
+          AUREX_API_BASE_URL: ${{ secrets.AUREX_API_BASE_URL || 'https://aurex.in' }}
+          AUREX_ADMIN_TOKEN: ${{ secrets.AUREX_ADMIN_TOKEN }}
+          DEPTH: ${{ github.event.inputs.depth || 'deep' }}
+          TOPIC_OVERRIDE: ${{ github.event.inputs.topics }}
+        run: |
+          set -euo pipefail
+          if [ -z "$AUREX_ADMIN_TOKEN" ]; then
+            echo "AUREX_ADMIN_TOKEN secret missing; aborting." >&2
+            exit 1
+          fi
+
+          if [ -n "$TOPIC_OVERRIDE" ]; then
+            IFS=',' read -r -a TOPICS <<< "$TOPIC_OVERRIDE"
+          else
+            TOPICS=(
+              "UNFCCC Supervisory Body (SB) decisions and meeting outcomes since the last calendar month relevant to Article 6.4 (PACM)"
+              "Biocarbon Registry (BCR) procedure or methodology changes published in the last 30 days"
+              "SEBI BRSR Core framework revisions, circulars, or assurance scope changes since the last calendar month"
+              "Verra VCS methodology releases, suspensions, or registry policy updates in the last 30 days"
+              "Gold Standard methodology or registry policy updates in the last 30 days"
+            )
+          fi
+
+          mkdir -p research-out
+          : > research-out/all-findings.json
+          echo '[' > research-out/all-findings.json
+
+          first=1
+          for topic in "${TOPICS[@]}"; do
+            [ -z "$topic" ] && continue
+            echo "::group::Researching: $topic"
+            payload=$(jq -nc --arg t "$topic" --arg d "$DEPTH" \
+              '{topic: $t, depth: $d, citationsRequired: true, maxSources: 8}')
+            response=$(curl -fsSL -X POST \
+              -H "Authorization: Bearer $AUREX_ADMIN_TOKEN" \
+              -H "Content-Type: application/json" \
+              "$AUREX_API_BASE_URL/api/v1/admin/research/run" \
+              --data "$payload" || true)
+            if [ -z "$response" ]; then
+              echo "::warning::Empty response for topic; skipping"
+              echo "::endgroup::"
+              continue
+            fi
+            if [ $first -eq 0 ]; then
+              echo "," >> research-out/all-findings.json
+            fi
+            first=0
+            echo "$response" | jq --arg t "$topic" '. + {topic: $t}' \
+              >> research-out/all-findings.json
+            echo "::endgroup::"
+          done
+
+          echo ']' >> research-out/all-findings.json
+          jq '.' research-out/all-findings.json > research-out/all-findings.pretty.json
+          mv research-out/all-findings.pretty.json research-out/all-findings.json
+
+      - name: Upload research artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gemini-research-${{ github.run_id }}
+          path: research-out/
+          if-no-files-found: warn
+          retention-days: 90
+
+      - name: Classify against docs/ and emit gap report
+        env:
+          DOCS_DIR: docs
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, re, sys, hashlib
+
+          findings_path = pathlib.Path("research-out/all-findings.json")
+          if not findings_path.is_file():
+              print("No findings file; skipping gap report.")
+              sys.exit(0)
+
+          findings = json.loads(findings_path.read_text())
+          docs_dir = pathlib.Path(os.environ.get("DOCS_DIR", "docs"))
+
+          # Build a corpus of all spec docs (lowercased for cheap matching).
+          corpus = []
+          for ext in ("*.md", "*.MD"):
+              for p in docs_dir.rglob(ext):
+                  try:
+                      corpus.append(p.read_text(encoding="utf-8", errors="ignore").lower())
+                  except Exception:
+                      pass
+          haystack = "\n\n".join(corpus)
+
+          gaps = []
+          for entry in findings:
+              if not isinstance(entry, dict): continue
+              data = entry.get("data") or entry
+              key_points = data.get("keyPoints") or []
+              topic = entry.get("topic") or data.get("topic") or ""
+              for kp in key_points:
+                  if not isinstance(kp, str): continue
+                  # Tokenise the key point — if any meaningful token (>5 chars)
+                  # is missing from the docs corpus, treat as a gap.
+                  tokens = [t for t in re.findall(r"[A-Za-z0-9\-]{6,}", kp.lower())]
+                  if not tokens: continue
+                  hits = sum(1 for t in tokens if t in haystack)
+                  ratio = hits / max(len(tokens), 1)
+                  if ratio < 0.3:
+                      gid_seed = (topic + "::" + kp).encode("utf-8")
+                      gaps.append({
+                          "spec_path": "docs/REGULATORY_RESEARCH_AUTOMATION.md",
+                          "spec_section": topic[:200] or "regulatory-scan",
+                          "impl_path_expected": "docs/",
+                          "impl_status": "missing",
+                          "priority": "P1",
+                          "summary": kp.strip()[:300],
+                          "globalId": "gemini-gap-" + hashlib.sha256(gid_seed).hexdigest()[:24],
+                      })
+
+          out = {"gaps": gaps}
+          pathlib.Path("spec-gaps.json").write_text(json.dumps(out, indent=2))
+          print(f"Identified {len(gaps)} potential gap(s)")
+          PY
+
+      - name: Create Jira tickets for P1 gaps
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL || 'https://aurigraphdlt.atlassian.net' }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          JIRA_PROJECT_KEY: ${{ secrets.JIRA_PROJECT_KEY || 'AV4' }}
+          WORKFLOW_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ -z "${JIRA_API_TOKEN:-}" ] || [ -z "${JIRA_USER_EMAIL:-}" ]; then
+            echo "Jira creds missing; skipping ticket creation."
+            exit 0
+          fi
+          python3 scripts/jira/create-spec-gap-ticket.py \
+            --gaps spec-gaps.json \
+            --workflow-url "$WORKFLOW_RUN_URL" \
+            --priorities P1 \
+            --labels regulatory-scan automated gemini-deep-research

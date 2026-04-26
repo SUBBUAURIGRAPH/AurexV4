@@ -18,6 +18,12 @@ import {
 } from '../services/chains/aurigraph-dlt-adapter.js';
 import { getAurigraphClient } from '../lib/aurigraph-client.js';
 import type { CapabilitiesResponse, MintQuota } from '@aurigraph/dlt-sdk';
+// AAT-DEEPRESEARCH — Google Deep Research (Gemini) health probe.
+import { getProvider as getResearchProvider } from '../services/research/research.service.js';
+import {
+  loadLastRunSummary as loadResearchLastRunSummary,
+  loadRunsLast24h as loadResearchRunsLast24h,
+} from '../services/research/research.service.js';
 
 export const healthRouter: IRouter = Router();
 
@@ -543,6 +549,104 @@ healthRouter.get(
       lastSendOk: summary.lastSendOk,
       lastSendError: summary.lastSendError,
       outboundQueue24h: summary.outboundQueue24h,
+    };
+    return res.json(body);
+  },
+);
+
+// ───────────────────────────────────────────────────────────────────────
+// AAT-DEEPRESEARCH — /health/research
+//
+// Diagnostic endpoint for the Google Deep Research (Gemini) adapter.
+// Auth-gated to SUPER_ADMIN — same posture as /health/email + /health/aurigraph.
+//
+// Probes:
+//   1. apiKeyResolved   : GOOGLE_AI_API_KEY (or GEMINI_API_KEY) present
+//      in the runtime env. The adapter uses lazy resolution, so the API
+//      can boot without the key — this flag tells ops whether the
+//      feature is "armed" on this deployment.
+//   2. providerPingOk   : `provider.ping()` — calls Gemini's `models?key=…`
+//      listing endpoint. Cheap, read-only, doesn't consume the heavy
+//      research budget.
+//   3. lastRunOk / lastRunFailed / runsLast24h: aggregated from the
+//      `regulatory_research_runs` audit table.
+//
+// Test-mode short-circuit: GEMINI_MOCK_MODE=1 (or NODE_ENV=test) returns
+// a deterministic stub so the route tests don't need network or a real
+// API key.
+// ───────────────────────────────────────────────────────────────────────
+
+interface ResearchHealthResponse {
+  provider: string;
+  modelDefault: string;
+  apiKeyResolved: boolean;
+  providerPingOk: boolean | 'unknown';
+  providerPingReason: string | null;
+  lastRunOk: string | null;
+  lastRunFailed: string | null;
+  runsLast24h: { success: number; failed: number };
+}
+
+healthRouter.get(
+  '/research',
+  requireAuth,
+  requireRole('super_admin'),
+  async (_req, res) => {
+    const apiKeyResolved = Boolean(
+      process.env.GOOGLE_AI_API_KEY ?? process.env.GEMINI_API_KEY,
+    );
+    const modelDefault =
+      process.env.GEMINI_DEEP_RESEARCH_MODEL ?? 'gemini-2.5-pro-deep-research';
+
+    // Test-mode stub — keeps unit tests deterministic and offline.
+    if (
+      process.env.GEMINI_MOCK_MODE === '1' ||
+      process.env.NODE_ENV === 'test'
+    ) {
+      const stub: ResearchHealthResponse = {
+        provider: 'gemini-deep-research',
+        modelDefault,
+        apiKeyResolved,
+        providerPingOk: true,
+        providerPingReason: null,
+        lastRunOk: null,
+        lastRunFailed: null,
+        runsLast24h: { success: 0, failed: 0 },
+      };
+      // Allow tests to assert against persisted data when present.
+      try {
+        const [last, rollup] = await Promise.all([
+          loadResearchLastRunSummary(),
+          loadResearchRunsLast24h(),
+        ]);
+        stub.lastRunOk = last.lastRunOk;
+        stub.lastRunFailed = last.lastRunFailed;
+        stub.runsLast24h = rollup;
+      } catch {
+        // best-effort
+      }
+      return res.json(stub);
+    }
+
+    const provider = getResearchProvider();
+    const [pingResult, last, rollup] = await Promise.all([
+      provider.ping().catch((err: unknown) => ({
+        ok: false,
+        reason: err instanceof Error ? err.message : String(err),
+      })),
+      loadResearchLastRunSummary(),
+      loadResearchRunsLast24h(),
+    ]);
+
+    const body: ResearchHealthResponse = {
+      provider: provider.providerName,
+      modelDefault,
+      apiKeyResolved,
+      providerPingOk: pingResult.ok,
+      providerPingReason: pingResult.ok ? null : (pingResult.reason ?? null),
+      lastRunOk: last.lastRunOk,
+      lastRunFailed: last.lastRunFailed,
+      runsLast24h: rollup,
     };
     return res.json(body);
   },

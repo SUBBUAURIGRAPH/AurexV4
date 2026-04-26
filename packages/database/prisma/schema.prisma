@@ -2305,3 +2305,52 @@ enum FederationStatus {
   FAILED    @map("failed")
   REJECTED  @map("rejected")
 }
+
+// ─── AAT-DEEPRESEARCH — Google Deep Research (Gemini) audit trail ──────────
+//
+// External counterpart to the Claude-driven internal spec-compliance pipeline
+// (AV4-405 / AAT-405 — `.github/workflows/claude-spec-compliance.yml`). Where
+// that workflow detects DRIFT between local specs and implementation, this
+// integration scans the wider regulatory landscape (UNFCCC SB updates, BCR
+// procedure changes, SEBI BRSR Core revisions, Verra methodology releases,
+// Gold Standard) and surfaces findings that should propagate INTO the spec
+// docs.
+//
+// One row per `runResearch()` call. Append-only — rows are never updated
+// after the SUCCESS/FAILED transition. Mirrors the AurigraphCallLog +
+// FederationCallLog patterns: the row is created as PENDING up-front so
+// even a process crash mid-call leaves a forensic breadcrumb, then
+// flipped to SUCCESS or FAILED once the provider returns.
+//
+// Citations are stored as Json (array of `{ title, url, publishedAt }`) —
+// the shape is provider-agnostic so future research adapters (Perplexity,
+// Anthropic web-search, etc.) can persist into the same table.
+model RegulatoryResearchRun {
+  id            String                       @id @default(uuid()) @db.Uuid
+  topic         String                       @db.VarChar(500)
+  scope         String?                      @db.Text
+  depth         String                       @db.VarChar(16)        // 'quick'|'standard'|'deep'
+  provider      String                       @db.VarChar(64)        // 'gemini-deep-research' | 'mock'
+  model         String                       @db.VarChar(64)
+  status        RegulatoryResearchRunStatus  @default(PENDING)
+  durationMs    Int?                         @map("duration_ms")
+  tokensInput   Int?                         @map("tokens_input")
+  tokensOutput  Int?                         @map("tokens_output")
+  summary       String?                      @db.Text
+  keyPoints     String[]                     @map("key_points")
+  citations     Json?                        // [{ title, url, publishedAt }]
+  errorMessage  String?                      @map("error_message") @db.Text
+  triggeredBy   String?                      @map("triggered_by") @db.VarChar(64)  // 'admin'|'cron'|'workflow'
+  createdAt     DateTime                     @default(now()) @map("created_at")
+  updatedAt     DateTime                     @updatedAt @map("updated_at")
+
+  @@index([status, createdAt])
+  @@index([topic, createdAt])
+  @@map("regulatory_research_runs")
+}
+
+enum RegulatoryResearchRunStatus {
+  PENDING   @map("pending")
+  SUCCESS   @map("success")
+  FAILED    @map("failed")
+}
