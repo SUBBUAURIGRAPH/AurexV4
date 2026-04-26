@@ -1,0 +1,42 @@
+{
+  "epics": [
+    {
+      "summary": "[Regulatory] AV4 gap analysis — 2026-04-26 (8 findings)",
+      "description": "Parent epic for the Gemini Deep Research pass documented in docs/REGULATORY_GAP_ANALYSIS_2026-04-26.md. Re-run and EU/AML extensions: docs/REGULATORY_GAP_FOLLOWUP_RUNBOOK.md. Close this epic when all child stories are triaged (done, won't do, or superseded).",
+      "children": [
+        {
+          "summary": "[P0] A6.4 — PACM operationalization + registry interop",
+          "description": "Source: REGULATORY_GAP_ANALYSIS §P0 A6.4. Actively monitor UNFCCC A6.4 Supervisory Body announcements, new methodology approvals, and registry interoperability. Plan for Aurigraph DLT ↔ official registry handoff and template updates."
+        },
+        {
+          "summary": "[P0] BRSR — SEBI XSD validation + reasonable assurance",
+          "description": "Source: REGULATORY_GAP_ANALYSIS §P0 BRSR. Implement SEBI XSD validation on XBRL; model reasonable-assurance phasing, audit trail, KPI definitions, and internal control evidence for SEBI Core BRSR."
+        },
+        {
+          "summary": "[P0] PCI/RBI — PA licensing posture + PCI-DSS",
+          "description": "Source: REGULATORY_GAP_ANALYSIS §P0 PCI-DSS. Legal review: whether Aurex needs own RBI PA licence vs sub-merchant on Razorpay; harden cardholder data handling; document PCI and RBI-relevant controls."
+        },
+        {
+          "summary": "[P1] BCR — v1.0 / ICROA / Third-Party alignment",
+          "description": "Source: REGULATORY_GAP_ANALYSIS §P1 BCR. Proactively obtain current BCR documentation, minor revisions, ICROA alignment, and Third-Party requirements from the registry."
+        },
+        {
+          "summary": "[P1] ICVCM — CCP label in tokenization flow",
+          "description": "Source: REGULATORY_GAP_ANALYSIS §P1 ICVCM. Propagate CCP status on tokenized units; map methodologies to current CCP approval and prioritise CCP-backed paths."
+        },
+        {
+          "summary": "[P1] CORSIA — A6 Authorised + IMP + Phase 2",
+          "description": "Source: REGULATORY_GAP_ANALYSIS §P1 CORSIA. Add Article 6 Authorised and IMP labelling; host-country LoA; methodology eligibility for Phase 2 (e.g. cookstove VM0050 / TOOL30 sunset)."
+        },
+        {
+          "summary": "[P1] Verra / Gold Standard — methodology drift tracking",
+          "description": "Source: REGULATORY_GAP_ANALYSIS §P1 Verra. Track VM0007, VM0033, VM0042, AR-AMS, TOOL30→VM0050; update UC_CARBON templates and user-facing lists when BCR-relevant."
+        },
+        {
+          "summary": "[P1] DPDP — KYC, beneficiary, retirement PII",
+          "description": "Source: REGULATORY_GAP_ANALYSIS §P1 DPDP. Systematic review of KYC, beneficiary identity, retirement records — minimization, consent, transfer, security of processing."
+        }
+      ]
+    }
+  ]
+}
