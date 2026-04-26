@@ -20,11 +20,38 @@ const { mockPrisma } = vi.hoisted(() => ({
       findFirst: vi.fn(),
       count: vi.fn(),
     },
+    // AAT-371 — /health/aurigraph aggregates the audit table.
+    aurigraphCallLog: {
+      findFirst: vi.fn(),
+      count: vi.fn(),
+    },
     $queryRaw: vi.fn(),
   },
 }));
 
 vi.mock('@aurex/database', () => ({ prisma: mockPrisma }));
+
+// AAT-371 — stub the Aurigraph adapter + client so the route never hits
+// the real SDK / network. Each test can override the mocks before
+// driving the route.
+const { aurigraphGetQuotaMock, aurigraphCapabilitiesMock } = vi.hoisted(() => ({
+  aurigraphGetQuotaMock: vi.fn(),
+  aurigraphCapabilitiesMock: vi.fn(),
+}));
+
+vi.mock('../services/chains/aurigraph-dlt-adapter.js', () => ({
+  getAurigraphAdapter: () => ({
+    getQuota: () => aurigraphGetQuotaMock(),
+  }),
+}));
+
+vi.mock('../lib/aurigraph-client.js', () => ({
+  getAurigraphClient: () => ({
+    sdk: {
+      capabilities: () => aurigraphCapabilitiesMock(),
+    },
+  }),
+}));
 
 // Stub the AWS SDK pieces so we never touch the network. Each test can
 // override the mocks via `mockImplementationOnce` before driving the
@@ -159,6 +186,13 @@ const TRACKED_KEYS = [
   'EMAIL_TRANSPORT',
   'MANDRILL_API_KEY',
   'MANDRILL_MOCK_MODE',
+  // AAT-371 — Aurigraph DLT tenant onboarding.
+  'AURIGRAPH_API_KEY',
+  'AURIGRAPH_TENANT_ID',
+  'AURIGRAPH_BASE_URL',
+  'AURIGRAPH_CHANNEL_ID',
+  'AURIGRAPH_MOCK_MODE',
+  'AURIGRAPH_UC_CARBON_CHAIN_ID',
 ] as const;
 
 beforeEach(() => {
@@ -168,6 +202,11 @@ beforeEach(() => {
   }
   mockPrisma.outboundEmail.findFirst.mockResolvedValue(null);
   mockPrisma.outboundEmail.count.mockResolvedValue(0);
+  // AAT-371 defaults — no rows + no SDK by default.
+  mockPrisma.aurigraphCallLog.findFirst.mockResolvedValue(null);
+  mockPrisma.aurigraphCallLog.count.mockResolvedValue(0);
+  aurigraphGetQuotaMock.mockReset();
+  aurigraphCapabilitiesMock.mockReset();
 });
 
 afterEach(() => {
@@ -322,3 +361,231 @@ describe('GET /api/v1/health/email — Mandrill provider (AAT-MANDRILL)', () => 
     expect(body.mandrillIdentityVerified).toBe('unknown');
   });
 });
+
+// ─── AAT-371 / AV4-371 — /health/aurigraph ────────────────────────────
+
+describe('GET /api/v1/health/aurigraph — auth gating', () => {
+  it('returns 401 with no Authorization header', async () => {
+    const res = await getRequest('/api/v1/health/aurigraph');
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 for an authenticated non-admin caller', async () => {
+    const res = await getRequest(
+      '/api/v1/health/aurigraph',
+      analystAuthHeader(),
+    );
+    expect(res.status).toBe(403);
+  });
+});
+
+describe('GET /api/v1/health/aurigraph — mock mode', () => {
+  it('returns the deterministic stub payload without hitting the SDK', async () => {
+    process.env.AURIGRAPH_MOCK_MODE = '1';
+    process.env.AURIGRAPH_BASE_URL = 'https://dlt.aurigraph.io';
+    process.env.AURIGRAPH_TENANT_ID = 'aurex-test-tenant';
+    process.env.AURIGRAPH_API_KEY = 'test-key-not-real';
+    process.env.AURIGRAPH_CHANNEL_ID = 'marketplace-channel';
+
+    const res = await getRequest(
+      '/api/v1/health/aurigraph',
+      adminAuthHeader(),
+    );
+
+    expect(res.status).toBe(200);
+    const body = res.body as Record<string, unknown>;
+    expect(body.baseUrl).toBe('https://dlt.aurigraph.io');
+    expect(body.tenantId).toBe('aurex-test-tenant');
+    expect(body.apiKeyResolved).toBe(true);
+    expect(body.channelId).toBe('marketplace-channel');
+    expect(body.ucCarbonCapability).toBe(true);
+    expect(body.tierQuota).toEqual({
+      monthlyCalls: 10000,
+      used: 12,
+      remaining: 9988,
+      resetAt: null,
+    });
+    expect(typeof body.lastCallOk).toBe('string');
+    expect(body.lastCallError).toBeNull();
+    expect(body.callsLast24h).toEqual({
+      success: 1,
+      failed: 0,
+      retried: 0,
+      pending: 0,
+    });
+
+    // Critical: stub MUST short-circuit before any SDK or DB call.
+    expect(aurigraphGetQuotaMock).not.toHaveBeenCalled();
+    expect(aurigraphCapabilitiesMock).not.toHaveBeenCalled();
+    expect(mockPrisma.aurigraphCallLog.findFirst).not.toHaveBeenCalled();
+    expect(mockPrisma.aurigraphCallLog.count).not.toHaveBeenCalled();
+  });
+});
+
+describe('GET /api/v1/health/aurigraph — apiKeyResolved reflects env', () => {
+  it('reports apiKeyResolved=false when AURIGRAPH_API_KEY is unset (live mode)', async () => {
+    delete process.env.AURIGRAPH_MOCK_MODE;
+    delete process.env.AURIGRAPH_API_KEY;
+    process.env.AURIGRAPH_BASE_URL = 'https://dlt.aurigraph.io';
+
+    // Adapter + capabilities both fail → tierQuota null + capability unknown.
+    aurigraphGetQuotaMock.mockRejectedValue(new Error('no creds'));
+    aurigraphCapabilitiesMock.mockRejectedValue(new Error('no creds'));
+
+    const res = await getRequest(
+      '/api/v1/health/aurigraph',
+      adminAuthHeader(),
+    );
+
+    expect(res.status).toBe(200);
+    const body = res.body as Record<string, unknown>;
+    expect(body.apiKeyResolved).toBe(false);
+    expect(body.tierQuota).toBeNull();
+    expect(body.ucCarbonCapability).toBe('unknown');
+    // Tenant id stays null when env var is unset.
+    expect(body.tenantId).toBeNull();
+  });
+
+  it('reports apiKeyResolved=true when AURIGRAPH_API_KEY is set (live mode)', async () => {
+    delete process.env.AURIGRAPH_MOCK_MODE;
+    process.env.AURIGRAPH_API_KEY = 'live-key';
+    process.env.AURIGRAPH_TENANT_ID = 'aurex-prod';
+
+    aurigraphGetQuotaMock.mockResolvedValue({
+      mintMonthlyLimit: 5000,
+      mintMonthlyUsed: 100,
+      mintMonthlyRemaining: 4900,
+      dmrvDailyLimit: 1000,
+      dmrvDailyUsed: 0,
+      dmrvDailyRemaining: 1000,
+    });
+    aurigraphCapabilitiesMock.mockResolvedValue({
+      appId: 'aurex-app',
+      approvedScopes: ['UC_CARBON.contracts.deploy', 'tier.read'],
+      endpoints: [],
+      totalEndpoints: 0,
+    });
+
+    const res = await getRequest(
+      '/api/v1/health/aurigraph',
+      adminAuthHeader(),
+    );
+
+    expect(res.status).toBe(200);
+    const body = res.body as Record<string, unknown>;
+    expect(body.apiKeyResolved).toBe(true);
+    expect(body.tenantId).toBe('aurex-prod');
+    expect(body.tierQuota).toEqual({
+      monthlyCalls: 5000,
+      used: 100,
+      remaining: 4900,
+      resetAt: null,
+    });
+    expect(body.ucCarbonCapability).toBe(true);
+  });
+});
+
+describe('GET /api/v1/health/aurigraph — UC_CARBON detection', () => {
+  it('returns ucCarbonCapability=true when an endpoint path mentions UC_CARBON', async () => {
+    delete process.env.AURIGRAPH_MOCK_MODE;
+    process.env.AURIGRAPH_API_KEY = 'k';
+
+    aurigraphGetQuotaMock.mockResolvedValue({
+      mintMonthlyLimit: -1,
+      mintMonthlyUsed: 0,
+      mintMonthlyRemaining: 0,
+      dmrvDailyLimit: 0,
+      dmrvDailyUsed: 0,
+      dmrvDailyRemaining: 0,
+    });
+    aurigraphCapabilitiesMock.mockResolvedValue({
+      appId: 'aurex-app',
+      approvedScopes: ['tier.read'],
+      endpoints: [
+        {
+          method: 'POST',
+          path: '/contracts/deploy?useCase=UC_CARBON',
+          requiredScope: 'contracts.deploy',
+          description: 'Deploy a Ricardian contract',
+        },
+      ],
+      totalEndpoints: 1,
+    });
+
+    const res = await getRequest(
+      '/api/v1/health/aurigraph',
+      adminAuthHeader(),
+    );
+    const body = res.body as Record<string, unknown>;
+    expect(body.ucCarbonCapability).toBe(true);
+  });
+
+  it('returns ucCarbonCapability=false when no scope or endpoint references UC_CARBON', async () => {
+    delete process.env.AURIGRAPH_MOCK_MODE;
+    process.env.AURIGRAPH_API_KEY = 'k';
+
+    aurigraphGetQuotaMock.mockResolvedValue({
+      mintMonthlyLimit: -1,
+      mintMonthlyUsed: 0,
+      mintMonthlyRemaining: 0,
+      dmrvDailyLimit: 0,
+      dmrvDailyUsed: 0,
+      dmrvDailyRemaining: 0,
+    });
+    aurigraphCapabilitiesMock.mockResolvedValue({
+      appId: 'aurex-app',
+      approvedScopes: ['UC_GOLD.contracts.deploy'],
+      endpoints: [],
+      totalEndpoints: 0,
+    });
+
+    const res = await getRequest(
+      '/api/v1/health/aurigraph',
+      adminAuthHeader(),
+    );
+    const body = res.body as Record<string, unknown>;
+    expect(body.ucCarbonCapability).toBe(false);
+  });
+});
+
+describe('GET /api/v1/health/aurigraph — callsLast24h aggregation', () => {
+  it('aggregates lastCallOk / lastCallError + 24h counts from AurigraphCallLog', async () => {
+    delete process.env.AURIGRAPH_MOCK_MODE;
+    process.env.AURIGRAPH_API_KEY = 'k';
+
+    aurigraphGetQuotaMock.mockRejectedValue(new Error('skip'));
+    aurigraphCapabilitiesMock.mockRejectedValue(new Error('skip'));
+
+    mockPrisma.aurigraphCallLog.findFirst
+      .mockResolvedValueOnce({
+        createdAt: new Date('2026-04-25T10:00:00.000Z'),
+      })
+      .mockResolvedValueOnce({ errorMsg: 'tier.getQuota failed: 500' });
+    mockPrisma.aurigraphCallLog.count
+      .mockResolvedValueOnce(17) // success
+      .mockResolvedValueOnce(2) // failed
+      .mockResolvedValueOnce(1) // retried
+      .mockResolvedValueOnce(0); // pending
+
+    const res = await getRequest(
+      '/api/v1/health/aurigraph',
+      adminAuthHeader(),
+    );
+
+    expect(res.status).toBe(200);
+    const body = res.body as Record<string, unknown>;
+    expect(body.lastCallOk).toBe('2026-04-25T10:00:00.000Z');
+    expect(body.lastCallError).toBe('tier.getQuota failed: 500');
+    expect(body.callsLast24h).toEqual({
+      success: 17,
+      failed: 2,
+      retried: 1,
+      pending: 0,
+    });
+  });
+});
+
+// ─── AAT-371 — onboarding script: relies on `pnpm typecheck` for the
+// import / type sanity (the script auto-runs main() at module load and
+// is unsafe to import inside vitest, where process.exit would terminate
+// the test run). Don't add a runtime test here. ─────────────────────────

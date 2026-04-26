@@ -12,6 +12,12 @@ import {
   MandrillKeyMissingError,
 } from '../services/email/mandrill-transport.js';
 import type { EmailProvider } from '../services/email/transport.js';
+import {
+  getAurigraphAdapter,
+  type AurigraphDltAdapter,
+} from '../services/chains/aurigraph-dlt-adapter.js';
+import { getAurigraphClient } from '../lib/aurigraph-client.js';
+import type { CapabilitiesResponse, MintQuota } from '@aurigraph/dlt-sdk';
 
 export const healthRouter: IRouter = Router();
 
@@ -200,6 +206,267 @@ async function probeMandrillIdentity(): Promise<boolean | 'unknown'> {
     return 'unknown';
   }
 }
+
+// ───────────────────────────────────────────────────────────────────────
+// AAT-371 / AV4-371 — /health/aurigraph
+//
+// Diagnostic endpoint for the Aurigraph DLT tenant connection. Auth-gated
+// to SUPER_ADMIN because the response leaks tenant + quota metadata. Same
+// shape as /health/email (Wave 11c) so ops can dashboard both with the
+// same poller.
+//
+// Five things we probe:
+//   1. apiKeyResolved : `AURIGRAPH_API_KEY` non-empty in the runtime env.
+//   2. tenantId       : `AURIGRAPH_TENANT_ID` env var (operational only —
+//                       the SDK 1.2.0 transport itself does not yet pin a
+//                       tenant header beyond the api key, so this exists
+//                       for operator visibility + the onboarding script).
+//   3. tierQuota      : `aurigraphAdapter.getQuota()` (calls
+//                       `client.tier.getQuota()`). Maps the SDK's MintQuota
+//                       shape onto a {monthlyCalls, used, remaining,
+//                       resetAt} envelope ops can dashboard.
+//   4. ucCarbonCapability : Calls `client.sdk.capabilities()` — the SDK
+//                       handshake surface that returns the app's approved
+//                       scopes + endpoint allow-list. We treat UC_CARBON
+//                       as enabled when EITHER `approvedScopes` contains
+//                       a UC_CARBON-prefixed scope OR any endpoint path
+//                       contains `UC_CARBON`. Returns 'unknown' if the
+//                       handshake call fails (no creds, network) so ops
+//                       can distinguish "not enabled" from "we don't
+//                       know".
+//   5. lastCallOk / lastCallError / callsLast24h: aggregated from the
+//      `aurigraph_call_logs` audit table (Wave 1 / AAT-β).
+//
+// Test-mode short-circuit: AURIGRAPH_MOCK_MODE=1 returns a fully-populated
+// stub so route tests don't need network or real credentials.
+// ───────────────────────────────────────────────────────────────────────
+
+interface AurigraphTierQuota {
+  monthlyCalls: number;
+  used: number;
+  remaining: number;
+  resetAt: string | null;
+}
+
+interface AurigraphHealthResponse {
+  baseUrl: string;
+  tenantId: string | null;
+  apiKeyResolved: boolean;
+  channelId: string;
+  tierQuota: AurigraphTierQuota | null;
+  ucCarbonCapability: boolean | 'unknown';
+  ucCarbonChainId: string | null;
+  lastCallOk: string | null;
+  lastCallError: string | null;
+  callsLast24h: {
+    success: number;
+    failed: number;
+    retried: number;
+    pending: number;
+  };
+}
+
+const DEFAULT_AURIGRAPH_BASE_URL = 'https://dlt.aurigraph.io';
+const DEFAULT_AURIGRAPH_CHANNEL_ID = 'marketplace-channel';
+
+/**
+ * Map the SDK's MintQuota shape onto the operational envelope. The SDK
+ * exposes monthly mint limits + remaining (no reset timestamp yet — the
+ * V11 quota endpoint resets on calendar-month boundaries server-side, so
+ * we surface `null` until the SDK adds it).
+ */
+function tierQuotaFromMintQuota(q: MintQuota): AurigraphTierQuota {
+  return {
+    monthlyCalls: q.mintMonthlyLimit,
+    used: q.mintMonthlyUsed,
+    remaining: q.mintMonthlyRemaining,
+    resetAt: null,
+  };
+}
+
+/**
+ * Inspect an SDK CapabilitiesResponse and decide whether UC_CARBON is in
+ * the app's approved surface. Two signals — either is sufficient:
+ *   1. Any approved scope contains the literal `UC_CARBON` (e.g.
+ *      `UC_CARBON.contracts.deploy` in the V11 scope grammar).
+ *   2. Any endpoint path or description contains `UC_CARBON`.
+ */
+function detectUcCarbonInCapabilities(caps: CapabilitiesResponse): boolean {
+  for (const scope of caps.approvedScopes ?? []) {
+    if (scope.includes('UC_CARBON')) return true;
+  }
+  for (const ep of caps.endpoints ?? []) {
+    if (ep.path?.includes('UC_CARBON')) return true;
+    if (ep.description?.includes('UC_CARBON')) return true;
+    if (ep.requiredScope?.includes('UC_CARBON')) return true;
+  }
+  return false;
+}
+
+/**
+ * Best-effort UC_CARBON capability probe. Returns:
+ *   - true       : capability detected in the SDK's handshake surface.
+ *   - false      : handshake succeeded but UC_CARBON not present.
+ *   - 'unknown'  : handshake threw (no creds, network failure, or the
+ *                  V11 server rejected the call).
+ *
+ * We deliberately do NOT do a `contracts.deploy({ dryRun: true })` probe
+ * — the 1.2.0 SDK does not expose `dryRun`, and a real deploy would
+ * consume mint quota. The handshake `capabilities` call is read-only
+ * and quota-free.
+ */
+async function probeUcCarbonCapability(): Promise<boolean | 'unknown'> {
+  try {
+    const client = getAurigraphClient();
+    const caps = await client.sdk.capabilities();
+    return detectUcCarbonInCapabilities(caps);
+  } catch (err) {
+    logger.debug({ err }, 'Aurigraph capabilities probe failed');
+    return 'unknown';
+  }
+}
+
+/**
+ * Best-effort tier-quota probe. Adapter call already swallows audit-log
+ * failures and surfaces SDK errors; we just translate "any throw" into
+ * `null` so the response envelope stays a valid health document.
+ */
+async function probeTierQuota(
+  adapter: AurigraphDltAdapter,
+): Promise<AurigraphTierQuota | null> {
+  try {
+    const q = await adapter.getQuota();
+    return tierQuotaFromMintQuota(q);
+  } catch (err) {
+    logger.debug({ err }, 'Aurigraph getQuota probe failed');
+    return null;
+  }
+}
+
+/**
+ * Aggregate the 24h call-log summary. Mirrors the email transport's
+ * Outbound24h pattern — best-effort, swallowed on DB failure.
+ */
+async function loadAurigraphCallSummary(): Promise<{
+  lastCallOk: string | null;
+  lastCallError: string | null;
+  callsLast24h: {
+    success: number;
+    failed: number;
+    retried: number;
+    pending: number;
+  };
+}> {
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  try {
+    const [lastSuccess, lastFailure, success, failed, retried, pending] =
+      await Promise.all([
+        prisma.aurigraphCallLog.findFirst({
+          where: { status: 'SUCCESS' },
+          orderBy: { createdAt: 'desc' },
+          select: { createdAt: true },
+        }),
+        prisma.aurigraphCallLog.findFirst({
+          where: { status: 'FAILED' },
+          orderBy: { createdAt: 'desc' },
+          select: { errorMsg: true },
+        }),
+        prisma.aurigraphCallLog.count({
+          where: { status: 'SUCCESS', createdAt: { gte: since } },
+        }),
+        prisma.aurigraphCallLog.count({
+          where: { status: 'FAILED', createdAt: { gte: since } },
+        }),
+        prisma.aurigraphCallLog.count({
+          where: { status: 'RETRIED', createdAt: { gte: since } },
+        }),
+        prisma.aurigraphCallLog.count({
+          where: { status: 'PENDING', createdAt: { gte: since } },
+        }),
+      ]);
+    return {
+      lastCallOk: lastSuccess?.createdAt?.toISOString() ?? null,
+      lastCallError: lastFailure?.errorMsg ?? null,
+      callsLast24h: { success, failed, retried, pending },
+    };
+  } catch (err) {
+    logger.warn({ err }, '/health/aurigraph — call-log summary failed');
+    return {
+      lastCallOk: null,
+      lastCallError: null,
+      callsLast24h: { success: 0, failed: 0, retried: 0, pending: 0 },
+    };
+  }
+}
+
+healthRouter.get(
+  '/aurigraph',
+  requireAuth,
+  requireRole('super_admin'),
+  async (_req, res) => {
+    const baseUrl = (
+      process.env.AURIGRAPH_BASE_URL ?? DEFAULT_AURIGRAPH_BASE_URL
+    ).replace(/\/+$/, '');
+    const tenantId = process.env.AURIGRAPH_TENANT_ID ?? null;
+    const apiKeyResolved = Boolean(process.env.AURIGRAPH_API_KEY);
+    const channelId =
+      process.env.AURIGRAPH_CHANNEL_ID ?? DEFAULT_AURIGRAPH_CHANNEL_ID;
+    const ucCarbonChainId = process.env.AURIGRAPH_UC_CARBON_CHAIN_ID ?? null;
+
+    // Test-mode stub — keeps unit tests deterministic and offline. Mirrors
+    // the AWS_SES_MOCK_MODE pattern in /health/email.
+    if (process.env.AURIGRAPH_MOCK_MODE === '1') {
+      const stub: AurigraphHealthResponse = {
+        baseUrl,
+        tenantId,
+        apiKeyResolved,
+        channelId,
+        tierQuota: {
+          monthlyCalls: 10000,
+          used: 12,
+          remaining: 9988,
+          resetAt: null,
+        },
+        ucCarbonCapability: true,
+        ucCarbonChainId,
+        lastCallOk: new Date().toISOString(),
+        lastCallError: null,
+        callsLast24h: { success: 1, failed: 0, retried: 0, pending: 0 },
+      };
+      return res.json(stub);
+    }
+
+    // Live mode. Run probes in parallel — they're all independent I/O.
+    let adapter: AurigraphDltAdapter | null = null;
+    try {
+      adapter = getAurigraphAdapter();
+    } catch (err) {
+      // Adapter construction itself can throw (e.g. AURIGRAPH_API_KEY
+      // missing in non-test env). Surface that as "unknown" everywhere.
+      logger.warn({ err }, '/health/aurigraph — adapter unavailable');
+    }
+
+    const [tierQuota, ucCarbonCapability, summary] = await Promise.all([
+      adapter ? probeTierQuota(adapter) : Promise.resolve(null),
+      adapter ? probeUcCarbonCapability() : Promise.resolve('unknown' as const),
+      loadAurigraphCallSummary(),
+    ]);
+
+    const body: AurigraphHealthResponse = {
+      baseUrl,
+      tenantId,
+      apiKeyResolved,
+      channelId,
+      tierQuota,
+      ucCarbonCapability,
+      ucCarbonChainId,
+      lastCallOk: summary.lastCallOk,
+      lastCallError: summary.lastCallError,
+      callsLast24h: summary.callsLast24h,
+    };
+    return res.json(body);
+  },
+);
 
 healthRouter.get(
   '/email',
