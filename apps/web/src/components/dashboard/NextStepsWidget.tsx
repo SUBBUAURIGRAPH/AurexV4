@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Card } from '../ui/Card';
+import { useAuth } from '../../contexts/AuthContext';
 import { useOnboarding } from '../../hooks/useOnboarding';
 import { useEmissions } from '../../hooks/useEmissions';
 import { useReports } from '../../hooks/useReports';
@@ -34,6 +35,7 @@ interface Step {
 }
 
 export function NextStepsWidget() {
+  const { user } = useAuth();
   const onboarding = useOnboarding();
   const orgTree = useOrganizationTree();
   const users = useUsers({});
@@ -49,14 +51,21 @@ export function NextStepsWidget() {
     emissions.isLoading ||
     reports.isLoading;
 
+  // Membership guard — a step is only "their" step if THIS user actually
+  // belongs to an org. Without a membership, the org-scoped queries can
+  // still come back populated (e.g. SUPER_ADMIN sees all orgs), which
+  // would otherwise mark borrowed state as ✓ for a brand-new user.
+  const hasMembership = !!user?.organization;
+
   // Step 1 — org registered: onboarding row exists with non-empty stepData.step1.
   const step1 = (onboarding.data?.data?.stepData as Record<string, unknown> | null)?.step1 as
     | Record<string, unknown>
     | undefined;
-  const orgRegistered =
+  const orgRegisteredRaw =
     !!step1?.name ||
     onboarding.data?.data?.status === 'COMPLETED' ||
     onboarding.data?.data?.status === 'SKIPPED';
+  const orgRegistered = hasMembership && orgRegisteredRaw;
 
   // Step 2 — subsidiaries set up OR explicitly skipped (single-org tenant).
   const tree = orgTree.data?.data ?? [];
@@ -64,6 +73,7 @@ export function NextStepsWidget() {
   const subsidiariesAcknowledged = !!(
     onboarding.data?.data?.stepData as Record<string, unknown> | null
   )?.step4; // step 4 in legacy backend numbering carries the subsidiaries journal entry
+  const subsidiariesDone = hasMembership && (hasChildren || subsidiariesAcknowledged);
 
   // Step 3 — users + roles: more than 1 active user in org or invites recorded.
   const usersList = (users.data as { data?: unknown[] } | undefined)?.data ?? [];
@@ -71,18 +81,18 @@ export function NextStepsWidget() {
   const inviteEntry = (onboarding.data?.data?.stepData as Record<string, unknown> | null)
     ?.step3 as { additionalInvites?: unknown[] } | undefined;
   const hasInvites = (inviteEntry?.additionalInvites?.length ?? 0) > 0;
-  const usersConfigured = hasMultipleUsers || hasInvites;
+  const usersConfigured = hasMembership && (hasMultipleUsers || hasInvites);
 
   // Step 4 — financials uploaded.
-  const hasFinancials = !!financials.data?.data?.fiscalYear;
+  const hasFinancials = hasMembership && !!financials.data?.data?.fiscalYear;
 
   // Step 5 — emissions entries.
   const emissionsTotal = emissions.data?.total ?? 0;
-  const hasEmission = emissionsTotal > 0;
+  const hasEmission = hasMembership && emissionsTotal > 0;
 
   // Step 6 — reports.
   const reportsCount = (reports.data as { data?: unknown[] } | undefined)?.data?.length ?? 0;
-  const hasReport = reportsCount > 0;
+  const hasReport = hasMembership && reportsCount > 0;
 
   const steps: Step[] = [
     {
@@ -96,7 +106,7 @@ export function NextStepsWidget() {
     },
     {
       key: 'subsidiaries',
-      done: hasChildren || subsidiariesAcknowledged,
+      done: subsidiariesDone,
       available: !!orgRegistered,
       title: 'Add subsidiaries',
       body: 'Set up any child entities you need to track separately. Skip if you only have one org.',
@@ -115,7 +125,7 @@ export function NextStepsWidget() {
     {
       key: 'financials',
       done: hasFinancials,
-      available: usersConfigured || hasMultipleUsers,
+      available: usersConfigured,
       title: 'Upload organisational financials',
       body: 'Annual revenue, employees, fiscal year. Required for BRSR/CSRD intensity reports.',
       href: '/dashboard/settings/financials',
@@ -124,7 +134,7 @@ export function NextStepsWidget() {
     {
       key: 'first-emission',
       done: hasEmission,
-      available: hasFinancials || usersConfigured,
+      available: hasFinancials,
       title: 'Add your first emission entry',
       body: 'Logs a single greenhouse-gas activity record so analytics start populating.',
       href: '/emissions/new',
