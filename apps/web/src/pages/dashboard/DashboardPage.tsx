@@ -3,6 +3,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { StatCard } from '../../components/ui/StatCard';
 import { Card } from '../../components/ui/Card';
 import { NextStepsWidget } from '../../components/dashboard/NextStepsWidget';
+import { ApprovalStatusBanner } from '../../components/dashboard/ApprovalStatusBanner';
 import { QuotaWidget } from '../../components/dashboard/QuotaWidget';
 import { useAnalyticsSummary, useAnalyticsTrend, useAnalyticsBreakdown, useAnalyticsTopSources } from '../../hooks/useAnalytics';
 
@@ -180,6 +181,9 @@ export function DashboardPage() {
         </h2>
         <p style={{ fontSize: '0.9375rem', color: 'var(--text-tertiary)' }}>{formatDate()}</p>
       </div>
+
+      {/* FLOW-REWORK / Sprint 5: pending-approval banner — top of dashboard. */}
+      <ApprovalStatusBanner />
 
       {/* AAT-WORKFLOW (Wave 9a): linear setup checklist surfaces what's next. */}
       <NextStepsWidget />

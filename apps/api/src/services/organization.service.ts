@@ -72,11 +72,18 @@ export async function createOrg(
     }
   }
 
+  // Self-service top-level registrations require Aurex-admin review.
+  // Subsidiaries (parentOrgId set) are auto-approved because the parent
+  // org has already been vetted, and SUPER_ADMIN-created orgs skip review.
+  const requiresApproval = upperRole !== 'SUPER_ADMIN' && !parentOrgId;
+
   const org = await prisma.organization.create({
     data: {
       name: data.name,
       slug,
       parentOrgId,
+      approvalStatus: requiresApproval ? 'PENDING_REVIEW' : 'APPROVED',
+      approvalRequestedAt: requiresApproval ? new Date() : null,
       members: {
         create: {
           userId,

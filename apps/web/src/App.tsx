@@ -50,6 +50,7 @@ import { UsersPage } from './pages/dashboard/admin/UsersPage';
 import { OrganizationPage } from './pages/dashboard/admin/OrganizationPage';
 import { CouponsPage } from './pages/dashboard/admin/CouponsPage';
 import { OrganizationsPage } from './pages/dashboard/admin/OrganizationsPage';
+import { OrgApprovalsPage } from './pages/dashboard/admin/OrgApprovalsPage';
 import { QuotasPage } from './pages/dashboard/admin/QuotasPage';
 import { ApprovalsPage } from './pages/dashboard/ApprovalsPage';
 import { BulkUploadPage } from './pages/dashboard/emissions/BulkUploadPage';
@@ -159,6 +160,7 @@ export function App() {
             <Route path="/admin/users" element={<RoleGuard allowedRoles={['administrator', 'super_admin', 'org_admin']}><UsersPage /></RoleGuard>} />
             <Route path="/admin/organization" element={<RoleGuard allowedRoles={['administrator', 'super_admin', 'org_admin']}><OrganizationPage /></RoleGuard>} />
             <Route path="/admin/organizations" element={<RoleGuard allowedRoles={['administrator', 'super_admin', 'org_admin']}><OrganizationsPage /></RoleGuard>} />
+            <Route path="/admin/org-approvals" element={<RoleGuard allowedRoles={['super_admin']}><OrgApprovalsPage /></RoleGuard>} />
             <Route path="/admin/coupons" element={<RoleGuard allowedRoles={['administrator', 'super_admin', 'org_admin']}><CouponsPage /></RoleGuard>} />
             <Route path="/admin/quotas" element={<RoleGuard allowedRoles={['administrator', 'super_admin']}><QuotasPage /></RoleGuard>} />
             <Route path="/approvals" element={<ApprovalsPage />} />

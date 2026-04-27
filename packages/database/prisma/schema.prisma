@@ -119,6 +119,18 @@ model Organization {
   createdAt   DateTime @default(now()) @map("created_at")
   updatedAt   DateTime @updatedAt @map("updated_at")
 
+  // FLOW-REWORK / Sprint 5 — Aurex-admin approval workflow.
+  // Self-service org registrations land as PENDING_REVIEW; an Aurex
+  // SUPER_ADMIN reviews + approves/rejects via /admin/org-approvals.
+  // Until approved, the org-approval-gate middleware blocks
+  // regulatory-write endpoints (emissions, retirements, BRSR responses)
+  // with 412 + problem `https://aurex.in/problems/org-pending-approval`.
+  approvalStatus      OrgApprovalStatus @default(APPROVED) @map("approval_status")
+  approvalRequestedAt DateTime?         @map("approval_requested_at")
+  reviewedAt          DateTime?         @map("reviewed_at")
+  reviewedBy          String?           @map("reviewed_by") @db.Uuid
+  rejectedReason      String?           @map("rejected_reason") @db.Text
+
   parent   Organization?  @relation("OrgHierarchy", fields: [parentOrgId], references: [id], onDelete: SetNull)
   children Organization[] @relation("OrgHierarchy")
 
@@ -151,7 +163,14 @@ model Organization {
   financials         OrganizationFinancials?
 
   @@index([parentOrgId])
+  @@index([approvalStatus])
   @@map("organizations")
+}
+
+enum OrgApprovalStatus {
+  PENDING_REVIEW @map("pending_review")
+  APPROVED       @map("approved")
+  REJECTED       @map("rejected")
 }
 
 /// Sprint 5 / FLOW-REWORK — captured during onboarding step 5 ("Upload

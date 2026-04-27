@@ -28,6 +28,10 @@ import { brsrRouter } from './routes/brsr.js';
 import { adminBrsrRouter } from './routes/admin-brsr.js';
 import { onboardingRouter } from './routes/onboarding.js';
 import { financialsRouter } from './routes/financials.js';
+import {
+  adminOrgApprovalsRouter,
+  orgApprovalStatusRouter,
+} from './routes/admin-org-approvals.js';
 import { securityRouter } from './routes/security.js';
 import { suppliersRouter } from './routes/suppliers.js';
 // Article 6.4 / PACM routers (gap-analysis implementation)
@@ -121,7 +125,11 @@ app.use('/api/v1/organizations', organizationRouter);
 // fall through to userRouter's /:id handler.
 app.use('/api/v1/users/me', securityRouter);
 app.use('/api/v1/users', userRouter);
-app.use('/api/v1/emissions', emissionsRouter);
+// FLOW-REWORK / Sprint 5 — apply org-approval gate to regulatory-write
+// surfaces. The middleware passes GET/HEAD through and blocks
+// POST/PUT/PATCH/DELETE with 412 when the org is PENDING_REVIEW or REJECTED.
+import { requireApprovedOrg } from './middleware/org-approval-gate.js';
+app.use('/api/v1/emissions', requireApprovedOrg, emissionsRouter);
 app.use('/api/v1/reference-data', referenceDataRouter);
 app.use('/api/v1/analytics', analyticsRouter);
 app.use('/api/v1/baselines', baselineRouter);
@@ -133,7 +141,7 @@ app.use('/api/v1/notifications', notificationsRouter);
 app.use('/api/v1/approvals', approvalsRouter);
 app.use('/api/v1/workflows', workflowsRouter);
 app.use('/api/v1/esg', esgRouter);
-app.use('/api/v1/brsr', brsrRouter);
+app.use('/api/v1/brsr', requireApprovedOrg, brsrRouter);
 // AAT-R2 / AV4-427: BRSR assurance-status admin route. Mounted under
 // /api/v1/admin/brsr/* so it can co-exist with future admin BRSR ops.
 app.use('/api/v1/admin/brsr', adminBrsrRouter);
@@ -142,6 +150,9 @@ app.use('/api/v1/onboarding', onboardingRouter);
 // fiscal year). Captured during onboarding step 5 + editable later via
 // settings. Drives BRSR/CSRD intensity reports.
 app.use('/api/v1/me/org/financials', financialsRouter);
+// FLOW-REWORK / Sprint 5 — Aurex-admin org-approval workflow.
+app.use('/api/v1/admin/org-approvals', adminOrgApprovalsRouter);
+app.use('/api/v1/me/org/approval-status', orgApprovalStatusRouter);
 app.use('/api/v1/suppliers', suppliersRouter);
 // Article 6.4 / Paris Agreement Crediting Mechanism
 app.use('/api/v1/methodologies', methodologiesRouter);
@@ -151,7 +162,7 @@ app.use('/api/v1/activities', activitiesRouter);
 // post-crediting-period rule out-of-band.
 app.use('/api/v1/monitoring', retentionHeaderMiddleware, monitoringRouter);
 app.use('/api/v1/verification', retentionHeaderMiddleware, verificationRouter);
-app.use('/api/v1/issuances', issuanceRouter);
+app.use('/api/v1/issuances', requireApprovedOrg, issuanceRouter);
 app.use('/api/v1/credits', creditsRouter);
 // A6.4 Deferred items (AAT-3)
 app.use('/api/v1/baseline-scenarios', baselineScenariosRouter);
@@ -180,7 +191,7 @@ app.use('/api/v1/admin/coupons', adminCouponsRouter);
 // express.raw so HMAC verification sees the exact bytes Razorpay signed.
 app.use('/api/v1/billing', billingRouter);
 // AAT-9C / Wave 9c: persistence-audit P0 — list endpoints for write-only entities.
-app.use('/api/v1/retirements', retirementsRouter);
+app.use('/api/v1/retirements', requireApprovedOrg, retirementsRouter);
 app.use('/api/v1/delist-requests', delistRequestsRouter);
 // AAT-R4 / AV4-438: SUPER_ADMIN-gated CSRD ESRS E1-7 export + backfill.
 app.use('/api/v1/admin/retirements', adminRetirementsRouter);
