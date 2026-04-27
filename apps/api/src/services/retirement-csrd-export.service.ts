@@ -70,6 +70,183 @@ export const CSRD_RETIREMENT_CSV_HEADER = [
   'beneficiary_kyc_id',
 ] as const;
 
+// ── ESRS E1-7 field mapping (AV4-439) ─────────────────────────────────────
+
+/**
+ * AAT-R5 / AV4-439 — explicit, machine-readable mapping from the CSV
+ * columns this service emits to the ESRS E1-7 disclosure data points an
+ * external auditor will reconcile against. Exposed via
+ * `GET /api/v1/admin/retirements/csrd-export/metadata` so ESG auditors
+ * can pivot Aurex output → their ESRS template without re-deriving the
+ * crosswalk from code comments.
+ *
+ * Section references are to ESRS E1-7 ("Climate change mitigation actions
+ * and resources" — non-netted disclosure of carbon-credit retirements
+ * supporting the undertaking's climate targets). Where ESRS E1-7 doesn't
+ * pin a paragraph (e.g. registry-internal identifiers), we cite the
+ * supporting ESRS 2 paragraph that mandates the audit-traceability link.
+ *
+ * Keys here are the camelCase field names on the `CsrdExportRow`
+ * interface. The `csvColumn` field cross-references the snake-case CSV
+ * header so consumers can pivot in either direction.
+ *
+ * Contract: every column in `CSRD_RETIREMENT_CSV_HEADER` MUST have an
+ * entry below. The `assertEsrsE17MappingCoversCsv()` helper enforces this
+ * at module-load time so a future column addition forces the mapping to
+ * be updated in lockstep.
+ */
+export const ESRS_E17_FIELD_MAPPING = {
+  retirementId: {
+    csvColumn: 'retirement_id',
+    esrsRef: 'ESRS 2 §BP-1',
+    description:
+      'Aurex retirement record identifier — supports the audit-traceability link between disclosed tonnes and the underlying registry burn',
+  },
+  retiredAt: {
+    csvColumn: 'retired_at',
+    esrsRef: 'ESRS E1-7 §29(b)',
+    description:
+      'Date the retirement was recorded against the reporting period; ESRS E1-7 requires per-period disclosure of mitigation actions',
+  },
+  tonnesRetired: {
+    csvColumn: 'tonnes_retired',
+    esrsRef: 'ESRS E1-7 §29(a)',
+    description:
+      'Tonnes CO2-equivalent retired — the headline non-netted quantity disclosed under ESRS E1-7',
+  },
+  vintage: {
+    csvColumn: 'vintage',
+    esrsRef: 'ESRS E1-7 §29(c)',
+    description:
+      'Crediting period vintage of the retired credit (year emission reduction / removal occurred)',
+  },
+  methodologyCode: {
+    csvColumn: 'methodology_code',
+    esrsRef: 'ESRS E1-7 §29(c)',
+    description:
+      'Methodology used to calculate the emission reduction or removal (Verra VCS code, Gold Standard ID, A6.4 methodology id, etc.)',
+  },
+  projectType: {
+    csvColumn: 'project_type',
+    esrsRef: 'ESRS E1-7 §29(d)',
+    description:
+      'Type of mitigation activity bucketed against ESRS-recognised categories (REDD+, ARR, cookstove, renewable energy, other)',
+  },
+  isRemoval: {
+    csvColumn: 'is_removal',
+    esrsRef: 'ESRS E1-7 §29(d)',
+    description:
+      'Removal vs reduction flag — ESRS E1-7 disclosures must distinguish between avoided emissions and actual atmospheric removals',
+  },
+  bufferPoolContributionPct: {
+    csvColumn: 'buffer_pool_pct',
+    esrsRef: 'ESRS E1-7 §AR 27',
+    description:
+      'Percentage of issued tonnes contributed to the registry buffer pool to manage non-permanence risk; relevant for ARR / REDD+ removals',
+  },
+  hostCountryIso: {
+    csvColumn: 'host_country',
+    esrsRef: 'ESRS E1-7 §29(e)',
+    description:
+      'Host country (ISO 3166-1 alpha-2) where the underlying mitigation activity took place',
+  },
+  corsiaEligible: {
+    csvColumn: 'corsia_eligible',
+    esrsRef: 'ESRS E1-7 §AR 28',
+    description:
+      'Whether the credit qualifies under ICAO CORSIA (signal of host-country authorization for international transfer)',
+  },
+  ccpEligible: {
+    csvColumn: 'ccp_eligible',
+    esrsRef: 'ESRS E1-7 §AR 28',
+    description:
+      'Whether the credit carries the ICVCM Core Carbon Principles (CCP) label — a quality signal disclosed alongside the methodology',
+  },
+  correspondingAdjustmentApplied: {
+    csvColumn: 'ca_applied',
+    esrsRef: 'ESRS E1-7 §29(f)',
+    description:
+      'Whether a corresponding adjustment was applied by the host country under Article 6 — material to whether the credit can be claimed against the buyer\'s NDC contribution',
+  },
+  purpose: {
+    csvColumn: 'purpose',
+    esrsRef: 'ESRS E1-7 §29(g)',
+    description:
+      'Reason for the retirement (CSR, NDC contribution, voluntary climate target, OTHER)',
+  },
+  narrative: {
+    csvColumn: 'narrative',
+    esrsRef: 'ESRS E1-7 §29(g)',
+    description:
+      'Free-text narrative qualifying the purpose; required when purpose=OTHER and recommended for audit context',
+  },
+  beneficiaryKycId: {
+    csvColumn: 'beneficiary_kyc_id',
+    esrsRef: 'ESRS 2 §BP-1',
+    description:
+      'KYC verification identifier for the beneficiary of the retirement — supports the audit chain from disclosed tonne to KYB-cleared end-claimant',
+  },
+} as const satisfies Record<
+  Exclude<keyof CsrdExportRow, never>,
+  { csvColumn: string; esrsRef: string; description: string }
+>;
+
+export type EsrsE17FieldKey = keyof typeof ESRS_E17_FIELD_MAPPING;
+
+/**
+ * Self-check: confirm every CSV column has a mapping entry whose
+ * `csvColumn` matches. Throws at module load if a column is added to
+ * `CSRD_RETIREMENT_CSV_HEADER` without a corresponding `ESRS_E17_FIELD_MAPPING`
+ * row, so the export and the auditor-facing crosswalk cannot drift.
+ */
+export function assertEsrsE17MappingCoversCsv(): void {
+  const csvColumns = new Set<string>(CSRD_RETIREMENT_CSV_HEADER);
+  const mappedColumns = new Set<string>(
+    Object.values(ESRS_E17_FIELD_MAPPING).map((v) => v.csvColumn),
+  );
+  const missing = [...csvColumns].filter((c) => !mappedColumns.has(c));
+  if (missing.length > 0) {
+    throw new Error(
+      `ESRS_E17_FIELD_MAPPING is missing entries for CSV columns: ${missing.join(
+        ', ',
+      )}. Add them in retirement-csrd-export.service.ts before deploying.`,
+    );
+  }
+  const orphans = [...mappedColumns].filter((c) => !csvColumns.has(c));
+  if (orphans.length > 0) {
+    throw new Error(
+      `ESRS_E17_FIELD_MAPPING references columns not in CSV header: ${orphans.join(
+        ', ',
+      )}. Drop or rename them in retirement-csrd-export.service.ts.`,
+    );
+  }
+}
+
+// Run the self-check at module load. Throws loudly rather than letting
+// the export ship an inconsistent crosswalk.
+assertEsrsE17MappingCoversCsv();
+
+/**
+ * Self-describing CSV header comment line — emitted as the first line
+ * of the export when the caller passes `{ withHeaderComment: true }`.
+ * Format: `# ESRS_E17_MAPPING={"retirement_id":"ESRS 2 §BP-1", ...}` —
+ * a single comment line that maps each CSV column to its ESRS reference
+ * so the file is self-documenting for offline auditors.
+ *
+ * RFC 4180 doesn't reserve a comment character; we use `#` because that
+ * is the most widely-supported convention across CSV parsers (pandas,
+ * R readr, postgres COPY) when configured with comment-skip. Consumers
+ * that don't set comment-skip will see a single extra row whose first
+ * cell starts with `#` — they can safely drop it.
+ */
+export function buildEsrsHeaderComment(): string {
+  const compact: Record<string, string> = {};
+  for (const entry of Object.values(ESRS_E17_FIELD_MAPPING)) {
+    compact[entry.csvColumn] = entry.esrsRef;
+  }
+  return `# ESRS_E17_MAPPING=${JSON.stringify(compact)}`;
+}
+
 export interface CsrdExportRange {
   /** Inclusive lower bound on `createdAt`. */
   from: Date;

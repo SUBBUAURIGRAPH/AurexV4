@@ -12,6 +12,7 @@ const { mockPrisma } = vi.hoisted(() => {
     retirement: {
       findMany: vi.fn(),
       count: vi.fn(),
+      findFirst: vi.fn(),
     },
     orgMember: {
       findFirst: vi.fn(),
@@ -87,6 +88,11 @@ async function getJson(opts: RequestOpts): Promise<FakeResponse> {
       },
       json(data: unknown) {
         payload = data;
+        resolve({ status, body: payload, headers: respHeaders });
+        return this as Response;
+      },
+      send(data?: unknown) {
+        if (payload === undefined && data !== undefined) payload = data;
         resolve({ status, body: payload, headers: respHeaders });
         return this as Response;
       },
@@ -190,5 +196,158 @@ describe('GET /api/v1/retirements', () => {
   it('returns 401 without auth', async () => {
     const res = await getJson({ url: '/api/v1/retirements' });
     expect(res.status).toBe(401);
+  });
+
+  // ── AV4-437 — CBAM disclaimer surfaced on every retirement response ──
+  it('surfaces CBAM disclaimer on the list response (AV4-437)', async () => {
+    mockPrisma.retirement.findMany.mockResolvedValue([]);
+    mockPrisma.retirement.count.mockResolvedValue(0);
+
+    const res = await getJson({
+      url: '/api/v1/retirements',
+      authHeader: makeAuthHeader('ORG_ADMIN'),
+    });
+    expect(res.status).toBe(200);
+    const body = res.body as {
+      cbamDisclaimer: { text: string; applicable: boolean; effectiveFrom: string };
+    };
+    expect(body.cbamDisclaimer).toBeDefined();
+    expect(body.cbamDisclaimer.applicable).toBe(true);
+    expect(body.cbamDisclaimer.effectiveFrom).toBe('2026-01-01');
+    expect(body.cbamDisclaimer.text).toContain('CBAM');
+    expect(body.cbamDisclaimer.text).toContain('EU');
+  });
+});
+
+// ── AV4-437 — GET /:id detail (CBAM disclaimer + 404) ─────────────────────
+
+describe('GET /api/v1/retirements/:id', () => {
+  const RETIREMENT_ID = '00000000-0000-4000-8000-aaaaaaaaaaaa';
+
+  it('returns the retirement with cbamDisclaimer when found', async () => {
+    mockPrisma.retirement.findFirst.mockResolvedValue({
+      id: RETIREMENT_ID,
+      issuanceId: 'iss-1',
+      bcrSerialId: 'BCR-IND-2024-VM0042-V1-0001',
+      tonnesRetired: 100,
+      vintage: 2024,
+      purpose: 'CSR',
+      purposeNarrative: null,
+      retiredFor: { name: 'Acme' },
+      retiredByUserId: USER_ID,
+      retiredByOrgId: ORG_ID,
+      txHash: '0xfeed',
+      status: 'CHAIN_BURNED',
+      createdAt: new Date('2026-02-15T10:00:00.000Z'),
+      issuance: {
+        id: 'iss-1',
+        activityId: 'act-1',
+        vintage: 2024,
+        bcrSerialId: 'BCR-IND-2024-VM0042-V1-0001',
+        status: 'ISSUED',
+      },
+    });
+
+    const res = await getJson({
+      url: `/api/v1/retirements/${RETIREMENT_ID}`,
+      authHeader: makeAuthHeader('ORG_ADMIN'),
+    });
+    expect(res.status).toBe(200);
+    const body = res.body as {
+      data: { id: string };
+      cbamDisclaimer: { text: string; applicable: boolean; effectiveFrom: string };
+    };
+    expect(body.data.id).toBe(RETIREMENT_ID);
+    expect(body.cbamDisclaimer.applicable).toBe(true);
+    expect(body.cbamDisclaimer.effectiveFrom).toBe('2026-01-01');
+    expect(body.cbamDisclaimer.text).toMatch(/CBAM/);
+
+    // Verify org-scope was applied.
+    const args = mockPrisma.retirement.findFirst.mock.calls[0]![0] as Record<
+      string,
+      unknown
+    >;
+    const where = args.where as { id: string; retiredByOrgId: string };
+    expect(where.id).toBe(RETIREMENT_ID);
+    expect(where.retiredByOrgId).toBe(ORG_ID);
+  });
+
+  it('returns 404 when retirement is missing or in another org', async () => {
+    mockPrisma.retirement.findFirst.mockResolvedValue(null);
+    const res = await getJson({
+      url: `/api/v1/retirements/${RETIREMENT_ID}`,
+      authHeader: makeAuthHeader('ORG_ADMIN'),
+    });
+    expect(res.status).toBe(404);
+  });
+
+  it('returns 400 when id is not a UUID', async () => {
+    const res = await getJson({
+      url: '/api/v1/retirements/not-a-uuid',
+      authHeader: makeAuthHeader('ORG_ADMIN'),
+    });
+    expect(res.status).toBe(400);
+  });
+});
+
+// ── AV4-437 — GET /:id/statement.pdf — PDF includes CBAM disclaimer ───────
+
+describe('GET /api/v1/retirements/:id/statement.pdf', () => {
+  const RETIREMENT_ID = '00000000-0000-4000-8000-bbbbbbbbbbbb';
+
+  it('renders a PDF that contains the CBAM disclaimer text', async () => {
+    mockPrisma.retirement.findFirst.mockResolvedValue({
+      id: RETIREMENT_ID,
+      issuanceId: 'iss-1',
+      bcrSerialId: 'BCR-IND-2024-VM0042-V1-0001',
+      tonnesRetired: 100,
+      vintage: 2024,
+      purpose: 'CSR',
+      purposeNarrative: 'Q1 2026 CSR disclosure',
+      retiredFor: { name: 'Acme Manufacturing' },
+      retiredByUserId: USER_ID,
+      retiredByOrgId: ORG_ID,
+      txHash: '0xdeadbeef',
+      status: 'CHAIN_BURNED',
+      createdAt: new Date('2026-02-15T10:00:00.000Z'),
+      issuance: {
+        id: 'iss-1',
+        bcrSerialId: 'BCR-IND-2024-VM0042-V1-0001',
+        vintage: 2024,
+      },
+    });
+
+    const res = await getJson({
+      url: `/api/v1/retirements/${RETIREMENT_ID}/statement.pdf`,
+      authHeader: makeAuthHeader('ORG_ADMIN'),
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toBe('application/pdf');
+    expect(res.headers['content-disposition']).toContain(
+      `retirement-${RETIREMENT_ID}.pdf`,
+    );
+
+    // Body is a Buffer; PDFs start with "%PDF-".
+    const buf = res.body as Buffer;
+    expect(Buffer.isBuffer(buf)).toBe(true);
+    const head = buf.subarray(0, 5).toString('utf-8');
+    expect(head).toBe('%PDF-');
+
+    // Spot-check the disclaimer text + effective date appear in the
+    // raw PDF stream. Helvetica strings in pdfkit are stored as
+    // ASCII inside content streams, so a substring search is reliable.
+    const raw = buf.toString('latin1');
+    expect(raw).toContain('EU importers');
+    expect(raw).toContain('CBAM');
+    expect(raw).toContain('2026-01-01');
+  });
+
+  it('returns 404 when retirement is missing or in another org', async () => {
+    mockPrisma.retirement.findFirst.mockResolvedValue(null);
+    const res = await getJson({
+      url: `/api/v1/retirements/${RETIREMENT_ID}/statement.pdf`,
+      authHeader: makeAuthHeader('ORG_ADMIN'),
+    });
+    expect(res.status).toBe(404);
   });
 });

@@ -28,7 +28,10 @@ const { mockPrisma } = vi.hoisted(() => ({
 vi.mock('@aurex/database', () => ({ prisma: mockPrisma }));
 
 import { adminRetirementsRouter } from './admin-retirements.js';
-import { CSRD_RETIREMENT_CSV_HEADER } from '../services/retirement-csrd-export.service.js';
+import {
+  CSRD_RETIREMENT_CSV_HEADER,
+  ESRS_E17_FIELD_MAPPING,
+} from '../services/retirement-csrd-export.service.js';
 import { errorHandler } from '../middleware/error-handler.js';
 import { signAccessToken } from '../lib/jwt.js';
 
@@ -415,5 +418,74 @@ describe('POST /api/v1/admin/retirements/backfill-granularity', () => {
       orgAdminAuth(),
     );
     expect(res.status).toBe(403);
+  });
+});
+
+// ── ESRS E1-7 metadata endpoint (AV4-439) ─────────────────────────────────
+
+describe('GET /api/v1/admin/retirements/csrd-export/metadata', () => {
+  it('rejects unauthenticated callers with 401', async () => {
+    const res = await request(
+      'GET',
+      '/api/v1/admin/retirements/csrd-export/metadata',
+    );
+    expect(res.status).toBe(401);
+  });
+
+  it('rejects ORG_ADMIN with 403 (SUPER_ADMIN-gated)', async () => {
+    const res = await request(
+      'GET',
+      '/api/v1/admin/retirements/csrd-export/metadata',
+      orgAdminAuth(),
+    );
+    expect(res.status).toBe(403);
+  });
+
+  it('returns the ESRS E1-7 mapping with every CSV column covered', async () => {
+    const res = await request(
+      'GET',
+      '/api/v1/admin/retirements/csrd-export/metadata',
+      superAdminAuth(),
+    );
+    expect(res.status).toBe(200);
+    const body = res.body as {
+      data: {
+        mapping: Record<
+          string,
+          { fieldKey: string; esrsRef: string; description: string }
+        >;
+        csvHeader: string[];
+        fieldOrder: string[];
+        generatedAt: string;
+      };
+    };
+
+    // Every CSV column must have a mapping entry.
+    for (const col of CSRD_RETIREMENT_CSV_HEADER) {
+      expect(body.data.mapping[col]).toBeDefined();
+      expect(body.data.mapping[col]!.esrsRef).toMatch(/^ESRS/);
+      expect(body.data.mapping[col]!.description.length).toBeGreaterThan(0);
+    }
+
+    // CSV header echoed verbatim, in order.
+    expect(body.data.csvHeader).toEqual([...CSRD_RETIREMENT_CSV_HEADER]);
+
+    // fieldOrder mirrors the constant's key order.
+    expect(body.data.fieldOrder).toEqual(Object.keys(ESRS_E17_FIELD_MAPPING));
+
+    // Sanity-check a known mapping — methodologyCode → ESRS E1-7 §29(c).
+    expect(body.data.mapping.methodology_code!.fieldKey).toBe('methodologyCode');
+    expect(body.data.mapping.methodology_code!.esrsRef).toContain('§29(c)');
+
+    // generatedAt is a parseable ISO timestamp.
+    expect(() => new Date(body.data.generatedAt).toISOString()).not.toThrow();
+  });
+
+  it('mapping covers every column emitted by the CSV (load-bearing invariant)', () => {
+    const csvCols = new Set<string>(CSRD_RETIREMENT_CSV_HEADER);
+    const mappedCols = new Set<string>(
+      Object.values(ESRS_E17_FIELD_MAPPING).map((v) => v.csvColumn),
+    );
+    expect([...csvCols].sort()).toEqual([...mappedCols].sort());
   });
 });

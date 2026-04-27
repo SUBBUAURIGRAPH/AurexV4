@@ -589,3 +589,53 @@ describe('GET /api/v1/health/aurigraph — callsLast24h aggregation', () => {
 // import / type sanity (the script auto-runs main() at module load and
 // is unsafe to import inside vitest, where process.exit would terminate
 // the test run). Don't add a runtime test here. ─────────────────────────
+
+// ─── AAT-R5 / AV4-418 — /health/unfccc-interop ────────────────────────
+
+import { __resetUnfcccAdapterCache } from '../services/registries/index.js';
+
+describe('GET /api/v1/health/unfccc-interop — public manifest (AV4-418)', () => {
+  const ORIGINAL_ADAPTER_ENV = process.env.UNFCCC_REGISTRY_ADAPTER;
+
+  beforeEach(() => {
+    __resetUnfcccAdapterCache();
+  });
+
+  afterEach(() => {
+    if (ORIGINAL_ADAPTER_ENV === undefined) {
+      delete process.env.UNFCCC_REGISTRY_ADAPTER;
+    } else {
+      process.env.UNFCCC_REGISTRY_ADAPTER = ORIGINAL_ADAPTER_ENV;
+    }
+    __resetUnfcccAdapterCache();
+  });
+
+  it('returns 200 with the disabled-adapter manifest when no auth header is present', async () => {
+    delete process.env.UNFCCC_REGISTRY_ADAPTER;
+    const res = await getRequest('/api/v1/health/unfccc-interop');
+    expect(res.status).toBe(200);
+    const body = res.body as Record<string, unknown>;
+    expect(body.adapterName).toBe('disabled');
+    expect(body.specVersion).toBe('0.0.0-pending-spec');
+    expect(body.ready).toBe(false);
+    expect(body.specReference).toBeNull();
+    expect(body.supportedEvents).toEqual([
+      'issuance',
+      'first-transfer',
+      'retirement-ndc',
+      'retirement-oimp',
+    ]);
+  });
+
+  it('returns the disabled-shape manifest even when env is set to a reserved-but-unimplemented adapter', async () => {
+    // Factory throws on `live-v1`; route swallows and returns the
+    // safe disabled-shape envelope so downstream consumers always
+    // get a parseable response.
+    process.env.UNFCCC_REGISTRY_ADAPTER = 'live-v1';
+    const res = await getRequest('/api/v1/health/unfccc-interop');
+    expect(res.status).toBe(200);
+    const body = res.body as Record<string, unknown>;
+    expect(body.adapterName).toBe('disabled');
+    expect(body.ready).toBe(false);
+  });
+});

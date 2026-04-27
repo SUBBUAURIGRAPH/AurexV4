@@ -25,6 +25,8 @@ import { logger } from '../lib/logger.js';
 import {
   buildCsrdExportCsv,
   backfillRetirementGranularity,
+  ESRS_E17_FIELD_MAPPING,
+  CSRD_RETIREMENT_CSV_HEADER,
 } from '../services/retirement-csrd-export.service.js';
 
 export const adminRetirementsRouter: IRouter = Router();
@@ -116,6 +118,57 @@ adminRetirementsRouter.get('/csrd-export', async (req, res, next) => {
     );
     res.setHeader('X-Csrd-Row-Count', String(artifact.rowCount));
     res.send(artifact.csv);
+  } catch (err) {
+    next(err);
+  }
+});
+
+/**
+ * GET /csrd-export/metadata — AV4-439 explicit ESRS E1-7 field mapping.
+ *
+ * Returns the column-to-ESRS-data-point crosswalk as JSON so external ESG
+ * auditors can pivot Aurex CSV output → their ESRS template without
+ * re-deriving the mapping from code comments. Same SUPER_ADMIN posture as
+ * the export itself; the metadata shape is stable across rows so it can
+ * be fetched once per audit cycle.
+ *
+ * Response shape:
+ *   {
+ *     mapping: Record<csvColumn, { fieldKey, esrsRef, description }>,
+ *     csvHeader: string[],          // CSV column order (load-bearing)
+ *     fieldOrder: string[],         // mapping key order (matches CSV)
+ *     generatedAt: string           // ISO timestamp
+ *   }
+ */
+adminRetirementsRouter.get('/csrd-export/metadata', (req, res, next) => {
+  try {
+    // Pivot the mapping by csvColumn so consumers can lookup either by
+    // camelCase field key or by snake_case CSV column name.
+    const mappingByColumn: Record<
+      string,
+      { fieldKey: string; esrsRef: string; description: string }
+    > = {};
+    for (const [fieldKey, entry] of Object.entries(ESRS_E17_FIELD_MAPPING)) {
+      mappingByColumn[entry.csvColumn] = {
+        fieldKey,
+        esrsRef: entry.esrsRef,
+        description: entry.description,
+      };
+    }
+
+    logger.info(
+      { actor: req.user?.sub },
+      'CSRD ESRS E1-7 metadata mapping served',
+    );
+
+    res.json({
+      data: {
+        mapping: mappingByColumn,
+        csvHeader: [...CSRD_RETIREMENT_CSV_HEADER],
+        fieldOrder: Object.keys(ESRS_E17_FIELD_MAPPING),
+        generatedAt: new Date().toISOString(),
+      },
+    });
   } catch (err) {
     next(err);
   }

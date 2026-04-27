@@ -62,6 +62,39 @@ import {
   type AurigraphDltAdapter,
 } from './chains/aurigraph-dlt-adapter.js';
 
+// ── CBAM disclaimer (AV4-437) ──────────────────────────────────────────────
+
+/**
+ * AAT-R5 / AV4-437 — EU CBAM disclaimer surfaced on every retirement
+ * artefact (API response + PDF statement).
+ *
+ * The marketplace UI already carries the disclaimer strip
+ * (`apps/web/src/pages/biocarbon/MarketplacePage.tsx`, AAT-R4 / commit
+ * fa98d00). We propagate the same wording to the retirement-side
+ * surfaces because EU buyers most often misread "credit retirement" as
+ * "CBAM offset" — voluntary credit retirement does not satisfy CBAM
+ * for embedded emissions in imported goods (CBAM Phase 2, effective
+ * 2026-01-01).
+ *
+ * `effectiveFrom` is the CBAM Phase 2 transition date; the disclaimer
+ * is always applicable from that point forward (Phase 1 reporting-only
+ * is no longer the live posture). `applicable: true` until / unless EU
+ * regulators publish a Phase 2 amendment that flips this — at which
+ * point we re-evaluate and update the constant in lockstep with a docs
+ * change.
+ */
+export const CBAM_DISCLAIMER = {
+  text:
+    'EU importers (CBAM): Purchasing or retiring credits on Aurex does not by ' +
+    'itself satisfy the EU Carbon Border Adjustment Mechanism for embedded ' +
+    'emissions in imported goods. Treat CBAM as a separate customs / climate ' +
+    'compliance obligation and consult qualified advisors.',
+  applicable: true,
+  effectiveFrom: '2026-01-01',
+} as const;
+
+export type CbamDisclaimer = typeof CBAM_DISCLAIMER;
+
 // ── Public types ───────────────────────────────────────────────────────────
 
 export interface RetireTokenOpts {

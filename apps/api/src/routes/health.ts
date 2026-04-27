@@ -24,6 +24,8 @@ import {
   loadLastRunSummary as loadResearchLastRunSummary,
   loadRunsLast24h as loadResearchRunsLast24h,
 } from '../services/research/research.service.js';
+// AAT-R5 / AV4-418 — UNFCCC interop manifest probe.
+import { getUnfcccAdapter } from '../services/registries/index.js';
 
 export const healthRouter: IRouter = Router();
 
@@ -651,3 +653,56 @@ healthRouter.get(
     return res.json(body);
   },
 );
+
+// ───────────────────────────────────────────────────────────────────────
+// AAT-R5 / AV4-418 — /health/unfccc-interop
+//
+// Public read-only manifest of the UNFCCC Article 6.4 mechanism registry
+// adapter currently in use. Mirrors the auth posture of `/health/` and
+// `/health/ready` (no auth required) because the manifest is intended
+// for consumption by the Article 6.4 supervisory body and host-country
+// registries probing Aurex's interop readiness — those callers do not
+// hold Aurex credentials.
+//
+// Until UNFCCC publishes the central registry API spec under CMA.6+
+// every Aurex deploy returns the disabled-adapter manifest:
+//   {
+//     adapterName: "disabled",
+//     specVersion: "0.0.0-pending-spec",
+//     supportedEvents: ["issuance","first-transfer","retirement-ndc","retirement-oimp"],
+//     ready: false,
+//     specReference: null
+//   }
+//
+// The manifest is a static description; we never throw from the route
+// itself even if the adapter factory throws on a misconfigured env (we
+// fall back to the disabled-adapter shape with a synthesised reason).
+// ───────────────────────────────────────────────────────────────────────
+
+healthRouter.get('/unfccc-interop', (_req, res) => {
+  try {
+    const adapter = getUnfcccAdapter();
+    return res.json(adapter.getInteropManifest());
+  } catch (err) {
+    // Adapter factory throws when `UNFCCC_REGISTRY_ADAPTER` is set to a
+    // reserved-but-unimplemented value (mock, live-v1, etc.). Surface a
+    // safe disabled-shape manifest so downstream consumers always get a
+    // parseable response, with `specReference` describing the misconfig.
+    logger.warn(
+      { err: err instanceof Error ? err.message : String(err) },
+      '/health/unfccc-interop — adapter factory failed; returning disabled-shape manifest',
+    );
+    return res.json({
+      adapterName: 'disabled',
+      specVersion: '0.0.0-pending-spec',
+      supportedEvents: [
+        'issuance',
+        'first-transfer',
+        'retirement-ndc',
+        'retirement-oimp',
+      ],
+      ready: false,
+      specReference: null,
+    });
+  }
+});

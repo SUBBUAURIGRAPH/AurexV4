@@ -60,6 +60,40 @@ export interface NotifyRetirementParams {
   narrative: string;
 }
 
+/**
+ * AAT-R5 / AV4-418 — UNFCCC interop manifest.
+ *
+ * Returned by {@link UnfcccRegistryAdapter.getInteropManifest}; consumed
+ * by the public health endpoint `GET /api/v1/health/unfccc-interop` so
+ * external operators (Article 6.4 supervisory body, host-country
+ * registries) can probe Aurex's readiness without authenticating.
+ *
+ * The manifest contract is deliberately small — until the UNFCCC central
+ * registry API spec publishes (CMA.6+) every Aurex deploy is in the
+ * `disabled` state, but we expose a stable manifest shape so downstream
+ * tooling can parse it today and the field set won't churn when the
+ * live adapter ships.
+ */
+export interface UnfcccInteropManifest {
+  /** Human-readable identifier for the active adapter — same value as
+   *  `UnfcccRegistryAdapter.adapterName`. */
+  adapterName: string;
+  /** Spec version this adapter implements. The disabled adapter reports
+   *  `0.0.0-pending-spec` until UNFCCC publishes the central registry
+   *  API specification under CMA.6+. */
+  specVersion: string;
+  /** Event types the adapter knows how to notify the central registry
+   *  about. The disabled adapter reports the full pending event set so
+   *  consumers can validate their integration assumptions. */
+  supportedEvents: ReadonlyArray<string>;
+  /** `true` when the adapter is actively syncing with a published spec.
+   *  Mirrors `UnfcccRegistryAdapter.isActive`. */
+  ready: boolean;
+  /** URL or document reference for the spec this adapter implements.
+   *  `null` until UNFCCC publishes the central registry API spec. */
+  specReference: string | null;
+}
+
 export interface UnfcccRegistryAdapter {
   /** Notify central registry of issuance. Returns external registry ref
    *  (for recording on the Issuance row). */
@@ -76,6 +110,13 @@ export interface UnfcccRegistryAdapter {
   notifyRetirement(
     params: NotifyRetirementParams,
   ): Promise<UnfcccAdapterResult>;
+
+  /**
+   * AAT-R5 / AV4-418 — Static description of what this adapter implements
+   * and which events it supports. Synchronous because the manifest is
+   * a static description of the adapter's surface, not a network probe.
+   */
+  getInteropManifest(): UnfcccInteropManifest;
 
   /** Human-readable identifier for audit logs. */
   readonly adapterName: string;

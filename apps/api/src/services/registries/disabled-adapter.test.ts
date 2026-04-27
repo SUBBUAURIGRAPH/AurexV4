@@ -57,6 +57,31 @@ describe('DisabledUnfcccAdapter', () => {
       expect(result.reason).toBeDefined();
     }
   });
+
+  // ── AAT-R5 / AV4-418 — interop manifest contract ────────────────────
+  it('getInteropManifest returns the disabled-adapter shape (AV4-418)', () => {
+    const manifest = adapter.getInteropManifest();
+    expect(manifest.adapterName).toBe('disabled');
+    expect(manifest.specVersion).toBe('0.0.0-pending-spec');
+    expect(manifest.ready).toBe(false);
+    expect(manifest.specReference).toBeNull();
+    // Supported events: issuance, first-transfer, retirement-ndc,
+    // retirement-oimp. Order is stable so consumers can rely on it.
+    expect([...manifest.supportedEvents]).toEqual([
+      'issuance',
+      'first-transfer',
+      'retirement-ndc',
+      'retirement-oimp',
+    ]);
+  });
+
+  it('getInteropManifest is a pure synchronous read (no network)', () => {
+    // Manifest is a static description — calling it many times must
+    // be cheap and deterministic.
+    const m1 = adapter.getInteropManifest();
+    const m2 = adapter.getInteropManifest();
+    expect(m1).toEqual(m2);
+  });
 });
 
 describe('getUnfcccAdapter — factory', () => {
