@@ -168,6 +168,252 @@ function slugify(s: string): string {
     .slice(0, 64);
 }
 
+// ── V3-port: Welcoming hero + 6-step journey cards ──────────────────────
+// Ported from AurexV3 02_Applications/01_aurex-main/frontend/pages/Onboarding.tsx
+// (3-card hero with explanatory CTAs). Adapted for V4's 6-step journey
+// and design tokens. Shown when no onboarding progress row exists yet.
+
+interface JourneyCard {
+  num: number;
+  title: string;
+  description: string;
+  bullets: string[];
+  href: string;
+  cta: string;
+}
+
+const JOURNEY_CARDS: JourneyCard[] = [
+  {
+    num: 1,
+    title: 'Register your organisation',
+    description: 'Captures the org name, region, sector, and slug — the root of every record in Aurex.',
+    bullets: ['Organisation name + slug', 'Region (India / International)', 'Industry sector + size'],
+    href: '#wizard',
+    cta: 'Open quick-setup',
+  },
+  {
+    num: 2,
+    title: 'Add subsidiaries',
+    description: 'Set up any child entities you need to track separately. Skip if you only have one org.',
+    bullets: ['Parent / child hierarchy', 'Per-subsidiary scope', 'Optional — skip if single-org'],
+    href: '/dashboard/admin/organizations',
+    cta: 'Manage hierarchy',
+  },
+  {
+    num: 3,
+    title: 'Invite users and assign roles',
+    description: 'RBAC: ORG_ADMIN, MAKER, CHECKER, APPROVER, AUDITOR, VIEWER. Set least-privilege early.',
+    bullets: ['6-tier role model', 'Email invites', 'Maker-Checker workflows'],
+    href: '/dashboard/teams',
+    cta: 'Manage team',
+  },
+  {
+    num: 4,
+    title: 'Upload organisational financials',
+    description: 'Annual revenue, employees, fiscal year. Required for BRSR/CSRD intensity reports.',
+    bullets: ['Fiscal year + currency', 'Annual revenue + assets', 'Employee + contractor counts'],
+    href: '/dashboard/settings/financials',
+    cta: 'Add financials',
+  },
+  {
+    num: 5,
+    title: 'Add your first emission entry',
+    description: 'Logs a single greenhouse-gas activity record so analytics start populating.',
+    bullets: ['Scope 1 / 2 / 3 picker', 'IPCC AR6 emission factors', 'Source-by-source log'],
+    href: '/emissions/new',
+    cta: 'Add entry',
+  },
+  {
+    num: 6,
+    title: 'Generate your first report',
+    description: 'Produces a TCFD/GRI/CDP/BRSR/CSRD-aligned export from your live data.',
+    bullets: ['6 frameworks supported', 'JSON / CSV / PDF / XBRL', 'Audit-ready'],
+    href: '/reports',
+    cta: 'Open reports',
+  },
+];
+
+function WelcomeJourney({ user }: { user: { name?: string } | null }): JSX.Element {
+  const firstName = (user?.name ?? '').split(/\s+/)[0] || '';
+
+  return (
+    <div style={{ minHeight: 'calc(100vh - 7rem)', padding: '0 1.5rem 3rem' }}>
+      {/* Hero */}
+      <section
+        style={{
+          padding: '3.5rem 1rem 2rem',
+          textAlign: 'center',
+          maxWidth: '900px',
+          margin: '0 auto',
+        }}
+      >
+        <h1
+          style={{
+            fontSize: '2.5rem',
+            fontWeight: 800,
+            color: 'var(--text-primary)',
+            margin: 0,
+            marginBottom: '0.75rem',
+            letterSpacing: '-0.02em',
+          }}
+        >
+          {firstName ? `Welcome, ${firstName}` : 'Welcome to Aurex'}
+        </h1>
+        <p
+          style={{
+            fontSize: '1.0625rem',
+            color: 'var(--text-secondary)',
+            margin: 0,
+            maxWidth: '640px',
+            marginInline: 'auto',
+            lineHeight: 1.5,
+          }}
+        >
+          Six quick steps to set up your sustainability tracking. You can do them in any order, but
+          the recommended path follows organisation → users → financials → emissions → reports.
+        </p>
+      </section>
+
+      {/* 6-card journey grid */}
+      <section
+        style={{
+          maxWidth: '1200px',
+          margin: '0 auto',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+          gap: '1.25rem',
+        }}
+      >
+        {JOURNEY_CARDS.map((card) => (
+          <JourneyCardView key={card.num} card={card} />
+        ))}
+      </section>
+
+      {/* Footer help */}
+      <section
+        style={{
+          marginTop: '3rem',
+          textAlign: 'center',
+          padding: '1.5rem',
+          color: 'var(--text-tertiary)',
+          fontSize: '0.875rem',
+        }}
+      >
+        Need help getting started?{' '}
+        <a href="/support" style={{ color: '#10b981', fontWeight: 600 }}>
+          Contact support
+        </a>
+        {' · '}
+        <a href="/dashboard" style={{ color: '#10b981', fontWeight: 600 }}>
+          Skip to dashboard
+        </a>
+      </section>
+    </div>
+  );
+}
+
+function JourneyCardView({ card }: { card: JourneyCard }): JSX.Element {
+  const isWizardAnchor = card.href.startsWith('#');
+  return (
+    <div
+      style={{
+        backgroundColor: 'var(--bg-secondary)',
+        border: '1px solid var(--border-primary)',
+        borderRadius: '0.75rem',
+        padding: '1.5rem',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '0.875rem',
+      }}
+    >
+      <div
+        style={{
+          width: '2.75rem',
+          height: '2.75rem',
+          borderRadius: '50%',
+          backgroundColor: '#10b981',
+          color: '#fff',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          fontWeight: 700,
+          fontSize: '1.125rem',
+        }}
+      >
+        {card.num}
+      </div>
+      <h3
+        style={{
+          fontSize: '1.125rem',
+          fontWeight: 700,
+          margin: 0,
+          color: 'var(--text-primary)',
+        }}
+      >
+        {card.title}
+      </h3>
+      <p
+        style={{
+          fontSize: '0.875rem',
+          color: 'var(--text-secondary)',
+          margin: 0,
+          lineHeight: 1.5,
+        }}
+      >
+        {card.description}
+      </p>
+      <ul
+        style={{
+          listStyle: 'none',
+          padding: 0,
+          margin: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '0.25rem',
+        }}
+      >
+        {card.bullets.map((b) => (
+          <li
+            key={b}
+            style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', display: 'flex', gap: '0.5rem' }}
+          >
+            <span style={{ color: '#10b981' }}>✓</span>
+            <span>{b}</span>
+          </li>
+        ))}
+      </ul>
+      <a
+        href={card.href}
+        onClick={
+          isWizardAnchor
+            ? (e) => {
+                e.preventDefault();
+                document.getElementById('wizard')?.scrollIntoView({ behavior: 'smooth' });
+              }
+            : undefined
+        }
+        style={{
+          marginTop: 'auto',
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: '0.375rem',
+          padding: '0.625rem 1rem',
+          borderRadius: '0.5rem',
+          backgroundColor: 'transparent',
+          border: '1px solid #10b981',
+          color: '#10b981',
+          fontSize: '0.875rem',
+          fontWeight: 600,
+          textDecoration: 'none',
+          alignSelf: 'flex-start',
+        }}
+      >
+        {card.cta} →
+      </a>
+    </div>
+  );
+}
+
 // ── Top-level page ────────────────────────────────────────────────────────
 
 export function OnboardingPage() {
@@ -230,7 +476,11 @@ export function OnboardingPage() {
       </div>
     );
   }
-  if (!progress) return null;
+  // FLOW-REWORK / V3-port: when there's no onboarding row (new user with
+  // no org membership yet), render the V3-inspired welcoming hero + cards
+  // so the page is never blank. Once they register an org (which also
+  // creates an OnboardingProgress row), the wizard renders below.
+  if (!progress) return <WelcomeJourney user={user ?? null} />;
 
   const goNext = (target: 2 | 3) => setActiveStep(target);
   const goBack = (target: 1 | 2) => setActiveStep(target);
