@@ -114,7 +114,7 @@ beforeEach(() => {
   fetchCalls = [];
   // Stub localStorage — apps/web tests run in node, no jsdom yet.
   const store = new Map<string, string>();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   (globalThis as any).localStorage = {
     getItem: (k: string) => store.get(k) ?? null,
     setItem: (k: string, v: string) => { store.set(k, v); },
@@ -135,7 +135,7 @@ beforeEach(() => {
 
 afterEach(() => {
   vi.unstubAllGlobals();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   delete (globalThis as any).localStorage;
 });
 
@@ -200,13 +200,13 @@ describe('useMySubscription contract', () => {
 describe('loadRazorpayCheckout SSR safety', () => {
   it('rejects when window is undefined', async () => {
     const original = globalThis.window;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (globalThis as any).window = undefined;
     try {
       const { loadRazorpayCheckout } = await import('../lib/razorpay');
       await expect(loadRazorpayCheckout()).rejects.toThrow(/browser/i);
     } finally {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (globalThis as any).window = original;
     }
   });

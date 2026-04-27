@@ -66,7 +66,7 @@ async function postJson(url: string, body: unknown, ip = '198.51.100.99', header
       headers: { 'content-type': 'application/json', ...headers },
       body,
       ip,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       socket: { remoteAddress: ip } as any,
     };
     const res: Partial<Response> = {
@@ -88,7 +88,7 @@ async function postJson(url: string, body: unknown, ip = '198.51.100.99', header
       getHeader: () => undefined,
     };
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (app as any).handle(req as Request, res as Response, (err: unknown) => {
         if (err) reject(err);
       });
@@ -110,7 +110,7 @@ async function getJson(url: string, headers: Record<string, string> = {}): Promi
       path: url,
       headers,
       ip: '198.51.100.99',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       socket: { remoteAddress: '198.51.100.99' } as any,
     };
     const res: Partial<Response> = {
@@ -132,7 +132,7 @@ async function getJson(url: string, headers: Record<string, string> = {}): Promi
       getHeader: () => undefined,
     };
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (app as any).handle(req as Request, res as Response, (err: unknown) => {
         if (err) reject(err);
       });
@@ -281,7 +281,7 @@ describe('GET /api/v1/coupons/redemptions/me', () => {
     const token = signAccessToken({
       sub: '00000000-0000-0000-0000-000000000001',
       email: 'me@aurex.in',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       role: 'VIEWER' as any,
     });
     return { authorization: `Bearer ${token}` };

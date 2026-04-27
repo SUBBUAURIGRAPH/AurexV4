@@ -78,7 +78,7 @@ function adminAuthHeader(): Record<string, string> {
   const token = signAccessToken({
     sub: SUPER_ADMIN_ID,
     email: 'admin@aurex.in',
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     role: 'SUPER_ADMIN' as any,
   });
   return { authorization: `Bearer ${token}` };
@@ -105,7 +105,7 @@ function call(
       query: {},
       params: {},
       ip: '127.0.0.1',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       socket: { remoteAddress: '127.0.0.1' } as any,
     };
     const res: Partial<Response> = {
@@ -136,7 +136,7 @@ function call(
       },
     };
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (app as any).handle(req as Request, res as Response, (err: unknown) => {
         if (err) reject(err);
       });

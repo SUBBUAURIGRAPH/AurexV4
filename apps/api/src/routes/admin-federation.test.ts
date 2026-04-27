@@ -74,7 +74,7 @@ async function call(
       getHeader: () => undefined,
     } as unknown as Response;
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (app as any).handle(req, res, (err: unknown) => {
         if (err) reject(err);
       });

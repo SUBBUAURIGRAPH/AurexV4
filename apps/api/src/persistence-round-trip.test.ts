@@ -1469,7 +1469,7 @@ describe('AAT-PERSISTENCE — Activity', () => {
     const methodologyId = '00000000-0000-4000-8000-0000000000b1';
     // activity.service uses methodology.findUnique; wire a minimal fake +
     // creditAccount.create (also touched on activity.create).
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (fakeDb as any).methodology = {
       findUnique: vi.fn(async () => ({
         id: methodologyId,
@@ -1481,7 +1481,7 @@ describe('AAT-PERSISTENCE — Activity', () => {
       })),
     };
     const creditAccounts = new Map<string, Record<string, unknown>>();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (fakeDb as any).creditAccount = {
       create: vi.fn(async (args: { data: Record<string, unknown> }) => {
         const id = randomUUID();
@@ -1508,7 +1508,7 @@ describe('AAT-PERSISTENCE — Activity', () => {
 
     // List uses include: { methodology: ... } — augment the fake just in
     // time so the include resolution doesn't error.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (fakeDb.activity.findMany as any).mockImplementationOnce(
       async (args?: { where?: Record<string, unknown> }) => {
         const w = args?.where ?? {};
@@ -1527,7 +1527,7 @@ describe('AAT-PERSISTENCE — Activity', () => {
     expect(list).toHaveLength(1);
 
     // Read uses an extensive include — short-circuit with a single mock.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     (fakeDb.activity.findFirst as any).mockImplementationOnce(
       async (args: { where: { id: string; orgId: string } }) => {
         const a = fakeDb.activities.get(args.where.id);

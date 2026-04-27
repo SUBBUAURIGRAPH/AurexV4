@@ -1,4 +1,4 @@
-import { prisma } from '@aurex/database';
+import { prisma, type Role } from '@aurex/database';
 import type { PaginatedResponse } from '@aurex/shared';
 import { logger } from '../lib/logger.js';
 import { AppError } from '../middleware/error-handler.js';
@@ -280,7 +280,7 @@ export async function addMember(
     data: {
       userId: user.id,
       orgId,
-      role: role.toUpperCase() as any,
+      role: role.toUpperCase() as Role,
     },
     include: {
       user: {
@@ -308,7 +308,7 @@ export async function updateMemberRole(
 
   const updated = await prisma.orgMember.update({
     where: { id: memberId },
-    data: { role: role.toUpperCase() as any },
+    data: { role: role.toUpperCase() as Role },
     include: {
       user: {
         select: { id: true, email: true, name: true },

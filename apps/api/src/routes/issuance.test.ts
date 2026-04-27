@@ -70,7 +70,7 @@ async function getJson(url: string, authHeader?: string): Promise<FakeResponse> 
       headers: reqHeaders,
       query: {},
       ip: '127.0.0.1',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       socket: { remoteAddress: '127.0.0.1' } as any,
       header(name: string) {
         return reqHeaders[String(name).toLowerCase()];
@@ -95,7 +95,7 @@ async function getJson(url: string, authHeader?: string): Promise<FakeResponse> 
       getHeader: () => undefined,
     };
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (app as any).handle(req as Request, res as Response, (err: unknown) => {
         if (err) reject(err);
       });

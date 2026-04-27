@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useActivity } from '../../../hooks/useActivities';
 import {
@@ -207,20 +207,23 @@ export function PddEditorPage() {
 
   // ─── Persistence helpers ────────────────────────────────────────────
 
-  const persist = async (next: PddContent) => {
-    if (locked) return;
-    try {
-      await upsert.mutateAsync(next as Record<string, unknown>);
-      setToast({ kind: 'ok', msg: 'Draft saved' });
-      window.setTimeout(() => setToast(null), 1500);
-    } catch (e) {
-      setToast({ kind: 'err', msg: (e as Error).message });
-    }
-  };
+  const persist = useCallback(
+    async (next: PddContent) => {
+      if (locked) return;
+      try {
+        await upsert.mutateAsync(next as Record<string, unknown>);
+        setToast({ kind: 'ok', msg: 'Draft saved' });
+        window.setTimeout(() => setToast(null), 1500);
+      } catch (e) {
+        setToast({ kind: 'err', msg: (e as Error).message });
+      }
+    },
+    [locked, upsert],
+  );
 
-  const onFieldBlur = () => {
+  const onFieldBlur = useCallback(() => {
     void persist(form);
-  };
+  }, [persist, form]);
 
   // Submit: validate required sections, push draft, then lock.
   const onSubmit = async () => {
@@ -557,6 +560,8 @@ export function PddEditorPage() {
     submitErrors,
     nav,
     signAttachment,
+    onFieldBlur,
+    persist,
   ]);
 
   if (actLoading || pddLoading) {

@@ -57,24 +57,30 @@ function DropZone({ onFile, disabled }: DropZoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
 
-  const readFile = (file: File) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const content = e.target?.result;
-      if (typeof content === 'string') {
-        onFile(file.name, content);
-      }
-    };
-    reader.readAsText(file, 'utf-8');
-  };
+  const readFile = useCallback(
+    (file: File) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const content = e.target?.result;
+        if (typeof content === 'string') {
+          onFile(file.name, content);
+        }
+      };
+      reader.readAsText(file, 'utf-8');
+    },
+    [onFile],
+  );
 
-  const handleDrop = useCallback((e: React.DragEvent) => {
-    e.preventDefault();
-    setDragging(false);
-    if (disabled) return;
-    const file = e.dataTransfer.files[0];
-    if (file) readFile(file);
-  }, [disabled]);
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault();
+      setDragging(false);
+      if (disabled) return;
+      const file = e.dataTransfer.files[0];
+      if (file) readFile(file);
+    },
+    [disabled, readFile],
+  );
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];

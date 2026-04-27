@@ -478,7 +478,7 @@ describe('startCheckout', () => {
           organizationId: ORG_ID,
           userId: USER_ID,
           userEmail: USER_EMAIL,
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+           
           plan: 'BOGUS_PLAN' as any,
         },
         client,

@@ -180,7 +180,7 @@ brsrRouter.get(
         // Don't fail the request; just log. Keeps the warn-mode
         // contract explicit in the server log even when the caller
         // didn't ask for the validate=true JSON envelope.
-        // eslint-disable-next-line no-console
+         
         console.warn(
           '[brsr] XBRL warn-mode validation failed',
           xsdValidation.errors,

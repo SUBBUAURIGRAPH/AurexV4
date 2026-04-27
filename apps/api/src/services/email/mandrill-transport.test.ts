@@ -32,7 +32,7 @@ const originalFetch = global.fetch;
 const fetchMock = vi.fn();
 
 beforeEach(() => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   global.fetch = fetchMock as any;
   fetchMock.mockReset();
 });
@@ -69,7 +69,7 @@ function jsonResponse(status: number, body: unknown): Response {
     ok: status >= 200 && status < 300,
     status,
     json: async () => body,
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
   } as any;
 }
 

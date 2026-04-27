@@ -167,8 +167,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       setUser(pickUser(data));
       scheduleRefresh(data.expires_in ? data.expires_in * 1000 : 900000);
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Login failed');
       throw err;
     } finally {
       setIsLoading(false);
@@ -218,8 +218,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         result._devVerificationToken = String(data._devVerificationToken);
       }
       return result;
-    } catch (err: any) {
-      setError(err.message || 'Registration failed');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Registration failed');
       throw err;
     } finally {
       setIsLoading(false);

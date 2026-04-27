@@ -143,7 +143,7 @@ async function postHandoff(
     };
     try {
       // Express routers are middleware functions; cast to invoke directly.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (app as any).handle(req as Request, res as Response, (err: unknown) => {
         if (err) reject(err);
       });

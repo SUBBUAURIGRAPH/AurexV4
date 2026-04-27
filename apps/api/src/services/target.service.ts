@@ -1,4 +1,4 @@
-import { prisma } from '@aurex/database';
+import { prisma, type EmissionScope, type SBTiPathway } from '@aurex/database';
 import { logger } from '../lib/logger.js';
 import { AppError } from '../middleware/error-handler.js';
 
@@ -16,10 +16,10 @@ export async function createTarget(data: CreateTargetData) {
     data: {
       orgId: data.orgId,
       name: data.name,
-      scope: data.scope as any,
+      scope: data.scope as EmissionScope,
       targetYear: data.targetYear,
       reduction: data.reduction,
-      pathway: data.pathway ? (data.pathway as any) : null,
+      pathway: data.pathway ? (data.pathway as SBTiPathway) : null,
     },
   });
 

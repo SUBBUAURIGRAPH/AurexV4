@@ -16,7 +16,7 @@ const originalFetch = global.fetch;
 const fetchMock = vi.fn();
 
 beforeEach(() => {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+   
   global.fetch = fetchMock as any;
   fetchMock.mockReset();
 });
@@ -64,7 +64,7 @@ function jsonResponse(status: number, body: unknown): Response {
     json: async () => body,
     text: async () =>
       typeof body === 'string' ? body : JSON.stringify(body),
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
   } as any;
 }
 
@@ -258,7 +258,7 @@ describe('GeminiDeepResearchProvider — error mapping', () => {
         throw new Error('Unexpected token');
       },
       text: async () => 'not json',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
     } as any);
     const provider = new GeminiDeepResearchProvider();
     await expect(

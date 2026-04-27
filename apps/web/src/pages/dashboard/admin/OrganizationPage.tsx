@@ -19,6 +19,7 @@ import { Table } from '../../../components/ui/Table';
 import type { TableColumn } from '../../../components/ui/Table';
 import { Pagination } from '../../../components/ui/Pagination';
 import { EmptyState } from '../../../components/ui/EmptyState';
+import { getErrorMessage } from '../../../lib/error';
 
 const MEMBER_ROLE_OPTIONS = [
   { value: 'org_admin', label: 'Org Admin' },
@@ -114,8 +115,8 @@ export function OrganizationPage() {
       await updateOrg.mutateAsync({ id: org?.id || '', name: orgForm.name });
       toast.success('Organization updated successfully');
       closeEditOrg();
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to update organization');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Failed to update organization'));
     }
   }, [orgForm, org, updateOrg, closeEditOrg, toast]);
 
@@ -146,8 +147,8 @@ export function OrganizationPage() {
       });
       toast.success('Member invited successfully');
       closeInvite();
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to invite member');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Failed to invite member'));
     }
   }, [inviteForm, org, addMember, closeInvite, toast]);
 
@@ -180,8 +181,8 @@ export function OrganizationPage() {
       });
       toast.success(`${editingMember.name}'s role updated`);
       closeEditMember();
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to update member role');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Failed to update member role'));
     }
   }, [editingMember, editMemberRole, org, updateMember, closeEditMember, toast]);
 
@@ -194,16 +195,15 @@ export function OrganizationPage() {
           member_id: member.id,
         });
         toast.success(`${member.name} has been removed`);
-      } catch (err: any) {
-        toast.error(err?.message || 'Failed to remove member');
+      } catch (err: unknown) {
+        toast.error(getErrorMessage(err, 'Failed to remove member'));
       }
     },
     [org, removeMember, toast]
   );
 
   // Table columns
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const memberColumns: TableColumn<any>[] = useMemo(
+  const memberColumns: TableColumn<OrgMember>[] = useMemo(
     () => [
       {
         key: 'name',
@@ -369,7 +369,7 @@ export function OrganizationPage() {
           />
         ) : (
           <>
-            <Table columns={memberColumns} data={members as any} loading={membersLoading} />
+            <Table columns={memberColumns} data={members} loading={membersLoading} />
             {membersTotal > 0 && (
               <Pagination
                 page={memberPage}

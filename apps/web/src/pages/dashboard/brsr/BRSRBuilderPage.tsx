@@ -60,7 +60,10 @@ export function BRSRBuilderPage() {
   }, [activeView]);
 
   const { data: indicatorsData, isLoading: loadingIndicators } = useBrsrIndicators(indicatorsQuery);
-  const indicators = indicatorsData?.data ?? [];
+  const indicators = useMemo(
+    () => indicatorsData?.data ?? [],
+    [indicatorsData?.data],
+  );
 
   // Responses for the fiscal year
   const { data: responsesData } = useBrsrResponses({ fiscalYear });

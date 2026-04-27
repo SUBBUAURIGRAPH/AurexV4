@@ -52,7 +52,7 @@ function adminAuthHeader(role = 'SUPER_ADMIN'): Record<string, string> {
   const token = signAccessToken({
     sub: ADMIN_ID,
     email: 'admin@aurex.in',
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     role: role as any,
   });
   return { authorization: `Bearer ${token}` };
@@ -88,7 +88,7 @@ function call(
       query: {},
       params,
       ip: '127.0.0.1',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       socket: { remoteAddress: '127.0.0.1' } as any,
     };
     const res: Partial<Response> = {
@@ -110,7 +110,7 @@ function call(
       getHeader: () => undefined,
     };
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (app as any).handle(req as Request, res as Response, (err: unknown) => {
         if (err) reject(err);
       });
@@ -371,7 +371,7 @@ describe('setAssurance — service-layer audit', () => {
   it('throws 400 for an invalid status', async () => {
     await expect(
       setAssurance(RESP_ID, ADMIN_ID, {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+         
         assuranceStatus: 'unknown_status' as any,
       }),
     ).rejects.toThrow(/Invalid assurance status/);

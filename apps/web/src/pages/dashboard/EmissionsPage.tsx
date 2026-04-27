@@ -126,7 +126,7 @@ export function EmissionsPage() {
 
   const updateStatus = useUpdateEmissionStatus();
 
-  const emissions = response?.data ?? [];
+  const emissions = useMemo(() => response?.data ?? [], [response?.data]);
   const total = response?.total ?? 0;
 
   /* Scope counts (from current page data — ideally API provides these) */

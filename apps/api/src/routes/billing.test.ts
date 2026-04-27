@@ -171,7 +171,7 @@ async function call(opts: RequestOpts): Promise<FakeResponse> {
       headers: reqHeaders,
       body: opts.rawBody ?? opts.body,
       ip: '198.51.100.99',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       socket: { remoteAddress: '198.51.100.99' } as any,
       header(name: string) {
         return reqHeaders[String(name).toLowerCase()];
@@ -201,7 +201,7 @@ async function call(opts: RequestOpts): Promise<FakeResponse> {
     };
 
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (app as any).handle(req as Request, res as Response, (err: unknown) => {
         if (err) reject(err);
       });

@@ -1,4 +1,4 @@
-import { prisma } from '@aurex/database';
+import { Prisma, prisma, type EmissionScope, type EmissionStatus } from '@aurex/database';
 import type { PaginatedResponse } from '@aurex/shared';
 import { logger } from '../lib/logger.js';
 import { AppError } from '../middleware/error-handler.js';
@@ -38,14 +38,14 @@ export async function createEmission(data: CreateEmissionData): Promise<Emission
     data: {
       orgId: data.orgId,
       createdBy: data.createdBy,
-      scope: data.scope as any,
+      scope: data.scope as EmissionScope,
       category: data.category,
       source: data.source,
       value: data.value,
       unit: data.unit,
       periodStart: new Date(data.periodStart),
       periodEnd: new Date(data.periodEnd),
-      metadata: (data.metadata ?? undefined) as any,
+      metadata: (data.metadata ?? undefined) as Prisma.InputJsonValue | undefined,
     },
   });
 
@@ -190,7 +190,7 @@ export async function updateEmissionStatus(
     throw new AppError(404, 'Not Found', 'Emission record not found');
   }
 
-  const prismaStatus = status.toUpperCase() as any;
+  const prismaStatus = status.toUpperCase() as EmissionStatus;
 
   const updated = await prisma.emissionsRecord.update({
     where: { id },
@@ -206,7 +206,7 @@ export async function bulkUpdateStatus(
   orgId: string,
   status: string,
 ): Promise<{ updated: number }> {
-  const prismaStatus = status.toUpperCase() as any;
+  const prismaStatus = status.toUpperCase() as EmissionStatus;
 
   const result = await prisma.emissionsRecord.updateMany({
     where: {

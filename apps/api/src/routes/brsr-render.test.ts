@@ -65,7 +65,7 @@ function authHeader(): Record<string, string> {
     email: 'admin@aurex.in',
     // The route uses requireOrgRole(...), so the global User.role can
     // be anything — the org-scope middleware loads OrgMember.role.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+     
     role: 'ORG_ADMIN' as any,
   });
   return { authorization: `Bearer ${token}` };
@@ -87,7 +87,7 @@ function getRequest(
       path: url.split('?')[0],
       headers,
       ip: '127.0.0.1',
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       socket: { remoteAddress: '127.0.0.1' } as any,
     };
     const res: Partial<Response> = {
@@ -119,7 +119,7 @@ function getRequest(
       },
     };
     try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+       
       (app as any).handle(req as Request, res as Response, (err: unknown) => {
         if (err) reject(err);
       });

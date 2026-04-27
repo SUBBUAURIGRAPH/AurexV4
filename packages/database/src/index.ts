@@ -49,3 +49,11 @@ export type {
   RegulatoryResearchRun,
   RegulatoryResearchRunStatus,
 } from '@prisma/client';
+
+// Emissions / org role enums — used by api services with typed casts (no `any`).
+export type {
+  EmissionScope,
+  EmissionStatus,
+  Role,
+  SBTiPathway,
+} from '@prisma/client';

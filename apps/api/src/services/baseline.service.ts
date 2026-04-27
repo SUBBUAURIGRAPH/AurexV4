@@ -1,4 +1,4 @@
-import { prisma } from '@aurex/database';
+import { prisma, type EmissionScope } from '@aurex/database';
 import { logger } from '../lib/logger.js';
 import { AppError } from '../middleware/error-handler.js';
 
@@ -18,7 +18,7 @@ export async function createBaseline(data: CreateBaselineData) {
     data: {
       orgId: data.orgId,
       name: data.name,
-      scope: data.scope as any,
+      scope: data.scope as EmissionScope,
       baseYear: data.baseYear,
       value: data.value,
       unit: data.unit,

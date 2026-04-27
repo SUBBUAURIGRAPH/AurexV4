@@ -27,7 +27,10 @@ export function FrameworksHubPage() {
     [mappingsData],
   );
 
-  const frameworks = frameworksData?.data ?? [];
+  const frameworks = useMemo(
+    () => frameworksData?.data ?? [],
+    [frameworksData?.data],
+  );
 
   const visible = useMemo(() => {
     const q = search.trim().toLowerCase();

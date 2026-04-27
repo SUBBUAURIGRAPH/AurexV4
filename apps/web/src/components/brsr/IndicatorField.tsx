@@ -26,7 +26,7 @@ export function IndicatorField({ indicator, response, onSave, isSaving }: Indica
     setValue(initialValue);
     setNotes(response?.notes ?? '');
     setDirty(false);
-  }, [response?.id, response?.fiscalYear, initialValue]);
+  }, [response?.id, response?.fiscalYear, response?.notes, initialValue]);
 
   const handleSave = async () => {
     await onSave({ value, notes });

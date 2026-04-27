@@ -379,9 +379,9 @@ export function OrganizationsPage() {
   const { data: flatData } = useOrganizationsList(true);
   const createOrg = useCreateOrganization();
 
-  const tree = treeData?.data ?? [];
+  const tree = useMemo(() => treeData?.data ?? [], [treeData?.data]);
   const flat = useMemo(() => flatten(tree), [tree]);
-  const flatForParentOptions = flatData?.data ?? [];
+  const flatForParentOptions = useMemo(() => flatData?.data ?? [], [flatData?.data]);
 
   /* Create modal state */
   const [modalOpen, setModalOpen] = useState(false);

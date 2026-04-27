@@ -13,6 +13,7 @@ import type { TableColumn } from '../../../components/ui/Table';
 import { Pagination } from '../../../components/ui/Pagination';
 import { SearchInput } from '../../../components/ui/SearchInput';
 import { EmptyState } from '../../../components/ui/EmptyState';
+import { getErrorMessage } from '../../../lib/error';
 
 const ROLE_OPTIONS = [
   { value: '', label: 'All Roles' },
@@ -161,8 +162,8 @@ export function UsersPage() {
         }
       }
       closeModal();
-    } catch (err: any) {
-      toast.error(err?.message || 'Failed to save user');
+    } catch (err: unknown) {
+      toast.error(getErrorMessage(err, 'Failed to save user'));
     }
   }, [form, editingUser, createUser, updateUser, closeModal, toast]);
 
@@ -180,15 +181,14 @@ export function UsersPage() {
           await updateUser.mutateAsync({ id: user.id, status: 'active' });
           toast.success(`${user.name} has been activated`);
         }
-      } catch (err: any) {
-        toast.error(err?.message || `Failed to ${action} user`);
+      } catch (err: unknown) {
+        toast.error(getErrorMessage(err, `Failed to ${action} user`));
       }
     },
     [deleteUser, updateUser, toast]
   );
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const columns: TableColumn<any>[] = [
+  const columns: TableColumn<User>[] = [
     {
       key: 'name',
       label: 'Name',
@@ -328,7 +328,7 @@ export function UsersPage() {
           />
         ) : (
           <>
-            <Table columns={columns} data={users as any} loading={isLoading} />
+            <Table columns={columns} data={users} loading={isLoading} />
             {total > 0 && (
               <Pagination
                 page={page}
