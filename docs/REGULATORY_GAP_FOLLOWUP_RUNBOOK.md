@@ -39,6 +39,19 @@ python3 scripts/jira/seed_regulatory_gaps_2026.py --dry-run
 
 Or import the epic in pieces via your PM tool from `scripts/jira/regulatory_gap_2026_seed.json`.
 
+## Verra / Gold Standard methodology watch (AV4-425, P2)
+
+Aurex ingests methodology metadata via `Methodology` rows and the catalogue
+(`packages/shared`, `methodology.service.ts`). There is no substitute for
+**quarterly human review** of Verra and Gold Standard “methodology updates”
+pages for cookstove / VM series the gap analysis called out. Suggested process:
+
+1. **Owner:** methodology / carbon markets PM (or delegated analyst).
+2. **Cadence:** at least **quarterly**; ad-hoc when Verra emails “update” alerts.
+3. **Action:** if a new version supersedes a method already in the catalogue, add
+   the new row (or flag `isRetired` on the old) so issuance validation stays
+   honest — see `methodology.service` validators tied to AV4-421 / AV4-424.
+
 ## Doc hygiene
 
 After a successful follow-up, either **append** a dated subsection to the original file or add **`docs/REGULATORY_GAP_ANALYSIS_2026-04-26-part2.md`** and link it from the original summary.

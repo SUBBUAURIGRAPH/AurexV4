@@ -2,6 +2,25 @@
 
 _Generated 2026-04-26 via `gemini-2.5-flash` with Google Search grounding (60+ sources). Two-batch run via `apps/api/src/services/research/gemini-deep-research.ts`._
 
+## Code traceability (Jira ADM-59 / closure evidence)
+
+| Ticket | Where in repo |
+|--------|-----------------|
+| AV4-416 | *Deferred* — BCR Standard vendor; legal outreach (no app code) |
+| AV4-417 | `packages/shared/src/schemas/methodology-catalogue.ts`, `methodology.service.ts` |
+| AV4-419 | `host-authorization` model + `HostAuthorization` / activity lifecycle |
+| AV4-420 / 421 / 424 | `methodology.service.ts`, methodology catalogue / cookstove fNRB checks |
+| AV4-422 / 423 | `registry-label.service.ts` (`applyCorsiaLabels`), `host-authorization.service.ts` |
+| AV4-426 / 427 | BRSR render + `admin-brsr` routes + assurance fields |
+| AV4-428–432 | `dpdp/*`, `routes/dpdp.ts`, `consent.service`, DSAR, breach |
+| AV4-433 / 434 | *Deferred* — Razorpay / RBI PA attestation; finance vendor |
+| AV4-435 / 436 | *Deferred* — FIU-IND / AML policy; legal + compliance program |
+| AV4-418 | `registry-label.service` → `article6LabelInterop` on label JSON |
+| AV4-425 | Ops: `docs/REGULATORY_GAP_FOLLOWUP_RUNBOOK.md` (Verra monitoring) |
+| AV4-437 | `apps/web/.../MarketplacePage.tsx` (EU CBAM notice) |
+| AV4-438 | `retirement-csrd-export.service.ts`, retirement flow |
+| AV4-439 | Same CSRD E1-7 path as 438; full ESRS/BRSR crosswalk still PM-owned |
+
 ## Status (2026-04-27)
 
 | Tier | Count | Status |
@@ -14,7 +33,7 @@ _Generated 2026-04-26 via `gemini-2.5-flash` with Google Search grounding (60+ s
 
 **Deferred (compliance-blocker):** AV4-416 (BCR vendor), AV4-431 (DPDP SDF assessment), AV4-433/434 (PCI-DSS RBI PA), AV4-435/436 (PMLA / FIU-IND)
 
-**Open backlog (P2):** AV4-418 (A6.4 registry interop), AV4-425 (Verra updates ongoing monitoring), AV4-437 (CBAM customer guidance), AV4-439 (CSRD framework alignment)
+**Open backlog (P2) — follow-ups:** AV4-425 (Verra watchlist / ops), AV4-439 (ESRS map vs BRSR — partially covered by AV4-438 CSRD export). **P2 scaffolds in-repo:** AV4-418 (`article6LabelInterop` on `GET …/credits/…/label` JSON), AV4-437 (EU CBAM notice on public BioCarbon marketplace).
 
 ## Summary
 

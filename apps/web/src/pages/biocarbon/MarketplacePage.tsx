@@ -156,6 +156,27 @@ export function MarketplacePage() {
           <span style={{ opacity: 0.4 }}>·</span>
           <span>Aurigraph DLT</span>
         </div>
+        {/* AV4-437 — EU CBAM: voluntary credit retirement ≠ CBAM for embedded emissions in goods */}
+        <aside
+          role="note"
+          style={{
+            maxWidth: '720px',
+            margin: '0 auto 1.5rem',
+            padding: '0.875rem 1.125rem',
+            textAlign: 'left',
+            fontSize: '0.8125rem',
+            lineHeight: 1.55,
+            color: 'var(--text-secondary)',
+            backgroundColor: 'rgba(59, 130, 246, 0.06)',
+            border: '1px solid rgba(59, 130, 246, 0.2)',
+            borderRadius: '0.5rem',
+          }}
+        >
+          <strong style={{ color: 'var(--text-primary)' }}>EU importers (CBAM):</strong>{' '}
+          Purchasing or retiring credits on Aurex does not by itself satisfy the EU Carbon Border
+          Adjustment Mechanism for embedded emissions in imported goods. Treat CBAM as a separate
+          customs / climate compliance obligation and consult qualified advisors.
+        </aside>
       </section>
 
       {/* Filter bar */}

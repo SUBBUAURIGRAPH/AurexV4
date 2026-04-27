@@ -1,5 +1,8 @@
 /**
  * AAT-R4 / AV4-438 — EU CSRD ESRS E1-7 retirement export + backfill.
+ * Related: AV4-439 (broader CSRD / ESRS mapping vs BRSR·TCFD·GRI stacks) is
+ * satisfied for *credit-retirement* disclosure by the same E1-7 denormalized
+ * row + this CSV; full multi-framework crosswalk remains PM/assurance scope.
  *
  * ESRS E1-7 (climate change mitigation actions and resources) requires
  * non-netted, granular disclosure of every carbon-credit retirement an

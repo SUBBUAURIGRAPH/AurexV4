@@ -42,6 +42,15 @@ export interface RegistryLabel {
   retiredAt: string | null;
   /** Canonical registry link — future: per-registry label URLs. */
   ledgerUri: string;
+  /**
+   * AAT-R1 / AV4-418 — Article 6.4 interop: version the JSON we forward to
+   * UNFCCC / voluntary registries so partners can key off a stable contract.
+   * (Full UNFCCC wire spec remains TBD — this is Aurex’s export shape.)
+   */
+  article6LabelInterop: {
+    schemaVersion: string;
+    specNote: string;
+  };
 }
 
 /**
@@ -87,6 +96,11 @@ export async function generateLabel(
     retirementNarrative: block.retirementNarrative,
     retiredAt: block.retiredAt?.toISOString() ?? null,
     ledgerUri: `https://aurex.in/a64/blocks/${block.id}`,
+    article6LabelInterop: {
+      schemaVersion: '1.0',
+      specNote:
+        'Aurex A6.4 public-ledger label JSON; follow UNFCCC Supervisory Body Article 6.4 registry interop as published, then map fields 1:1.',
+    },
   };
 }
 
