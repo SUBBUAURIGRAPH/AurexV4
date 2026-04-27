@@ -15,6 +15,7 @@ import {
 import { openRazorpayCheckout } from '../../lib/razorpay';
 import { useToast } from '../../contexts/ToastContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useCreateOrganization } from '../../hooks/useOrganization';
 
 /**
  * AAT-ONBOARD: 3-step onboarding wizard.
@@ -235,6 +236,37 @@ const JOURNEY_CARDS: JourneyCard[] = [
 
 function WelcomeJourney({ user }: { user: { name?: string } | null }): JSX.Element {
   const firstName = (user?.name ?? '').split(/\s+/)[0] || '';
+  const createOrg = useCreateOrganization();
+  const { success: toastSuccess, error: toastError } = useToast();
+  const [orgName, setOrgName] = useState('');
+  const [slug, setSlug] = useState('');
+  const [slugTouched, setSlugTouched] = useState(false);
+
+  // Auto-derive slug from name until the user manually edits it.
+  useEffect(() => {
+    if (!slugTouched) setSlug(slugify(orgName));
+  }, [orgName, slugTouched]);
+
+  const handleCreateOrg = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!orgName.trim()) {
+      toastError('Organisation name is required');
+      return;
+    }
+    try {
+      await createOrg.mutateAsync({
+        name: orgName.trim(),
+        slug: slug || undefined,
+      });
+      toastSuccess('Organisation created — refreshing your setup journey');
+      // Force a full reload so the JWT picks up the new org membership and
+      // the onboarding wizard takes over below the hero.
+      setTimeout(() => window.location.reload(), 600);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Could not create organisation';
+      toastError(message);
+    }
+  };
 
   return (
     <div style={{ minHeight: 'calc(100vh - 7rem)', padding: '0 1.5rem 3rem' }}>
@@ -269,24 +301,153 @@ function WelcomeJourney({ user }: { user: { name?: string } | null }): JSX.Eleme
             lineHeight: 1.5,
           }}
         >
-          Six quick steps to set up your sustainability tracking. You can do them in any order, but
-          the recommended path follows organisation → users → financials → emissions → reports.
+          Six quick steps to set up your sustainability tracking. Start by registering your
+          organisation below — that unlocks the rest of the journey.
         </p>
       </section>
 
-      {/* 6-card journey grid */}
+      {/* Step 1 — inline create-org form (the actual blocker for new users) */}
+      <section
+        id="register-org"
+        style={{
+          maxWidth: '720px',
+          margin: '0 auto 2.5rem',
+          padding: '2rem',
+          backgroundColor: 'var(--bg-secondary)',
+          border: '2px solid #10b981',
+          borderRadius: '0.75rem',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+          <div
+            style={{
+              width: '2.5rem',
+              height: '2.5rem',
+              borderRadius: '50%',
+              backgroundColor: '#10b981',
+              color: '#fff',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontWeight: 700,
+            }}
+          >
+            1
+          </div>
+          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: 'var(--text-primary)' }}>
+            Register your organisation
+          </h2>
+        </div>
+        <p
+          style={{
+            fontSize: '0.875rem',
+            color: 'var(--text-secondary)',
+            margin: '0 0 1.25rem',
+            lineHeight: 1.5,
+          }}
+        >
+          Give your organisation a name. You can refine the region, sector, and team in the wizard
+          right after.
+        </p>
+        <form onSubmit={handleCreateOrg} style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              Organisation name *
+            </span>
+            <input
+              type="text"
+              value={orgName}
+              onChange={(e) => setOrgName(e.target.value)}
+              placeholder="e.g. Acme Industries Pvt Ltd"
+              required
+              maxLength={200}
+              style={{
+                padding: '0.625rem 0.875rem',
+                borderRadius: '0.375rem',
+                border: '1px solid var(--border-primary)',
+                fontSize: '0.9375rem',
+                backgroundColor: 'var(--bg-primary)',
+                color: 'var(--text-primary)',
+              }}
+            />
+          </label>
+          <label style={{ display: 'flex', flexDirection: 'column', gap: '0.375rem' }}>
+            <span style={{ fontSize: '0.8125rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              URL slug
+            </span>
+            <input
+              type="text"
+              value={slug}
+              onChange={(e) => {
+                setSlug(e.target.value);
+                setSlugTouched(true);
+              }}
+              placeholder="acme-industries"
+              maxLength={64}
+              pattern="[a-z0-9-]+"
+              style={{
+                padding: '0.625rem 0.875rem',
+                borderRadius: '0.375rem',
+                border: '1px solid var(--border-primary)',
+                fontSize: '0.9375rem',
+                backgroundColor: 'var(--bg-primary)',
+                color: 'var(--text-primary)',
+                fontFamily: 'monospace',
+              }}
+            />
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+              Lowercase letters, numbers, and hyphens. Auto-generated from name.
+            </span>
+          </label>
+          <button
+            type="submit"
+            disabled={createOrg.isPending || !orgName.trim()}
+            style={{
+              padding: '0.75rem 1.25rem',
+              borderRadius: '0.5rem',
+              backgroundColor: '#10b981',
+              color: '#fff',
+              fontWeight: 600,
+              fontSize: '0.9375rem',
+              border: 'none',
+              cursor: createOrg.isPending || !orgName.trim() ? 'not-allowed' : 'pointer',
+              opacity: createOrg.isPending || !orgName.trim() ? 0.6 : 1,
+              alignSelf: 'flex-start',
+            }}
+          >
+            {createOrg.isPending ? 'Creating…' : 'Register organisation →'}
+          </button>
+        </form>
+      </section>
+
+      {/* 6-card journey grid (cards 2-6 are gated until step 1 done) */}
       <section
         style={{
           maxWidth: '1200px',
           margin: '0 auto',
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
-          gap: '1.25rem',
         }}
       >
-        {JOURNEY_CARDS.map((card) => (
-          <JourneyCardView key={card.num} card={card} />
-        ))}
+        <h3
+          style={{
+            fontSize: '1rem',
+            fontWeight: 700,
+            color: 'var(--text-secondary)',
+            margin: '0 0 1rem',
+          }}
+        >
+          What's next, after step 1
+        </h3>
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: '1.25rem',
+          }}
+        >
+          {JOURNEY_CARDS.slice(1).map((card) => (
+            <JourneyCardView key={card.num} card={card} dimmed />
+          ))}
+        </div>
       </section>
 
       {/* Footer help */}
@@ -303,16 +464,12 @@ function WelcomeJourney({ user }: { user: { name?: string } | null }): JSX.Eleme
         <a href="/support" style={{ color: '#10b981', fontWeight: 600 }}>
           Contact support
         </a>
-        {' · '}
-        <a href="/dashboard" style={{ color: '#10b981', fontWeight: 600 }}>
-          Skip to dashboard
-        </a>
       </section>
     </div>
   );
 }
 
-function JourneyCardView({ card }: { card: JourneyCard }): JSX.Element {
+function JourneyCardView({ card, dimmed = false }: { card: JourneyCard; dimmed?: boolean }): JSX.Element {
   const isWizardAnchor = card.href.startsWith('#');
   return (
     <div
@@ -324,6 +481,7 @@ function JourneyCardView({ card }: { card: JourneyCard }): JSX.Element {
         display: 'flex',
         flexDirection: 'column',
         gap: '0.875rem',
+        opacity: dimmed ? 0.55 : 1,
       }}
     >
       <div

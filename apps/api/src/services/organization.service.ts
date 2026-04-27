@@ -54,11 +54,22 @@ export async function createOrg(
       }
     }
   } else if (upperRole !== 'SUPER_ADMIN') {
-    throw new AppError(
-      403,
-      'Forbidden',
-      'Only super_admin can create top-level organizations',
-    );
+    // FLOW-REWORK: first-time self-service top-level creation.
+    // A user with zero existing memberships is signing up — let them
+    // create their first organisation and become its ORG_ADMIN. After
+    // this row exists, the original "super_admin only" rule applies
+    // again (the next call to createOrg by this user without
+    // parentOrgId will go through the existing-memberships branch).
+    const existingMemberships = await prisma.orgMember.count({
+      where: { userId, isActive: true },
+    });
+    if (existingMemberships > 0) {
+      throw new AppError(
+        403,
+        'Forbidden',
+        'Only super_admin can create additional top-level organizations. Add subsidiaries from your existing org instead.',
+      );
+    }
   }
 
   const org = await prisma.organization.create({
