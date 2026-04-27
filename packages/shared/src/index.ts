@@ -122,11 +122,15 @@ export {
   onboardingStep2Schema,
   onboardingStep3Schema,
   onboardingStep4Schema,
+  onboardingStep5Schema,
+  onboardingStep6Schema,
   skipOnboardingSchema,
   type OnboardingStep1Input,
   type OnboardingStep2Input,
   type OnboardingStep3Input,
   type OnboardingStep4Input,
+  type OnboardingStep5Input,
+  type OnboardingStep6Input,
   type SkipOnboardingInput,
 } from './schemas/onboarding.js';
 export {

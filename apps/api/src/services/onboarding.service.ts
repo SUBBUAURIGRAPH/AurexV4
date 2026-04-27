@@ -33,9 +33,25 @@ export async function getProgress(orgId: string): Promise<OnboardingProgressResu
   return ensureProgress(orgId);
 }
 
+/**
+ * Sprint 5 / FLOW-REWORK: 6-step onboarding journey.
+ *
+ *   1. Organisation details (name, region, sector)
+ *   2. Subsidiaries (optional — single-org tenants can skip)
+ *   3. Users & RBAC (invite teammates, assign roles)
+ *   4. Plan / voucher (Razorpay subscription or HEF voucher)
+ *   5. Organisational financials (revenue, employees, fiscal year)
+ *   6. First emissions baseline (link to /emissions, marks ready-to-track)
+ *
+ * Backwards compatible: the legacy 4-step `saveStep` path still works for
+ * the 3-step wizard that completed at step 3. New wizard completes at step 6.
+ */
+export const TOTAL_ONBOARDING_STEPS = 6;
+export type OnboardingStep = 1 | 2 | 3 | 4 | 5 | 6;
+
 export async function saveStep(
   orgId: string,
-  step: 1 | 2 | 3 | 4,
+  step: OnboardingStep,
   data: Record<string, unknown>,
 ): Promise<OnboardingProgressResult> {
   const progress = await ensureProgress(orgId);
@@ -44,7 +60,7 @@ export async function saveStep(
     throw new AppError(409, 'Conflict', `Onboarding is already ${progress.status.toLowerCase()}`);
   }
 
-  if (step > progress.currentStep + 1 || step > 4) {
+  if (step > progress.currentStep + 1 || step > TOTAL_ONBOARDING_STEPS) {
     throw new AppError(400, 'Bad Request', `Cannot skip to step ${step}; current step is ${progress.currentStep}`);
   }
 
@@ -63,9 +79,11 @@ export async function saveStep(
   currentStepData[`step${step}`] = data;
 
   const completedSteps = Array.from(new Set([...progress.completedSteps, step])).sort((a, b) => a - b);
-  const newCurrentStep = step === progress.currentStep ? Math.min(step + 1, 4) : progress.currentStep;
+  const newCurrentStep = step === progress.currentStep
+    ? Math.min(step + 1, TOTAL_ONBOARDING_STEPS)
+    : progress.currentStep;
 
-  const isComplete = step === 4;
+  const isComplete = step === TOTAL_ONBOARDING_STEPS;
 
   const updated = await prisma.onboardingProgress.update({
     where: { orgId },

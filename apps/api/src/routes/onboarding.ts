@@ -4,6 +4,8 @@ import {
   onboardingStep2Schema,
   onboardingStep3Schema,
   onboardingStep4Schema,
+  onboardingStep5Schema,
+  onboardingStep6Schema,
   skipOnboardingSchema,
 } from '@aurex/shared';
 import { requireAuth, requireRole } from '../middleware/auth.js';
@@ -57,6 +59,30 @@ onboardingRouter.post('/steps/4', async (req, res, next) => {
   try {
     const data = onboardingStep4Schema.parse(req.body);
     const row = await onboardingService.saveStep(req.orgId!, 4, data);
+    res.json({ data: row });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// FLOW-REWORK / Sprint 5 — step 5: organisational financials. The wizard
+// also separately PUTs the financials row via /me/org/financials; this
+// endpoint records the journal entry on the onboarding-progress timeline.
+onboardingRouter.post('/steps/5', async (req, res, next) => {
+  try {
+    const data = onboardingStep5Schema.parse(req.body);
+    const row = await onboardingService.saveStep(req.orgId!, 5, data);
+    res.json({ data: row });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// FLOW-REWORK / Sprint 5 — step 6: ready-to-track marker.
+onboardingRouter.post('/steps/6', async (req, res, next) => {
+  try {
+    const data = onboardingStep6Schema.parse(req.body);
+    const row = await onboardingService.saveStep(req.orgId!, 6, data);
     res.json({ data: row });
   } catch (err) {
     next(err);

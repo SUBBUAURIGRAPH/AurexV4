@@ -33,6 +33,7 @@ import { AnalyticsPage } from './pages/dashboard/AnalyticsPage';
 import { ReportsPage } from './pages/dashboard/ReportsPage';
 import { ReportBuilderPage } from './pages/dashboard/reports/ReportBuilderPage';
 import { SettingsPage } from './pages/dashboard/SettingsPage';
+import { FinancialsPage } from './pages/dashboard/FinancialsPage';
 import { TeamsPage } from './pages/dashboard/TeamsPage';
 import { IntegrationsPage } from './pages/dashboard/IntegrationsPage';
 import { CompliancePage } from './pages/dashboard/CompliancePage';
@@ -171,6 +172,7 @@ export function App() {
             <Route path="/activities/:id/pdd" element={<PddEditorPage />} />
             <Route path="/credits" element={<CreditsPage />} />
             <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/dashboard/settings/financials" element={<FinancialsPage />} />
           </Route>
         </Routes>
       </BrowserRouter>

@@ -2,31 +2,25 @@ import { Link } from 'react-router-dom';
 import { Card } from '../ui/Card';
 import { useOnboarding } from '../../hooks/useOnboarding';
 import { useEmissions } from '../../hooks/useEmissions';
-import { useBaselines } from '../../hooks/useBaselines';
-import { useTargets } from '../../hooks/useTargets';
-import { useOrgFrameworkMappings } from '../../hooks/useFrameworks';
+import { useReports } from '../../hooks/useReports';
+import { useFinancials } from '../../hooks/useFinancials';
+import { useOrganizationTree } from '../../hooks/useOrganization';
+import { useUsers } from '../../hooks/useUsers';
 
 /**
- * AAT-WORKFLOW (Wave 9a): "Next Steps" widget surfaced on the dashboard.
+ * FLOW-REWORK / Sprint 5: 6-step onboarding journey on the dashboard.
  *
- * Tester feedback (2026-04-25): "The features created need better
- * understanding how this work in the application". This widget walks the
- * user through the linear sequence the platform actually expects:
+ * Linear sequence the platform expects:
+ *   1. Register the organisation (= onboarding wizard step 1)
+ *   2. Add subsidiaries (skip if single-org)
+ *   3. Invite users + assign RBAC roles
+ *   4. Upload organisational financials
+ *   5. Add the first emission entry
+ *   6. Generate the first report
  *
- *   1. Complete onboarding wizard
- *   2. Add the first emission entry
- *   3. Set a baseline year
- *   4. Set a reduction target
- *   5. Pick a reporting framework
- *
- * Steps gate downstream items — e.g. baselines only become "actionable"
- * once at least one emission entry exists. The widget hides itself once
- * all five are complete; in that state we render a compact "Set up
- * complete" line instead.
- *
- * No new hooks were needed — every signal comes from existing react-query
- * hooks (useOnboarding, useEmissions, useBaselines, useTargets,
- * useOrgFrameworkMappings).
+ * Steps gate downstream items (e.g. financials only become "available"
+ * once org+users are set up). The widget hides itself once all six are
+ * complete and renders the compact "Set up complete" line instead.
  */
 
 interface Step {
@@ -41,87 +35,115 @@ interface Step {
 
 export function NextStepsWidget() {
   const onboarding = useOnboarding();
-  // Pull a single record just to know if any exists (cheap pageSize=1).
+  const orgTree = useOrganizationTree();
+  const users = useUsers({});
+  const financials = useFinancials();
   const emissions = useEmissions({ page: 1, pageSize: 1 });
-  const baselines = useBaselines();
-  const targets = useTargets();
-  const mappings = useOrgFrameworkMappings();
+  const reports = useReports();
 
   const isLoading =
     onboarding.isLoading ||
+    orgTree.isLoading ||
+    users.isLoading ||
+    financials.isLoading ||
     emissions.isLoading ||
-    baselines.isLoading ||
-    targets.isLoading ||
-    mappings.isLoading;
+    reports.isLoading;
 
-  const onboardingDone =
+  // Step 1 — org registered: onboarding row exists with non-empty stepData.step1.
+  const step1 = (onboarding.data?.data?.stepData as Record<string, unknown> | null)?.step1 as
+    | Record<string, unknown>
+    | undefined;
+  const orgRegistered =
+    !!step1?.name ||
     onboarding.data?.data?.status === 'COMPLETED' ||
     onboarding.data?.data?.status === 'SKIPPED';
 
+  // Step 2 — subsidiaries set up OR explicitly skipped (single-org tenant).
+  const tree = orgTree.data?.data ?? [];
+  const hasChildren = tree.some((node) => (node.children?.length ?? 0) > 0);
+  const subsidiariesAcknowledged = !!(
+    onboarding.data?.data?.stepData as Record<string, unknown> | null
+  )?.step4; // step 4 in legacy backend numbering carries the subsidiaries journal entry
+
+  // Step 3 — users + roles: more than 1 active user in org or invites recorded.
+  const usersList = (users.data as { data?: unknown[] } | undefined)?.data ?? [];
+  const hasMultipleUsers = usersList.length > 1;
+  const inviteEntry = (onboarding.data?.data?.stepData as Record<string, unknown> | null)
+    ?.step3 as { additionalInvites?: unknown[] } | undefined;
+  const hasInvites = (inviteEntry?.additionalInvites?.length ?? 0) > 0;
+  const usersConfigured = hasMultipleUsers || hasInvites;
+
+  // Step 4 — financials uploaded.
+  const hasFinancials = !!financials.data?.data?.fiscalYear;
+
+  // Step 5 — emissions entries.
   const emissionsTotal = emissions.data?.total ?? 0;
   const hasEmission = emissionsTotal > 0;
 
-  const baselinesCount = baselines.data?.data?.length ?? 0;
-  const hasBaseline = baselinesCount > 0;
-
-  const targetsCount = targets.data?.data?.length ?? 0;
-  const hasTarget = targetsCount > 0;
-
-  const mappingsCount = mappings.data?.data?.length ?? 0;
-  const hasFramework = mappingsCount > 0;
+  // Step 6 — reports.
+  const reportsCount = (reports.data as { data?: unknown[] } | undefined)?.data?.length ?? 0;
+  const hasReport = reportsCount > 0;
 
   const steps: Step[] = [
     {
-      key: 'onboarding',
-      done: !!onboardingDone,
+      key: 'org',
+      done: !!orgRegistered,
       available: true,
-      title: 'Complete the onboarding wizard',
-      body: 'Tells Aurex which sectors apply to your org and unlocks data entry.',
+      title: 'Register your organisation',
+      body: 'Captures the org name, region, sector, and slug — the root of every record in Aurex.',
       href: '/onboarding',
       cta: 'Open wizard',
     },
     {
+      key: 'subsidiaries',
+      done: hasChildren || subsidiariesAcknowledged,
+      available: !!orgRegistered,
+      title: 'Add subsidiaries',
+      body: 'Set up any child entities you need to track separately. Skip if you only have one org.',
+      href: '/dashboard/admin/organizations',
+      cta: 'Manage hierarchy',
+    },
+    {
+      key: 'users',
+      done: usersConfigured,
+      available: !!orgRegistered,
+      title: 'Invite users and assign roles',
+      body: 'RBAC: ORG_ADMIN, MAKER, CHECKER, APPROVER, AUDITOR, VIEWER. Set least-privilege early.',
+      href: '/dashboard/teams',
+      cta: 'Manage team',
+    },
+    {
+      key: 'financials',
+      done: hasFinancials,
+      available: usersConfigured || hasMultipleUsers,
+      title: 'Upload organisational financials',
+      body: 'Annual revenue, employees, fiscal year. Required for BRSR/CSRD intensity reports.',
+      href: '/dashboard/settings/financials',
+      cta: 'Add financials',
+    },
+    {
       key: 'first-emission',
       done: hasEmission,
-      available: !!onboardingDone,
+      available: hasFinancials || usersConfigured,
       title: 'Add your first emission entry',
       body: 'Logs a single greenhouse-gas activity record so analytics start populating.',
       href: '/emissions/new',
       cta: 'Add entry',
     },
     {
-      key: 'baseline',
-      done: hasBaseline,
+      key: 'first-report',
+      done: hasReport,
       available: hasEmission,
-      title: 'Set a baseline year',
-      body: 'Anchors all reductions and target tracking against a known starting point.',
-      href: '/emissions/baselines',
-      cta: 'Set baseline',
-    },
-    {
-      key: 'target',
-      done: hasTarget,
-      available: hasBaseline,
-      title: 'Set a reduction target',
-      body: 'Defines the trajectory you want to track against (1.5°C / well-below 2°C / 2°C).',
-      href: '/emissions/targets',
-      cta: 'Set target',
-    },
-    {
-      key: 'framework',
-      done: hasFramework,
-      available: hasEmission,
-      title: 'Pick a reporting framework',
-      body: 'Maps your emissions categories onto BRSR / GRI / TCFD indicators for compliance reports.',
-      href: '/frameworks',
-      cta: 'Pick framework',
+      title: 'Generate your first report',
+      body: 'Produces a TCFD/GRI/CDP/BRSR/CSRD-aligned export from your live data.',
+      href: '/reports',
+      cta: 'Open reports',
     },
   ];
 
   const allDone = steps.every((s) => s.done);
 
   if (isLoading) {
-    // Quiet skeleton — don't flash an empty card on slow connections.
     return null;
   }
 
@@ -154,11 +176,15 @@ export function NextStepsWidget() {
             ✓
           </span>
           <span style={{ fontWeight: 600, color: 'var(--text-primary)' }}>Set up complete.</span>
-          <span style={{ color: 'var(--text-tertiary)' }}>You're ready to use every Aurex feature.</span>
+          <span style={{ color: 'var(--text-tertiary)' }}>
+            You're ready to use every Aurex feature.
+          </span>
         </div>
       </Card>
     );
   }
+
+  const completedCount = steps.filter((s) => s.done).length;
 
   return (
     <Card padding="lg" style={{ marginBottom: '1.5rem' }}>
@@ -172,10 +198,11 @@ export function NextStepsWidget() {
             marginBottom: '0.25rem',
           }}
         >
-          Next steps
+          Get started — {completedCount} of {steps.length} steps complete
         </h3>
         <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', margin: 0 }}>
-          Five quick steps to get the most out of Aurex.
+          Aurex works best when these are set up in order: organisation → users → financials →
+          emissions → reports.
         </p>
       </div>
 
@@ -189,9 +216,9 @@ export function NextStepsWidget() {
           gap: '0.5rem',
         }}
       >
-        {steps.map((step) => (
+        {steps.map((step, i) => (
           <li key={step.key}>
-            <StepRow step={step} />
+            <StepRow step={step} number={i + 1} />
           </li>
         ))}
       </ul>
@@ -199,7 +226,7 @@ export function NextStepsWidget() {
   );
 }
 
-function StepRow({ step }: { step: Step }) {
+function StepRow({ step, number }: { step: Step; number: number }) {
   const dimmed = !step.done && !step.available;
 
   const rowStyle: React.CSSProperties = {
@@ -261,7 +288,7 @@ function StepRow({ step }: { step: Step }) {
   const inner = (
     <>
       <span style={iconStyle} aria-hidden>
-        {step.done ? '✓' : ''}
+        {step.done ? '✓' : number}
       </span>
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={titleStyle}>{step.title}</div>

@@ -145,8 +145,40 @@ model Organization {
   // AAT-RZP / Wave 7: Razorpay billing back-relation.
   subscriptions      Subscription[]
 
+  // Sprint 5 / FLOW-REWORK: organisational financial dimensions captured
+  // during onboarding, used by intensity-based ESG reports (BRSR/CSRD)
+  // and as the org-level revenue baseline for emissions intensity KPIs.
+  financials         OrganizationFinancials?
+
   @@index([parentOrgId])
   @@map("organizations")
+}
+
+/// Sprint 5 / FLOW-REWORK — captured during onboarding step 5 ("Upload
+/// organisational financials"). One row per org (1:1 with Organization).
+/// Populated values support BRSR P9 + CSRD ESRS-2 entity-level disclosures
+/// and feed the emissions-intensity KPI on the dashboard.
+model OrganizationFinancials {
+  id                  String   @id @default(uuid()) @db.Uuid
+  orgId               String   @unique @map("org_id") @db.Uuid
+  fiscalYearStartMonth Int     @default(4) @map("fiscal_year_start_month") // 1-12; default April for India FY
+  fiscalYear          Int      @map("fiscal_year") // 2024 means FY24-25 (or FY-2024 for Jan-start)
+  currency            String   @default("INR") @db.VarChar(3) // ISO 4217
+  annualRevenue       Decimal? @map("annual_revenue") @db.Decimal(20, 2)
+  totalAssets         Decimal? @map("total_assets") @db.Decimal(20, 2)
+  employeeCount       Int?     @map("employee_count")
+  contractorCount     Int?     @map("contractor_count")
+  industrySector      String?  @map("industry_sector") @db.VarChar(100) // free-text override of Org.industry
+  reportingScope      String   @default("standalone") @map("reporting_scope") @db.VarChar(20) // "standalone" | "consolidated"
+  notes               String?  @db.Text
+  capturedBy          String   @map("captured_by") @db.Uuid
+  capturedAt          DateTime @default(now()) @map("captured_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  org Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@index([orgId])
+  @@map("organization_financials")
 }
 
 model OrgMember {

@@ -27,6 +27,7 @@ import { brsrRouter } from './routes/brsr.js';
 // AAT-R2 / AV4-427: BRSR Core assurance-readiness admin operations.
 import { adminBrsrRouter } from './routes/admin-brsr.js';
 import { onboardingRouter } from './routes/onboarding.js';
+import { financialsRouter } from './routes/financials.js';
 import { securityRouter } from './routes/security.js';
 import { suppliersRouter } from './routes/suppliers.js';
 // Article 6.4 / PACM routers (gap-analysis implementation)
@@ -137,6 +138,10 @@ app.use('/api/v1/brsr', brsrRouter);
 // /api/v1/admin/brsr/* so it can co-exist with future admin BRSR ops.
 app.use('/api/v1/admin/brsr', adminBrsrRouter);
 app.use('/api/v1/onboarding', onboardingRouter);
+// FLOW-REWORK / Sprint 5 — organisational financials (revenue, employees,
+// fiscal year). Captured during onboarding step 5 + editable later via
+// settings. Drives BRSR/CSRD intensity reports.
+app.use('/api/v1/me/org/financials', financialsRouter);
 app.use('/api/v1/suppliers', suppliersRouter);
 // Article 6.4 / Paris Agreement Crediting Mechanism
 app.use('/api/v1/methodologies', methodologiesRouter);

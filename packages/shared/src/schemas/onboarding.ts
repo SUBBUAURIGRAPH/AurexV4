@@ -49,7 +49,46 @@ export const onboardingStep3Schema = z.object({
 });
 
 export const onboardingStep4Schema = z.object({
-  frameworkCodes: z.array(z.string().min(1).max(20)).max(20),
+  frameworkCodes: z.array(z.string().min(1).max(20)).max(20).optional(),
+  // FLOW-REWORK: step 4 also accepts subsidiary additions (the new wizard
+  // ordering is org → subsidiaries → users → plan → financials → ready,
+  // and subsidiaries is captured here when present). Backwards compatible
+  // — frameworkCodes still parses for legacy rows.
+  subsidiaries: z
+    .array(
+      z.object({
+        name: z.string().min(2).max(255),
+        slug: z.string().min(2).max(64).regex(/^[a-z0-9-]+$/).optional(),
+        country: z.string().max(100).optional(),
+      }),
+    )
+    .max(50)
+    .optional(),
+  skipped: z.boolean().optional(),
+});
+
+// FLOW-REWORK / Sprint 5 — step 5: organisational financial dimensions.
+export const onboardingStep5Schema = z.object({
+  fiscalYear: z.number().int().min(2000).max(2100),
+  fiscalYearStartMonth: z.number().int().min(1).max(12).default(4),
+  currency: z.string().length(3).default('INR'),
+  annualRevenue: z.number().nonnegative().optional(),
+  totalAssets: z.number().nonnegative().optional(),
+  employeeCount: z.number().int().nonnegative().optional(),
+  contractorCount: z.number().int().nonnegative().optional(),
+  industrySector: z.string().max(100).optional(),
+  reportingScope: z.enum(['standalone', 'consolidated']).default('standalone'),
+  notes: z.string().max(1000).optional(),
+  skipped: z.boolean().optional(),
+});
+
+// FLOW-REWORK / Sprint 5 — step 6: ready-to-track marker. Captures the
+// commit moment, optionally the user's acknowledgement that they want to
+// move on to entering their first emission record.
+export const onboardingStep6Schema = z.object({
+  acknowledged: z.boolean(),
+  baselineYear: z.number().int().min(2000).max(2100).optional(),
+  notes: z.string().max(500).optional(),
 });
 
 export const skipOnboardingSchema = z.object({
@@ -60,4 +99,6 @@ export type OnboardingStep1Input = z.infer<typeof onboardingStep1Schema>;
 export type OnboardingStep2Input = z.infer<typeof onboardingStep2Schema>;
 export type OnboardingStep3Input = z.infer<typeof onboardingStep3Schema>;
 export type OnboardingStep4Input = z.infer<typeof onboardingStep4Schema>;
+export type OnboardingStep5Input = z.infer<typeof onboardingStep5Schema>;
+export type OnboardingStep6Input = z.infer<typeof onboardingStep6Schema>;
 export type SkipOnboardingInput = z.infer<typeof skipOnboardingSchema>;
