@@ -36,6 +36,28 @@ python3 scripts/jira/seed_backlog.py --epic-link-field "${JIRA_EPIC_LINK_FIELD:-
 
 ---
 
+## OpenBao (J4C) — KMS / secrets
+
+J4C: **OpenBao is the KMS** (key management and application secrets: Vault-API, KV, transit, etc.). It is **not** the container image registry (that is **Harbor** — see below).
+
+- **API base (Vault-API)**: `https://j4c.aurigraph.io/openbao` — J4C org OpenBao; set as `OPENBAO_ADDR` (no trailing slash). Requests are `${OPENBAO_ADDR}/v1/...`.
+- **Token** — `OPENBAO_TOKEN` or `VAULT_TOKEN` (same header as Vault: `X-Vault-Token`).
+
+```bash
+export OPENBAO_ADDR="https://j4c.aurigraph.io/openbao"
+export OPENBAO_TOKEN="…"
+# optional: OPENBAO_KV_MOUNT=secret  OPENBAO_KV_DATA_PATH=aurex/api
+```
+
+## Harbor (J4C) — Docker / OCI image registry
+
+J4C: **Harbor is the Docker image registry** (push/pull OCI images for `aurexv4-api`, `aurex-web`, and related builds). It does **not** store application key material like OpenBao; use **separate** Harbor robot accounts or `docker login` credentials for CI and hosts.
+
+- **Harbor base (Aurigraph J4C)**: `https://j4c.aurigraph.io/harbor` — UI / API (constant `AURIGRAPH_J4C_HARBOR_BASE` in `apps/api/src/lib/j4c-platform.ts`).
+- **Image names** for `docker push` / K8s `image:` are usually the registry hostname and project (e.g. `j4c.aurigraph.io/<project>/aurexv4-api:<tag>`); match what Harbor shows under your project, which may differ from the `/harbor` path used for the web UI.
+
+---
+
 ## GitHub
 
 - **User / org**: `<owner>`

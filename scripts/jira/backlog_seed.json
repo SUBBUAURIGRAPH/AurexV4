@@ -489,8 +489,8 @@
       "description": "**WBS:** 11.1\n\nDocker, K8s manifests (`infrastructure/`)",
       "children": [
         {
-          "summary": "[11.1.1] Secrets: Vault / OpenBao",
-          "description": "**WBS:** 11.1.1\n\nPer master index “production ready”",
+          "summary": "[11.1.1] Secrets: OpenBao (KMS)",
+          "description": "**WBS:** 11.1.1\n\nJ4C: OpenBao = KMS; Harbor = image registry. Vault‑API store; prod secrets (not committed)",
           "children": []
         }
       ]

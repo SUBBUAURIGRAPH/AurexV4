@@ -1,3 +1,5 @@
+// J4C / WBS 11.1.1: OpenBao (Vault-API) env — must run before Prisma and routes.
+import './lib/openbao-env.js';
 import express, { type Express } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';

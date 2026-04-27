@@ -196,7 +196,7 @@ Sprint status after this session:
 | WBS | Type | Name | Notes |
 | --- | --- | --- | --- |
 | 11.1 | Epic | Container platform | Docker, K8s manifests (`infrastructure/`) |
-| 11.1.1 | Story | Secrets: Vault / OpenBao | Per master index “production ready” |
+| 11.1.1 | Story | Secrets: OpenBao (KMS) | J4C: OpenBao = KMS; Harbor = image registry. Vault‑API store; prod secrets (not committed) |
 | 11.2 | Epic | Observability | Prometheus, Grafana, Loki, OpenTelemetry |
 | 11.3 | Epic | CI/CD | GitHub Actions: test, SAST, DAST, deploy, rollback |
 | 11.3.1 | Story | Reinstate env validation in pipeline | Link to API epic 4.1.1 |
