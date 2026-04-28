@@ -273,8 +273,8 @@ async function seedEmissionsBaselines(): Promise<number> {
 // ─── 3. EmissionsTarget ─────────────────────────────────────────────────
 // 2 targets: near-term (-50% by 2030, SBTi 1.5C) + net-zero (2045).
 
-const NEAR_TERM_TARGET_ID = ID('t10000000001');
-const NET_ZERO_TARGET_ID = ID('t10000000002');
+const NEAR_TERM_TARGET_ID = ID('a10000000001');
+const NET_ZERO_TARGET_ID = ID('a10000000002');
 
 async function seedEmissionsTargets(): Promise<number> {
   // schema field: `isApproved` (no `verified` column on EmissionsTarget).
@@ -374,7 +374,7 @@ async function seedTargetProgress(): Promise<number> {
 
 const BRSR_RESPONSE_SEEDS = [
   {
-    suffix: 'r10000000001',
+    suffix: 'e10000000001',
     indicatorCode: 'P1-E-1',
     value: { trainingHours: { board: 12, kmp: 20, employees: 8, workers: 4 } },
     notes: 'Annual ethics + anti-bribery refresher rolled out FY24-25.',
@@ -382,7 +382,7 @@ const BRSR_RESPONSE_SEEDS = [
     assuranceStatus: 'reasonable_assurance',
   },
   {
-    suffix: 'r10000000002',
+    suffix: 'e10000000002',
     indicatorCode: 'P2-E-1',
     value: { rdSpendPct: 4.2, capexSustainabilityPct: 18.5 },
     notes: '18.5% of FY24-25 capex earmarked for sustainable tech upgrades.',
@@ -390,7 +390,7 @@ const BRSR_RESPONSE_SEEDS = [
     assuranceStatus: 'limited_assurance',
   },
   {
-    suffix: 'r10000000003',
+    suffix: 'e10000000003',
     indicatorCode: 'P6-E-4',
     value: { scope1Tco2e: 4140, scope2Tco2e: 5450, intensityPerCroreTurnover: 38.5 },
     notes: 'GHG inventory aggregated from 12 EmissionsRecord rows (FY24-25).',
@@ -398,7 +398,7 @@ const BRSR_RESPONSE_SEEDS = [
     assuranceStatus: 'reasonable_assurance',
   },
   {
-    suffix: 'r10000000004',
+    suffix: 'e10000000004',
     indicatorCode: 'P7-E-1',
     value: { chambers: ['CII', 'FICCI', 'NASSCOM'] },
     notes: 'Active membership in 3 industry associations.',
@@ -406,7 +406,7 @@ const BRSR_RESPONSE_SEEDS = [
     assuranceStatus: 'unaudited',
   },
   {
-    suffix: 'r10000000005',
+    suffix: 'e10000000005',
     indicatorCode: 'P8-E-1',
     value: { siaCount: 2, projectsAspirational: 1 },
     notes: '2 SIAs commissioned in FY24-25 (Maharashtra + Karnataka).',
@@ -414,7 +414,7 @@ const BRSR_RESPONSE_SEEDS = [
     assuranceStatus: 'internal_review',
   },
   {
-    suffix: 'r10000000006',
+    suffix: 'e10000000006',
     indicatorCode: 'P9-E-3',
     value: { complaintsReceived: 7, complaintsResolved: 7, dataPrivacyBreaches: 0 },
     notes: 'Zero data-privacy breaches in FY24-25.',
@@ -466,9 +466,9 @@ async function seedBrsrResponses(): Promise<number> {
 // 'TCFD', 'GRI', 'BRSR' (no 'BRSR_CORE' — same row covers BRSR Core).
 
 const FRAMEWORK_MAPPING_SEEDS = [
-  { suffix: 'fw0000000001', code: 'TCFD' },
-  { suffix: 'fw0000000002', code: 'GRI' },
-  { suffix: 'fw0000000003', code: 'BRSR' },
+  { suffix: 'f20000000001', code: 'TCFD' },
+  { suffix: 'f20000000002', code: 'GRI' },
+  { suffix: 'f20000000003', code: 'BRSR' },
 ];
 
 async function seedOrgFrameworkMappings(): Promise<number> {
@@ -499,21 +499,21 @@ async function seedOrgFrameworkMappings(): Promise<number> {
 
 const CATEGORY_MAPPING_SEEDS = [
   {
-    suffix: 'cm0000000001',
+    suffix: 'f30000000001',
     scope: 'SCOPE_3' as const,
     category: 'Capital Goods',
     esgIndicatorCodes: ['GRI 305-3'],
     brsrIndicatorCodes: ['P6-L-1', 'P6-L-3'],
   },
   {
-    suffix: 'cm0000000002',
+    suffix: 'f30000000002',
     scope: 'SCOPE_3' as const,
     category: 'Use of Sold Products',
     esgIndicatorCodes: ['GRI 305-3', 'TCFD-MT-b'],
     brsrIndicatorCodes: ['P6-L-1'],
   },
   {
-    suffix: 'cm0000000003',
+    suffix: 'f30000000003',
     scope: 'SCOPE_3' as const,
     category: 'Investments',
     esgIndicatorCodes: ['GRI 305-3', 'CDP-C7'],
@@ -549,19 +549,19 @@ async function seedCategoryMappings(): Promise<number> {
 // Maharashtra) walked through the full lifecycle.
 
 const ACTIVITY_ID = ID('ac0000000001');
-const HOST_AUTH_ID = ID('ha0000000001');
-const MONITORING_PLAN_ID = ID('mp0000000001');
-const MONITORING_PERIOD_ID = ID('mr0000000001');
-const VALIDATION_REPORT_ID = ID('va0000000001');
-const VERIFICATION_REPORT_ID = ID('ve0000000001');
-const ISSUANCE_ID = ID('is0000000001');
+const HOST_AUTH_ID = ID('b10000000001');
+const MONITORING_PLAN_ID = ID('b20000000001');
+const MONITORING_PERIOD_ID = ID('b30000000001');
+const VALIDATION_REPORT_ID = ID('b40000000001');
+const VERIFICATION_REPORT_ID = ID('b50000000001');
+const ISSUANCE_ID = ID('b60000000001');
 const IFHD_PARTICIPANT_ACCT_ID = ID('ca0000000001');
 const HOST_PARTY_ACCT_ID = ID('ca0000000002');
 const CREDIT_BLOCK_ID = ID('cb0000000001');
 
-const PARAM_STOVE_COUNT_ID = ID('pa0000000001');
-const PARAM_FNRB_ID = ID('pa0000000002');
-const PARAM_THERMAL_EFF_ID = ID('pa0000000003');
+const PARAM_STOVE_COUNT_ID = ID('b70000000001');
+const PARAM_FNRB_ID = ID('b70000000002');
+const PARAM_THERMAL_EFF_ID = ID('b70000000003');
 
 async function seedA64ActivityLifecycle(): Promise<{
   activity: number;
@@ -872,39 +872,7 @@ async function seedA64ActivityLifecycle(): Promise<{
     },
   });
 
-  // 14. Issuance — APPROVED. gross=4200, sop=210 (5%), omge=84 (2%), net=3906.
-  await prisma.issuance.upsert({
-    where: { id: ISSUANCE_ID },
-    update: {
-      grossUnits: 4200.0,
-      sopLevyUnits: 210.0,
-      omgeCancelledUnits: 84.0,
-      netUnits: 3906.0,
-      vintage: 2026,
-      unitType: 'A6_4ER',
-      status: 'APPROVED',
-      requestedBy: IFHD_USER_ID,
-      issuedAt: new Date('2026-08-25T00:00:00Z'),
-      serialBlockId: CREDIT_BLOCK_ID,
-    },
-    create: {
-      id: ISSUANCE_ID,
-      activityId: ACTIVITY_ID,
-      periodId: MONITORING_PERIOD_ID,
-      grossUnits: 4200.0,
-      sopLevyUnits: 210.0,
-      omgeCancelledUnits: 84.0,
-      netUnits: 3906.0,
-      vintage: 2026,
-      unitType: 'A6_4ER',
-      status: 'APPROVED',
-      requestedBy: IFHD_USER_ID,
-      issuedAt: new Date('2026-08-25T00:00:00Z'),
-      serialBlockId: CREDIT_BLOCK_ID,
-    },
-  });
-
-  // 16. CreditUnitBlock — 1 block of 3906 units, vintage 2026, NDC_AND_OIMP, ACTIVE.
+  // 16. CreditUnitBlock — must be created BEFORE Issuance (FK dependency).
   await prisma.creditUnitBlock.upsert({
     where: { id: CREDIT_BLOCK_ID },
     update: {
@@ -938,6 +906,38 @@ async function seedA64ActivityLifecycle(): Promise<{
     },
   });
 
+  // 14. Issuance — APPROVED (created after CreditUnitBlock due to FK).
+  await prisma.issuance.upsert({
+    where: { id: ISSUANCE_ID },
+    update: {
+      grossUnits: 4200.0,
+      sopLevyUnits: 210.0,
+      omgeCancelledUnits: 84.0,
+      netUnits: 3906.0,
+      vintage: 2026,
+      unitType: 'A6_4ER',
+      status: 'APPROVED',
+      requestedBy: IFHD_USER_ID,
+      issuedAt: new Date('2026-08-25T00:00:00Z'),
+      serialBlockId: CREDIT_BLOCK_ID,
+    },
+    create: {
+      id: ISSUANCE_ID,
+      activityId: ACTIVITY_ID,
+      periodId: MONITORING_PERIOD_ID,
+      grossUnits: 4200.0,
+      sopLevyUnits: 210.0,
+      omgeCancelledUnits: 84.0,
+      netUnits: 3906.0,
+      vintage: 2026,
+      unitType: 'A6_4ER',
+      status: 'APPROVED',
+      requestedBy: IFHD_USER_ID,
+      issuedAt: new Date('2026-08-25T00:00:00Z'),
+      serialBlockId: CREDIT_BLOCK_ID,
+    },
+  });
+
   return {
     activity: 1,
     hostAuth: 1,
@@ -954,8 +954,8 @@ async function seedA64ActivityLifecycle(): Promise<{
 
 // ─── 17. KycVerification + KycVerificationEvent ─────────────────────────
 
-const KYC_VERIFICATION_ID = ID('kv0000000001');
-const KYC_EVENT_ID = ID('ke0000000001');
+const KYC_VERIFICATION_ID = ID('c10000000001');
+const KYC_EVENT_ID = ID('c20000000001');
 
 async function seedKyc(): Promise<{ verifications: number; events: number }> {
   await prisma.kycVerification.upsert({
@@ -1022,7 +1022,7 @@ async function seedKyc(): Promise<{ verifications: number; events: number }> {
 
 const NOTIFICATIONS = [
   {
-    suffix: 'no0000000001',
+    suffix: 'f10000000001',
     type: 'SUCCESS' as const,
     title: 'BRSR FY24-25 report published',
     body: 'Your BRSR Core report for FY24-25 is now published and available to assurance auditors.',
@@ -1030,7 +1030,7 @@ const NOTIFICATIONS = [
     readAt: new Date('2026-04-20T08:00:00Z'),
   },
   {
-    suffix: 'no0000000002',
+    suffix: 'f10000000002',
     type: 'INFO' as const,
     title: 'Approval requested — Scope 3 Investments emissions row',
     body: 'A Scope 3 emissions row (Investments / Equity, 1240 tCO2e) is awaiting your approval.',
@@ -1038,7 +1038,7 @@ const NOTIFICATIONS = [
     readAt: null,
   },
   {
-    suffix: 'no0000000003',
+    suffix: 'f10000000003',
     type: 'SUCCESS' as const,
     title: 'FY 2023 Scope 1 baseline verified',
     body: 'Your FY 2023 Scope 1 baseline (4200 tCO2e) was successfully verified.',
@@ -1046,7 +1046,7 @@ const NOTIFICATIONS = [
     readAt: new Date('2026-04-22T11:30:00Z'),
   },
   {
-    suffix: 'no0000000004',
+    suffix: 'f10000000004',
     type: 'SUCCESS' as const,
     title: 'Q1 FY24-25 emissions records verified',
     body: '3 Scope 1 + Scope 2 emissions records for Q1 FY24-25 were verified by your assurance auditor.',
@@ -1054,7 +1054,7 @@ const NOTIFICATIONS = [
     readAt: null,
   },
   {
-    suffix: 'no0000000005',
+    suffix: 'f10000000005',
     type: 'INFO' as const,
     title: 'Welcome to Aurex',
     body: 'Your IFHD organisation is approved. Explore the dashboard, set targets, and start logging emissions.',
@@ -1093,7 +1093,7 @@ async function seedNotifications(): Promise<number> {
 // Schema NotificationPreference is per-USER not per-ORG, with @@unique on
 // userId. Single row enabling all flags for the IFHD user.
 
-const NOTIFICATION_PREF_ID = ID('np0000000001');
+const NOTIFICATION_PREF_ID = ID('d10000000001');
 
 async function seedNotificationPreference(): Promise<number> {
   await prisma.notificationPreference.upsert({
@@ -1123,7 +1123,7 @@ async function seedNotificationPreference(): Promise<number> {
 // it always will — but the values match what the user is most likely to
 // enter, so collisions are benign).
 
-const ORG_FINANCIALS_ID = ID('of0000000001');
+const ORG_FINANCIALS_ID = ID('d20000000001');
 
 async function seedOrganizationFinancials(): Promise<number> {
   await prisma.organizationFinancials.upsert({
@@ -1157,19 +1157,19 @@ async function seedOrganizationFinancials(): Promise<number> {
 
 const CONSENT_RECORD_SEEDS = [
   {
-    suffix: 'co0000000001',
+    suffix: 'f40000000001',
     purpose: 'marketing_email',
     consentText:
       'I agree to receive marketing communications from Aurex about new features, sustainability webinars, and product updates.',
   },
   {
-    suffix: 'co0000000002',
+    suffix: 'f40000000002',
     purpose: 'kyc_verification',
     consentText:
       'I consent to the processing of my identity document, address proof, and biometric data by a third-party KYC provider for the purpose of credit retirement.',
   },
   {
-    suffix: 'co0000000003',
+    suffix: 'f40000000003',
     purpose: 'analytics_cookies',
     consentText:
       'I consent to the use of analytics cookies to help Aurex understand product usage and improve the platform.',
@@ -1205,7 +1205,7 @@ async function seedConsentRecords(): Promise<number> {
 // reportedToDpb=true. Lets the admin breach-incident page render at least
 // one row.
 
-const BREACH_INCIDENT_ID = ID('di0000000001');
+const BREACH_INCIDENT_ID = ID('f50000000001');
 
 async function seedDataBreachIncident(): Promise<number> {
   const detectedAt = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
