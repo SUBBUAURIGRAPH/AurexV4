@@ -51,6 +51,7 @@ import { OrganizationPage } from './pages/dashboard/admin/OrganizationPage';
 import { CouponsPage } from './pages/dashboard/admin/CouponsPage';
 import { OrganizationsPage } from './pages/dashboard/admin/OrganizationsPage';
 import { OrgApprovalsPage } from './pages/dashboard/admin/OrgApprovalsPage';
+import { AdminOverviewPage } from './pages/dashboard/admin/AdminOverviewPage';
 import { QuotasPage } from './pages/dashboard/admin/QuotasPage';
 import { ApprovalsPage } from './pages/dashboard/ApprovalsPage';
 import { BulkUploadPage } from './pages/dashboard/emissions/BulkUploadPage';
@@ -157,6 +158,7 @@ export function App() {
             {/* AAT-10B / Wave 10b: renewal email deep-link (auth-gated, any active org member can pay). */}
             <Route path="/billing/renew/:renewalAttemptId" element={<RenewPaymentPage />} />
             <Route path="/support" element={<RoleGuard allowedRoles={['administrator', 'manager', 'editor', 'viewer']}><SupportPage /></RoleGuard>} />
+            <Route path="/admin" element={<RoleGuard allowedRoles={['administrator', 'super_admin', 'org_admin']}><AdminOverviewPage /></RoleGuard>} />
             <Route path="/admin/users" element={<RoleGuard allowedRoles={['administrator', 'super_admin', 'org_admin']}><UsersPage /></RoleGuard>} />
             <Route path="/admin/organization" element={<RoleGuard allowedRoles={['administrator', 'super_admin', 'org_admin']}><OrganizationPage /></RoleGuard>} />
             <Route path="/admin/organizations" element={<RoleGuard allowedRoles={['administrator', 'super_admin', 'org_admin']}><OrganizationsPage /></RoleGuard>} />
