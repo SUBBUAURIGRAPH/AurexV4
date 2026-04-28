@@ -210,8 +210,23 @@ export function EmissionsDataEntry() {
       });
       toast.success('Emission entry saved successfully');
       navigate('/emissions');
-    } catch {
-      toast.error('Failed to save emission entry. Please try again.');
+    } catch (err) {
+      const e = err as { message?: string; status?: number } | null;
+      if (e?.status === 412) {
+        toast.error(
+          'Your organisation is awaiting Aurex-admin approval. Emission writes resume the moment your registration is approved.',
+        );
+      } else if (e?.status === 403) {
+        toast.error(
+          'You don\'t have permission to log emissions. Need MAKER, CHECKER, APPROVER, MANAGER, ORG_ADMIN, or SUPER_ADMIN org role.',
+        );
+      } else if (e?.status === 429) {
+        toast.error('Monthly emission entry quota reached. Upgrade your plan in Billing.');
+      } else if (e?.message) {
+        toast.error(e.message);
+      } else {
+        toast.error('Failed to save emission entry. Please try again.');
+      }
     }
   }, [validate, createEmission, scope, category, source, emissionFactor, activityValue, unit, calculatedCO2e, periodStart, periodEnd, dataQuality, notes, toast, navigate]);
 

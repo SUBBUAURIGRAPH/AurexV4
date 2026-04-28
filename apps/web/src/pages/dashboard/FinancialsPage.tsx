@@ -226,7 +226,12 @@ export function FinancialsPage() {
             )}
             {upsert.isError && (
               <span style={{ fontSize: '0.875rem', color: '#dc2626' }}>
-                Save failed — check the form values above.
+                {(() => {
+                  const e = upsert.error as { message?: string; status?: number } | null;
+                  if (e?.status === 412) return 'Your organisation is awaiting Aurex-admin approval. Reads and settings are unrestricted; this gate clears the moment your registration is approved.';
+                  if (e?.status === 403) return 'You don\'t have permission to update financials. Need to be ORG_ADMIN+. If you just registered, log out and back in to refresh your role.';
+                  return e?.message ?? 'Save failed — check the form values above.';
+                })()}
               </span>
             )}
           </div>

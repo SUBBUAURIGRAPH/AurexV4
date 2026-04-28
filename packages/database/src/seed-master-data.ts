@@ -80,11 +80,53 @@ const FUEL_SOURCES = [
   { scope: 'SCOPE_3', category: 'Purchased Goods', name: 'Cement (industrial)' },
   { scope: 'SCOPE_3', category: 'Purchased Goods', name: 'Steel (crude)' },
   { scope: 'SCOPE_3', category: 'Purchased Goods', name: 'Paper (virgin)' },
-  // Scope 3 — Upstream T&D
+  // Scope 3 — Upstream T&D (GHG Protocol cat 4)
   { scope: 'SCOPE_3', category: 'Upstream Transportation', name: 'Truck - HGV avg' },
   { scope: 'SCOPE_3', category: 'Upstream Transportation', name: 'Rail Freight' },
   { scope: 'SCOPE_3', category: 'Upstream Transportation', name: 'Sea Freight' },
   { scope: 'SCOPE_3', category: 'Upstream Transportation', name: 'Air Freight' },
+  // Scope 3 — Capital goods (GHG Protocol cat 2)
+  { scope: 'SCOPE_3', category: 'Capital Goods', name: 'Machinery (manufacturing)' },
+  { scope: 'SCOPE_3', category: 'Capital Goods', name: 'Buildings & infrastructure' },
+  { scope: 'SCOPE_3', category: 'Capital Goods', name: 'IT hardware' },
+  { scope: 'SCOPE_3', category: 'Capital Goods', name: 'Vehicles (fleet purchase)' },
+  // Scope 3 — Fuel & energy not in 1-2 (GHG Protocol cat 3)
+  { scope: 'SCOPE_3', category: 'Fuel and Energy Activities', name: 'Upstream fuel extraction' },
+  { scope: 'SCOPE_3', category: 'Fuel and Energy Activities', name: 'Transmission & distribution losses' },
+  { scope: 'SCOPE_3', category: 'Fuel and Energy Activities', name: 'Generation of purchased electricity (sold)' },
+  // Scope 3 — Upstream leased assets (GHG Protocol cat 8)
+  { scope: 'SCOPE_3', category: 'Upstream Leased Assets', name: 'Leased buildings - operations' },
+  { scope: 'SCOPE_3', category: 'Upstream Leased Assets', name: 'Leased vehicles - operations' },
+  { scope: 'SCOPE_3', category: 'Upstream Leased Assets', name: 'Leased equipment - operations' },
+  // Scope 3 — Downstream T&D (GHG Protocol cat 9)
+  { scope: 'SCOPE_3', category: 'Downstream Transportation', name: 'Truck - downstream HGV' },
+  { scope: 'SCOPE_3', category: 'Downstream Transportation', name: 'Rail Freight - downstream' },
+  { scope: 'SCOPE_3', category: 'Downstream Transportation', name: 'Sea Freight - downstream' },
+  { scope: 'SCOPE_3', category: 'Downstream Transportation', name: 'Air Freight - downstream' },
+  { scope: 'SCOPE_3', category: 'Downstream Transportation', name: 'Distribution warehouse - electricity' },
+  // Scope 3 — Processing of sold products (GHG Protocol cat 10)
+  { scope: 'SCOPE_3', category: 'Processing of Sold Products', name: 'Intermediate product processing - electricity' },
+  { scope: 'SCOPE_3', category: 'Processing of Sold Products', name: 'Intermediate product processing - thermal' },
+  // Scope 3 — Use of sold products (GHG Protocol cat 11)
+  { scope: 'SCOPE_3', category: 'Use of Sold Products', name: 'Direct use phase - electricity' },
+  { scope: 'SCOPE_3', category: 'Use of Sold Products', name: 'Direct use phase - fuel' },
+  { scope: 'SCOPE_3', category: 'Use of Sold Products', name: 'Indirect use phase - operating emissions' },
+  // Scope 3 — End-of-life of sold products (GHG Protocol cat 12)
+  { scope: 'SCOPE_3', category: 'End-of-Life of Sold Products', name: 'Disposal - landfill' },
+  { scope: 'SCOPE_3', category: 'End-of-Life of Sold Products', name: 'Disposal - incineration' },
+  { scope: 'SCOPE_3', category: 'End-of-Life of Sold Products', name: 'Disposal - recycling (avoided)' },
+  // Scope 3 — Downstream leased assets (GHG Protocol cat 13)
+  { scope: 'SCOPE_3', category: 'Downstream Leased Assets', name: 'Leased buildings - tenants' },
+  { scope: 'SCOPE_3', category: 'Downstream Leased Assets', name: 'Leased vehicles - lessees' },
+  { scope: 'SCOPE_3', category: 'Downstream Leased Assets', name: 'Leased equipment - lessees' },
+  // Scope 3 — Franchises (GHG Protocol cat 14)
+  { scope: 'SCOPE_3', category: 'Franchises', name: 'Franchisee operations - electricity' },
+  { scope: 'SCOPE_3', category: 'Franchises', name: 'Franchisee operations - fuel' },
+  // Scope 3 — Investments (GHG Protocol cat 15)
+  { scope: 'SCOPE_3', category: 'Investments', name: 'Equity investments - financed emissions' },
+  { scope: 'SCOPE_3', category: 'Investments', name: 'Debt investments - financed emissions' },
+  { scope: 'SCOPE_3', category: 'Investments', name: 'Project finance - financed emissions' },
+  { scope: 'SCOPE_3', category: 'Investments', name: 'Managed investments (PCAF aligned)' },
 ] as const;
 
 // factor in kg CO2e per `unit`. Sources noted in dataSource.
