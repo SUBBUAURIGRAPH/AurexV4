@@ -1,69 +1,106 @@
+/**
+ * AAT-FLOW6 — Support page rewrite.
+ *
+ * Was a hardcoded ticket table referencing fake "SUP-9812" tickets and a
+ * disabled "Create Ticket" button. We don't have a support-ticket model
+ * yet (no SupportTicket Prisma model — and per FLOW6 scope we don't add
+ * one). The honest story is: contact email, customer-success owner, and
+ * a clear pointer to where to send the request.
+ */
 import { Card } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
-import { Badge } from '../../components/ui/Badge';
-
-const tickets = [
-  { id: 'SUP-9812', subject: 'Need role-mapping for SAP integration', priority: 'high', status: 'open' },
-  { id: 'SUP-9804', subject: 'CSRD export formatting discrepancy', priority: 'medium', status: 'in_progress' },
-  { id: 'SUP-9731', subject: 'Quarterly board deck template request', priority: 'low', status: 'resolved' },
-];
 
 export function SupportPage() {
   return (
     <div style={{ maxWidth: '1200px' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '1rem' }}>
-        <div>
-          <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>Support Center</h2>
-          <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)' }}>Track support tickets, SLAs, and technical enablement requests.</p>
-        </div>
-        {/* AAT-WORKFLOW (Wave 9a): support backend not wired — disabled with tooltip. */}
-        <Button disabled title="Coming soon — email support@aurex.in for now">Create Ticket</Button>
+      <div style={{ marginBottom: '1.5rem' }}>
+        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'var(--text-primary)', marginBottom: '0.25rem' }}>
+          Support Center
+        </h2>
+        <p style={{ fontSize: '0.875rem', color: 'var(--text-tertiary)' }}>
+          Reach the Aurex team for technical, compliance, or account questions.
+        </p>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
         <Card padding="lg">
-          <p style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: '0.05em' }}>Support Plan</p>
-          <h3 style={{ fontSize: '1.0625rem', color: 'var(--text-primary)', marginTop: '0.5rem' }}>Premier 24x7</h3>
-          <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>Critical response SLA: 30 minutes.</p>
+          <p style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: '0.05em' }}>
+            Email support
+          </p>
+          <h3 style={{ fontSize: '1.0625rem', color: 'var(--text-primary)', marginTop: '0.5rem' }}>
+            <a href="mailto:contact@aurex.in" style={{ color: '#1a5d3d', textDecoration: 'none' }}>
+              contact@aurex.in
+            </a>
+          </h3>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+            Response target: 1 business day.
+          </p>
+          <div style={{ marginTop: '0.75rem' }}>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => {
+                window.location.href = 'mailto:contact@aurex.in?subject=Aurex%20support%20request';
+              }}
+            >
+              Email support
+            </Button>
+          </div>
         </Card>
+
         <Card padding="lg">
-          <p style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: '0.05em' }}>Customer Success</p>
-          <h3 style={{ fontSize: '1.0625rem', color: 'var(--text-primary)', marginTop: '0.5rem' }}>Ananya Sharma</h3>
-          <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>ananya.sharma@aurex.in</p>
+          <p style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: '0.05em' }}>
+            Documentation
+          </p>
+          <h3 style={{ fontSize: '1.0625rem', color: 'var(--text-primary)', marginTop: '0.5rem' }}>Aurex docs</h3>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+            Onboarding guides, API reference, BRSR / DPDP runbooks.
+          </p>
+          <div style={{ marginTop: '0.75rem' }}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                window.open('https://aurex.in/docs', '_blank', 'noopener');
+              }}
+            >
+              Open docs
+            </Button>
+          </div>
+        </Card>
+
+        <Card padding="lg">
+          <p style={{ fontSize: '0.75rem', textTransform: 'uppercase', color: 'var(--text-tertiary)', letterSpacing: '0.05em' }}>
+            Status & incidents
+          </p>
+          <h3 style={{ fontSize: '1.0625rem', color: 'var(--text-primary)', marginTop: '0.5rem' }}>Platform status</h3>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginTop: '0.25rem' }}>
+            Current uptime and posted incidents.
+          </p>
+          <div style={{ marginTop: '0.75rem' }}>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                window.open('https://aurex.in/status', '_blank', 'noopener');
+              }}
+            >
+              Open status page
+            </Button>
+          </div>
         </Card>
       </div>
 
-      <Card padding="none">
-        <div style={{ overflowX: 'auto' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-            <thead>
-              <tr style={{ borderBottom: '1px solid var(--border-primary)' }}>
-                {['Ticket', 'Subject', 'Priority', 'Status', ''].map((h) => (
-                  <th key={h} style={{ textAlign: 'left', padding: '0.875rem 1rem', fontSize: '0.75rem', color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {tickets.map((ticket, i) => (
-                <tr key={ticket.id} style={{ borderBottom: i < tickets.length - 1 ? '1px solid var(--border-primary)' : 'none' }}>
-                  <td style={{ padding: '0.875rem 1rem', color: 'var(--text-primary)', fontWeight: 600 }}>{ticket.id}</td>
-                  <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{ticket.subject}</td>
-                  <td style={{ padding: '0.875rem 1rem' }}>
-                    <Badge variant={ticket.priority === 'high' ? 'warning' : ticket.priority === 'medium' ? 'info' : 'neutral'}>
-                      {ticket.priority}
-                    </Badge>
-                  </td>
-                  <td style={{ padding: '0.875rem 1rem' }}>
-                    <Badge variant={ticket.status === 'resolved' ? 'success' : ticket.status === 'in_progress' ? 'info' : 'warning'}>
-                      {ticket.status.replace('_', ' ')}
-                    </Badge>
-                  </td>
-                  <td style={{ padding: '0.875rem 1rem', textAlign: 'right' }}><Button size="sm" variant="outline" disabled title="Coming soon — Wave 10">Open</Button></td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      <Card padding="lg">
+        <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+          A self-service ticket portal is on the roadmap. In the meantime, every email to{' '}
+          <a href="mailto:contact@aurex.in" style={{ color: '#1a5d3d' }}>contact@aurex.in</a> is
+          tracked and routed to the right team member.
+        </p>
+        <p style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)' }}>
+          For urgent compliance / incident reports (DPDP §8 breach intimation), please copy{' '}
+          <a href="mailto:dpo@aurex.in" style={{ color: '#1a5d3d' }}>dpo@aurex.in</a>.
+        </p>
       </Card>
     </div>
   );

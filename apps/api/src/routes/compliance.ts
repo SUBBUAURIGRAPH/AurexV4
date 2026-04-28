@@ -14,6 +14,7 @@
 
 import { Router, type IRouter } from 'express';
 import { z } from 'zod';
+import { prisma } from '@aurex/database';
 import { requireAuth } from '../middleware/auth.js';
 import { requireOrgScope } from '../middleware/org-scope.js';
 import { requireOrgRole } from '../middleware/org-role.js';
@@ -92,3 +93,125 @@ complianceRouter.post(
     }
   },
 );
+
+/**
+ * AAT-FLOW6 — GET /posture
+ *
+ * High-level compliance-readiness aggregate for the caller's org. Wraps:
+ *   • BRSR Core: response count + assurance breakdown
+ *   • DPDP: org-member consent rows (granted vs withdrawn)
+ *   • Retention: active retention policies (global, not org-scoped, but
+ *     surfaces operator intent for the audit trail)
+ *   • Regulatory research: last 5 successful runs (admin-driven scans —
+ *     org members get a read-only timeline so they know the regulatory
+ *     landscape is being monitored)
+ *
+ * Read-only; any org member can call. Returns shape:
+ *   { brsr: {...}, dpdp: {...}, retention: {...}, research: { runs: [...] } }
+ */
+complianceRouter.get('/posture', async (req, res, next) => {
+  try {
+    const orgId = req.orgId!;
+
+    // ── BRSR Core posture ───────────────────────────────────────────────
+    const brsrRows = await prisma.brsrResponse.findMany({
+      where: { orgId },
+      select: {
+        id: true,
+        fiscalYear: true,
+        assuranceStatus: true,
+        updatedAt: true,
+      },
+      orderBy: { updatedAt: 'desc' },
+      take: 1000,
+    });
+    const brsrAssurance: Record<string, number> = {};
+    for (const r of brsrRows) {
+      brsrAssurance[r.assuranceStatus] =
+        (brsrAssurance[r.assuranceStatus] ?? 0) + 1;
+    }
+    const fiscalYears = Array.from(new Set(brsrRows.map((r) => r.fiscalYear)));
+
+    // ── DPDP consent posture ────────────────────────────────────────────
+    // DPDP consent is per-user, not per-org; we scope by the org's members
+    // so every org sees a consent-coverage signal that's meaningful to it.
+    const memberIds = await prisma.orgMember
+      .findMany({
+        where: { orgId, isActive: true },
+        select: { userId: true },
+      })
+      .then((rows) => rows.map((r) => r.userId));
+
+    const memberCount = memberIds.length;
+    let consentGranted = 0;
+    let consentWithdrawn = 0;
+    if (memberCount > 0) {
+      const [granted, withdrawn] = await Promise.all([
+        prisma.consentRecord.count({
+          where: { userId: { in: memberIds }, granted: true, withdrawnAt: null },
+        }),
+        prisma.consentRecord.count({
+          where: { userId: { in: memberIds }, withdrawnAt: { not: null } },
+        }),
+      ]);
+      consentGranted = granted;
+      consentWithdrawn = withdrawn;
+    }
+
+    // ── Retention posture (global policies, surfaced for visibility) ────
+    const retentionPolicies = await prisma.retentionPolicy.findMany({
+      where: { isActive: true },
+      select: {
+        id: true,
+        name: true,
+        minRetentionYears: true,
+        isDefault: true,
+      },
+      orderBy: { isDefault: 'desc' },
+      take: 10,
+    });
+
+    // ── Regulatory research timeline ────────────────────────────────────
+    const researchRuns = await prisma.regulatoryResearchRun.findMany({
+      where: { status: 'SUCCESS' },
+      orderBy: { createdAt: 'desc' },
+      take: 5,
+      select: {
+        id: true,
+        topic: true,
+        depth: true,
+        summary: true,
+        createdAt: true,
+      },
+    });
+
+    res.json({
+      data: {
+        brsr: {
+          responseCount: brsrRows.length,
+          assuranceBreakdown: brsrAssurance,
+          fiscalYearsCovered: fiscalYears,
+        },
+        dpdp: {
+          orgMemberCount: memberCount,
+          consentGranted,
+          consentWithdrawn,
+        },
+        retention: {
+          activePolicies: retentionPolicies,
+        },
+        research: {
+          runs: researchRuns.map((r) => ({
+            id: r.id,
+            topic: r.topic,
+            depth: r.depth,
+            summary: r.summary,
+            createdAt: r.createdAt.toISOString(),
+          })),
+        },
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
