@@ -21,6 +21,7 @@ Uses the same JIRA_* env + credentials.md as seed_backlog.py.
 from __future__ import annotations
 
 import argparse
+import errno
 import importlib.util
 import json
 import os
@@ -46,6 +47,33 @@ adf_paragraph = sb.adf_paragraph
 apply_credentials_md = sb.apply_credentials_md
 JiraClient = sb.JiraClient
 load_seed = sb.load_seed
+
+
+def _jira_request_with_retries(
+    client: JiraClient,
+    method: str,
+    path: str,
+    body: dict[str, Any] | None,
+    *,
+    context: str,
+    max_attempts: int = 5,
+) -> Any:
+    """Retry on transient TLS/TCP resets (long Jira responses can stall)."""
+    last_err: BaseException | None = None
+    for attempt in range(max_attempts):
+        try:
+            return client.request(method, path, body)
+        except (BrokenPipeError, ConnectionResetError, TimeoutError) as e:
+            last_err = e
+        except OSError as e:
+            if e.errno not in (errno.ECONNRESET, errno.EPIPE, errno.ETIMEDOUT):
+                raise
+            last_err = e
+        if attempt < max_attempts - 1:
+            delay = min(30.0, 2.0**attempt)
+            print(f"[retry] {context} attempt {attempt + 1}/{max_attempts} after {delay:.1f}s ({last_err!r})", flush=True)
+            time.sleep(delay)
+    raise RuntimeError(f"Jira {context} failed after {max_attempts} attempts") from last_err
 
 
 def bracket_header(summary: str) -> str:
@@ -85,7 +113,9 @@ def fetch_all_issues(client: JiraClient, *, project_key: str, page_size: int = 5
         }
         if next_token:
             body["nextPageToken"] = next_token
-        data = client.request("POST", "/rest/api/3/search/jql", body)
+        data = _jira_request_with_retries(
+            client, "POST", "/rest/api/3/search/jql", body, context="search/jql"
+        )
         batch = list(data.get("issues", []))
         out.extend(batch)
         next_token = data.get("nextPageToken") or None
