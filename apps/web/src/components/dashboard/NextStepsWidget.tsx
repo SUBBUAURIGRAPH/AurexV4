@@ -110,7 +110,7 @@ export function NextStepsWidget() {
       available: !!orgRegistered,
       title: 'Add subsidiaries',
       body: 'Set up any child entities you need to track separately. Skip if you only have one org.',
-      href: '/dashboard/admin/organizations',
+      href: '/admin/organizations',
       cta: 'Manage hierarchy',
     },
     {
@@ -119,7 +119,7 @@ export function NextStepsWidget() {
       available: !!orgRegistered,
       title: 'Invite users and assign roles',
       body: 'RBAC: ORG_ADMIN, MAKER, CHECKER, APPROVER, AUDITOR, VIEWER. Set least-privilege early.',
-      href: '/dashboard/teams',
+      href: '/teams',
       cta: 'Manage team',
     },
     {

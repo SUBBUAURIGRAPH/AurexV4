@@ -93,6 +93,22 @@ export async function createOrg(
     },
   });
 
+  // FLOW-REWORK: when a user self-creates their first org, promote their
+  // global User.role from VIEWER to ORG_ADMIN so JWT-based role gates
+  // (financials PUT, teams page, admin section) work for them. The
+  // caller still needs to re-issue a fresh JWT — the frontend handles
+  // this by forcing a logout/login after first-time org creation.
+  // We only run this promotion for self-service top-level signups
+  // (requiresApproval=true) to avoid escalating viewer roles in any
+  // other flow.
+  if (requiresApproval && upperRole !== 'ORG_ADMIN' && upperRole !== 'SUPER_ADMIN') {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { role: 'ORG_ADMIN' },
+    });
+    logger.info({ userId }, 'Promoted user.role VIEWER → ORG_ADMIN on first-org self-service create');
+  }
+
   logger.info({ orgId: org.id, parentOrgId, userId }, 'Organization created');
   return org;
 }

@@ -197,7 +197,7 @@ const JOURNEY_CARDS: JourneyCard[] = [
     title: 'Add subsidiaries',
     description: 'Set up any child entities you need to track separately. Skip if you only have one org.',
     bullets: ['Parent / child hierarchy', 'Per-subsidiary scope', 'Optional — skip if single-org'],
-    href: '/dashboard/admin/organizations',
+    href: '/admin/organizations',
     cta: 'Manage hierarchy',
   },
   {
@@ -205,7 +205,7 @@ const JOURNEY_CARDS: JourneyCard[] = [
     title: 'Invite users and assign roles',
     description: 'RBAC: ORG_ADMIN, MAKER, CHECKER, APPROVER, AUDITOR, VIEWER. Set least-privilege early.',
     bullets: ['6-tier role model', 'Email invites', 'Maker-Checker workflows'],
-    href: '/dashboard/teams',
+    href: '/teams',
     cta: 'Manage team',
   },
   {
@@ -258,10 +258,23 @@ function WelcomeJourney({ user }: { user: { name?: string } | null }): JSX.Eleme
         name: orgName.trim(),
         slug: slug || undefined,
       });
-      toastSuccess('Organisation created — refreshing your setup journey');
-      // Force a full reload so the JWT picks up the new org membership and
-      // the onboarding wizard takes over below the hero.
-      setTimeout(() => window.location.reload(), 600);
+      toastSuccess(
+        'Organisation registered! Logging you back in to refresh your admin role…',
+      );
+      // The backend just promoted the user's global role (VIEWER → ORG_ADMIN).
+      // The current JWT still carries the old role, so we need a fresh
+      // token. Easiest path: clear the session + redirect to /login. The
+      // user signs back in and the new JWT picks up the ORG_ADMIN role
+      // — unblocks financials, teams, admin pages.
+      setTimeout(() => {
+        // Best-effort logout: tell the API to revoke the session, then
+        // hard-navigate to /login regardless of result.
+        fetch('/api/v1/auth/logout', { method: 'POST', credentials: 'include' })
+          .catch(() => {})
+          .finally(() => {
+            window.location.href = '/login?next=/onboarding';
+          });
+      }, 800);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Could not create organisation';
       toastError(message);

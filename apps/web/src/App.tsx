@@ -146,7 +146,7 @@ export function App() {
             <Route path="/analytics" element={<AnalyticsPage />} />
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/reports/build/:type" element={<ReportBuilderPage />} />
-            <Route path="/teams" element={<RoleGuard allowedRoles={['administrator', 'manager']}><TeamsPage /></RoleGuard>} />
+            <Route path="/teams" element={<RoleGuard allowedRoles={['administrator', 'manager', 'org_admin', 'super_admin']}><TeamsPage /></RoleGuard>} />
             <Route path="/integrations" element={<RoleGuard allowedRoles={['administrator', 'manager', 'editor']}><IntegrationsPage /></RoleGuard>} />
             <Route path="/compliance" element={<RoleGuard allowedRoles={['administrator', 'manager', 'editor']}><CompliancePage /></RoleGuard>} />
             <Route path="/audit-logs" element={<RoleGuard allowedRoles={['administrator', 'manager']}><AuditLogsPage /></RoleGuard>} />
