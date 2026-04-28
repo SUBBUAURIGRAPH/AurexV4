@@ -34,6 +34,16 @@ python3 scripts/jira/seed_backlog.py --dry-run
 python3 scripts/jira/seed_backlog.py --epic-link-field "${JIRA_EPIC_LINK_FIELD:-}"
 ```
 
+**Backfill / update existing issues from `backlog_seed.json`** (recommended after WBS changes — does not create duplicates):
+
+```bash
+python3 scripts/jira/wbs_to_backlog.py
+python3 scripts/jira/sync_backlog_from_seed.py --dry-run
+python3 scripts/jira/sync_backlog_from_seed.py --apply
+# Optional: refresh description text from seed when summary already matches:
+# python3 scripts/jira/sync_backlog_from_seed.py --apply --refresh-descriptions
+```
+
 ---
 
 ## OpenBao (J4C) — KMS / secrets

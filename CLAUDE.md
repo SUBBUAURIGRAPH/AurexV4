@@ -76,8 +76,11 @@ pnpm test:security:all            # OWASP + nginx combined
 ## Jira
 Board: https://aurigraphdlt.atlassian.net/jira/software/projects/AV4/boards/1450
 ```bash
-python scripts/jira/progress_bar.py   # Check progress
-python scripts/jira/seed_backlog.py   # Seed from WBS
+python3 scripts/jira/progress_bar.py              # Check progress
+python3 scripts/jira/wbs_to_backlog.py            # Regenerate backlog_seed.json from WBS
+python3 scripts/jira/sync_backlog_from_seed.py --dry-run   # Preview Jira updates from seed
+python3 scripts/jira/sync_backlog_from_seed.py --apply      # Update matched issues (summary/description)
+python3 scripts/jira/seed_backlog.py              # Initial create only — duplicates if board exists
 ```
 
 ## CI/CD
