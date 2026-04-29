@@ -1,0 +1,11 @@
+[Unit]
+Description=Run AurexV4 Layer 2 watchdog every minute (AV4-440)
+
+[Timer]
+OnCalendar=*:0/1
+AccuracySec=10s
+Persistent=true
+Unit=aurex-watchdog.service
+
+[Install]
+WantedBy=timers.target

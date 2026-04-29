@@ -1,0 +1,7 @@
+[Unit]
+Description=AurexV4 Layer 3 external probe — DNS + TLS + nginx + container end-to-end check (AV4-440)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=%h/bin/aurex-external-probe.sh

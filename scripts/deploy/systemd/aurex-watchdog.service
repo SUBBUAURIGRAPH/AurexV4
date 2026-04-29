@@ -1,0 +1,8 @@
+[Unit]
+Description=AurexV4 Layer 2 watchdog — restart aurex-api on consecutive Docker unhealthy reports (AV4-440)
+After=network-online.target
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.aurex-watchdog.env
+ExecStart=%h/bin/aurex-watchdog.sh

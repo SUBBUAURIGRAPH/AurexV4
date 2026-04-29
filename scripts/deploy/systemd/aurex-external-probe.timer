@@ -1,0 +1,11 @@
+[Unit]
+Description=Run AurexV4 Layer 3 external probe every minute (AV4-440)
+
+[Timer]
+OnCalendar=*:0/1
+AccuracySec=10s
+Persistent=true
+Unit=aurex-external-probe.service
+
+[Install]
+WantedBy=timers.target
