@@ -114,6 +114,17 @@ case "${status}" in
       log "threshold reached — restarting ${CONTAINER}"
       if docker restart "${CONTAINER}" >/dev/null 2>&1; then
         log "restart issued for ${CONTAINER}"
+        # Re-clamp container eth0 MTU to 1442. After a Docker-managed
+        # restart (e.g., this watchdog or unless-stopped), eth0 reverts
+        # to bridge MTU 1500 — without this clamp, outbound HTTPS to
+        # upstream services (Google OAuth, GitHub, etc.) silently times
+        # out on this host's 1442-byte uplink. AV4-441.
+        CPID="$(docker inspect "${CONTAINER}" --format '{{.State.Pid}}' 2>/dev/null || true)"
+        if [[ -n "${CPID}" ]] && sudo -n nsenter -t "${CPID}" -n ip link set dev eth0 mtu 1442 2>/dev/null; then
+          log "container eth0 MTU re-clamped to 1442"
+        else
+          log "WARN: could not re-clamp eth0 MTU after restart — egress may flake"
+        fi
         alert "container restarted" \
           "Watchdog restarted ${CONTAINER} after ${count} consecutive unhealthy reads. Tail: ~/aurex-watchdog/watchdog.log"
       else

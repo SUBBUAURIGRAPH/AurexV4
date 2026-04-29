@@ -98,6 +98,15 @@ $SSH "set -e
   docker rm ${API_CONTAINER}-prev 2>/dev/null || true
   docker rename ${API_CONTAINER} ${API_CONTAINER}-prev
   docker run -d --name ${API_CONTAINER} --network aurex_network --restart unless-stopped \$ENV_ARGS ${API_IMAGE}:latest >/dev/null
+
+  # Host uplink on aurex.in is MTU 1442 (encapsulated link). The Docker
+  # bridge defaults to 1500, so without this clamp the container's TLS
+  # handshake to upstream hosts (oauth2.googleapis.com, github.com, etc.)
+  # silently times out — large frames are dropped at the host's NAT and
+  # the upstream's PMTU reply is filtered. AV4-441.
+  CPID=\$(docker inspect ${API_CONTAINER} --format '{{.State.Pid}}')
+  sudo -n nsenter -t \$CPID -n ip link set dev eth0 mtu 1442 || \
+    echo '  (warn) could not lower container eth0 MTU — outbound HTTPS may flake'
 "
 echo "  Container rolled"
 
