@@ -1,13 +1,15 @@
 /**
  * Google Sign-In service tests.
  *
- * Mocks google-auth-library's OAuth2Client so we never hit Google. The
- * mock returns a fake id_token payload we can shape per case.
+ * Stubs global fetch so the JWKS + token-exchange paths are deterministic.
+ * Generates a real RSA-2048 keypair so the ID-token signature really
+ * round-trips through crypto.createPublicKey + jsonwebtoken.verify.
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { generateKeyPairSync } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 
-const { mockPrisma, mockOAuth } = vi.hoisted(() => {
+const { mockPrisma } = vi.hoisted(() => {
   const prisma = {
     user: {
       findUnique: vi.fn(),
@@ -26,19 +28,10 @@ const { mockPrisma, mockOAuth } = vi.hoisted(() => {
       return undefined;
     }),
   };
-  const oauth = {
-    generateAuthUrl: vi.fn(() => 'https://accounts.google.com/o/oauth2/v2/auth?stub=1'),
-    getToken: vi.fn(),
-    verifyIdToken: vi.fn(),
-  };
-  return { mockPrisma: prisma, mockOAuth: oauth };
+  return { mockPrisma: prisma };
 });
 
 vi.mock('@aurex/database', () => ({ prisma: mockPrisma, Prisma: {} }));
-
-vi.mock('google-auth-library', () => ({
-  OAuth2Client: vi.fn(() => mockOAuth),
-}));
 
 vi.mock('../lib/jwt.js', () => ({
   signAccessToken: vi.fn(() => 'access.jwt'),
@@ -48,20 +41,50 @@ vi.mock('../lib/jwt.js', () => ({
 import {
   buildAuthorizationUrl,
   handleCallback,
-  _resetClient,
+  _resetJwksCache,
 } from './google-oauth.service.js';
 
 const STATE_SECRET = 'test-jwt-secret';
 const STATE_AUDIENCE = 'aurex:google-oauth-state';
+const CLIENT_ID = 'client-id-stub.apps.googleusercontent.com';
+
+// One RSA-2048 keypair shared across the test file. JWK is published as
+// our fake JWKS; the private key signs every test id_token.
+const { publicKey: rsaPublic, privateKey: rsaPrivate } = generateKeyPairSync('rsa', {
+  modulusLength: 2048,
+});
+const jwk = rsaPublic.export({ format: 'jwk' }) as {
+  n: string;
+  e: string;
+  kty: string;
+};
+const KID = 'test-kid-1';
+
+function fakeJwksResponse(): Response {
+  const payload = {
+    keys: [{ ...jwk, kid: KID, alg: 'RS256', use: 'sig' }],
+  };
+  return new Response(JSON.stringify(payload), {
+    status: 200,
+    headers: { 'Content-Type': 'application/json' },
+  });
+}
+
+function makeIdToken(claims: Record<string, unknown>, opts?: { kid?: string; alg?: string }): string {
+  return jwt.sign(claims, rsaPrivate, {
+    algorithm: (opts?.alg as 'RS256') ?? 'RS256',
+    keyid: opts?.kid ?? KID,
+  });
+}
 
 beforeEach(() => {
-  process.env.GOOGLE_OAUTH_CLIENT_ID = 'client-id-stub.apps.googleusercontent.com';
+  process.env.GOOGLE_OAUTH_CLIENT_ID = CLIENT_ID;
   process.env.GOOGLE_OAUTH_CLIENT_SECRET = 'client-secret-stub';
   process.env.GOOGLE_OAUTH_REDIRECT_URI = 'https://aurex.in/api/v1/auth/google/callback';
   process.env.JWT_SECRET = STATE_SECRET;
   process.env.WEB_BASE_URL = 'https://aurex.in';
   vi.clearAllMocks();
-  _resetClient();
+  _resetJwksCache();
 });
 
 afterEach(() => {
@@ -70,6 +93,7 @@ afterEach(() => {
   delete process.env.GOOGLE_OAUTH_REDIRECT_URI;
   delete process.env.JWT_SECRET;
   delete process.env.WEB_BASE_URL;
+  vi.unstubAllGlobals();
 });
 
 function signValidState(redirect = '/dashboard'): string {
@@ -80,36 +104,35 @@ function signValidState(redirect = '/dashboard'): string {
 }
 
 describe('buildAuthorizationUrl', () => {
-  it('returns Google authorization URL and includes a signed state', () => {
+  it('returns a Google authorization URL with all the required pieces', () => {
     const url = buildAuthorizationUrl({ redirect: '/dashboard' });
-    expect(url).toContain('accounts.google.com');
+    const parsed = new URL(url);
+    expect(parsed.host).toBe('accounts.google.com');
+    expect(parsed.pathname).toBe('/o/oauth2/v2/auth');
+    expect(parsed.searchParams.get('client_id')).toBe(CLIENT_ID);
+    expect(parsed.searchParams.get('redirect_uri')).toBe('https://aurex.in/api/v1/auth/google/callback');
+    expect(parsed.searchParams.get('response_type')).toBe('code');
+    expect(parsed.searchParams.get('scope')).toBe('openid email profile');
+    expect(parsed.searchParams.get('prompt')).toBe('select_account');
 
-    expect(mockOAuth.generateAuthUrl).toHaveBeenCalledTimes(1);
-    const args = mockOAuth.generateAuthUrl.mock.calls[0]![0] as {
-      state: string;
-      scope: string[];
+    const state = parsed.searchParams.get('state')!;
+    const decoded = jwt.verify(state, STATE_SECRET, { audience: STATE_AUDIENCE }) as {
+      redirect: string;
+      nonce: string;
     };
-    expect(args.scope).toContain('openid');
-    expect(args.scope).toContain('email');
-
-    // State must be a valid JWT with our audience.
-    const decoded = jwt.verify(args.state, STATE_SECRET, {
-      audience: STATE_AUDIENCE,
-    }) as { redirect: string; nonce: string };
     expect(decoded.redirect).toBe('/dashboard');
     expect(decoded.nonce).toMatch(/^[0-9a-f]{32}$/);
   });
 
   it('rejects open-redirect attempts (external URL or //evil.com)', () => {
     const u1 = buildAuthorizationUrl({ redirect: 'https://evil.com/steal' });
-    const s1 = mockOAuth.generateAuthUrl.mock.calls[0]![0]!.state;
+    const s1 = new URL(u1).searchParams.get('state')!;
     expect(
       (jwt.verify(s1, STATE_SECRET, { audience: STATE_AUDIENCE }) as { redirect: string }).redirect,
     ).toBe('/');
 
-    mockOAuth.generateAuthUrl.mockClear();
-    buildAuthorizationUrl({ redirect: '//evil.com/steal' });
-    const s2 = mockOAuth.generateAuthUrl.mock.calls[0]![0]!.state;
+    const u2 = buildAuthorizationUrl({ redirect: '//evil.com/steal' });
+    const s2 = new URL(u2).searchParams.get('state')!;
     expect(
       (jwt.verify(s2, STATE_SECRET, { audience: STATE_AUDIENCE }) as { redirect: string }).redirect,
     ).toBe('/');
@@ -117,26 +140,57 @@ describe('buildAuthorizationUrl', () => {
 
   it('throws 503 when env vars are missing', () => {
     delete process.env.GOOGLE_OAUTH_CLIENT_ID;
-    _resetClient();
     expect(() => buildAuthorizationUrl({})).toThrow(/not configured/i);
   });
 });
 
 describe('handleCallback', () => {
-  function stubExchange(idTokenPayload: Record<string, unknown>) {
-    mockOAuth.getToken.mockResolvedValue({ tokens: { id_token: 'fake.id.token' } });
-    mockOAuth.verifyIdToken.mockResolvedValue({
-      getPayload: () => idTokenPayload,
+  /**
+   * Drive global fetch with two scripted responses:
+   * 1. token endpoint → returns the supplied id_token string
+   * 2. JWKS endpoint  → returns our fake JWKS
+   */
+  function stubFetch(idTokenStr: string | null, opts?: { tokenStatus?: number; tokenBody?: string }) {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const url = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes('/oauth2/v3/certs')) return fakeJwksResponse();
+      if (url.includes('/token')) {
+        if (opts?.tokenStatus && opts.tokenStatus >= 400) {
+          return new Response(opts.tokenBody ?? '{"error":"invalid_grant"}', { status: opts.tokenStatus });
+        }
+        return new Response(JSON.stringify(idTokenStr ? { id_token: idTokenStr } : {}), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        });
+      }
+      throw new Error(`Unexpected fetch in test: ${url}`);
     });
+    vi.stubGlobal('fetch', fetchMock);
+    return fetchMock;
+  }
+
+  function tokenClaims(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+    return {
+      sub: 'g-sub-default',
+      email: 'default@example.com',
+      email_verified: true,
+      name: 'Default User',
+      iss: 'https://accounts.google.com',
+      aud: CLIENT_ID,
+      exp: Math.floor(Date.now() / 1000) + 600,
+      ...overrides,
+    };
   }
 
   it('rejects an invalid (tampered) state with 400', async () => {
+    stubFetch(makeIdToken(tokenClaims()));
     await expect(
       handleCallback({ code: 'c', state: 'not-a-jwt' }),
     ).rejects.toThrow(/state/i);
   });
 
   it('rejects state signed with a different secret (CSRF)', async () => {
+    stubFetch(makeIdToken(tokenClaims()));
     const wrongState = jwt.sign(
       { redirect: '/', nonce: 'x' },
       'attacker-secret',
@@ -147,27 +201,60 @@ describe('handleCallback', () => {
     ).rejects.toThrow(/state/i);
   });
 
+  it('rejects an id_token signed with the wrong key', async () => {
+    // Sign with a *different* RSA keypair — the JWKS we publish won't have
+    // a matching kid for it, so verification must reject.
+    const { privateKey: otherPriv } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    const wrongIdToken = jwt.sign(tokenClaims(), otherPriv, {
+      algorithm: 'RS256',
+      keyid: 'attacker-kid',
+    });
+    stubFetch(wrongIdToken);
+    await expect(
+      handleCallback({ code: 'c', state: signValidState() }),
+    ).rejects.toThrow(/Invalid|kid/i);
+  });
+
+  it('rejects when id_token audience does not match our client_id', async () => {
+    stubFetch(makeIdToken(tokenClaims({ aud: 'different-client-id.apps.googleusercontent.com' })));
+    await expect(
+      handleCallback({ code: 'c', state: signValidState() }),
+    ).rejects.toThrow(/Invalid Google id_token/);
+  });
+
+  it('rejects when issuer is not Google', async () => {
+    stubFetch(makeIdToken(tokenClaims({ iss: 'https://accounts.evil.com' })));
+    await expect(
+      handleCallback({ code: 'c', state: signValidState() }),
+    ).rejects.toThrow(/Invalid Google id_token/);
+  });
+
   it('rejects when email_verified is false', async () => {
-    stubExchange({
+    stubFetch(makeIdToken(tokenClaims({
       sub: 'g-sub-1',
       email: 'unverified@example.com',
       email_verified: false,
       name: 'Mallory',
-    });
-
+    })));
     await expect(
       handleCallback({ code: 'c', state: signValidState() }),
     ).rejects.toThrow(/not verified/i);
   });
 
+  it('rejects when the token endpoint returns 4xx (bad code)', async () => {
+    stubFetch(null, { tokenStatus: 400, tokenBody: '{"error":"invalid_grant"}' });
+    await expect(
+      handleCallback({ code: 'c', state: signValidState() }),
+    ).rejects.toThrow(/Could not exchange/i);
+  });
+
   it('creates a brand-new user when no match by sub or email', async () => {
-    stubExchange({
+    stubFetch(makeIdToken(tokenClaims({
       sub: 'g-sub-new',
       email: 'new@example.com',
-      email_verified: true,
       name: 'New User',
-    });
-    mockPrisma.user.findUnique.mockResolvedValue(null); // both lookups
+    })));
+    mockPrisma.user.findUnique.mockResolvedValue(null);
     mockPrisma.user.create.mockResolvedValue({
       id: 'u-new',
       email: 'new@example.com',
@@ -195,14 +282,11 @@ describe('handleCallback', () => {
   });
 
   it('links googleSub to an existing local account when email matches', async () => {
-    stubExchange({
+    stubFetch(makeIdToken(tokenClaims({
       sub: 'g-sub-link',
       email: 'existing@example.com',
-      email_verified: true,
       name: 'Existing User',
-    });
-    // First call: findUnique by googleSub → null
-    // Second call: findUnique by email → existing user with no googleSub yet
+    })));
     mockPrisma.user.findUnique
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
@@ -228,7 +312,6 @@ describe('handleCallback', () => {
     expect(result.user.id).toBe('u-existing');
     expect(result.user.role).toBe('org_admin');
 
-    // The update must set googleSub + isVerified.
     const updateArgs = mockPrisma.user.update.mock.calls[0]![0] as {
       data: { googleSub: string; isVerified: boolean };
     };
@@ -237,12 +320,11 @@ describe('handleCallback', () => {
   });
 
   it('refuses to re-bind when email matches but a different googleSub is already linked', async () => {
-    stubExchange({
+    stubFetch(makeIdToken(tokenClaims({
       sub: 'g-sub-attacker',
       email: 'victim@example.com',
-      email_verified: true,
       name: 'Attacker',
-    });
+    })));
     mockPrisma.user.findUnique
       .mockResolvedValueOnce(null)
       .mockResolvedValueOnce({
@@ -263,12 +345,11 @@ describe('handleCallback', () => {
   });
 
   it('logs in returning user matched by googleSub (no upsert)', async () => {
-    stubExchange({
+    stubFetch(makeIdToken(tokenClaims({
       sub: 'g-sub-returning',
       email: 'returning@example.com',
-      email_verified: true,
       name: 'Returning User',
-    });
+    })));
     mockPrisma.user.findUnique.mockResolvedValueOnce({
       id: 'u-ret',
       email: 'returning@example.com',
@@ -284,22 +365,18 @@ describe('handleCallback', () => {
 
     expect(result.created).toBe(false);
     expect(result.user.id).toBe('u-ret');
-    // Only the lastLoginAt bump — no link mutation, no create.
     expect(mockPrisma.user.create).not.toHaveBeenCalled();
     expect(mockPrisma.user.update).toHaveBeenCalledTimes(1);
-    const args = mockPrisma.user.update.mock.calls[0]![0] as {
-      data: Record<string, unknown>;
-    };
+    const args = mockPrisma.user.update.mock.calls[0]![0] as { data: Record<string, unknown> };
     expect(Object.keys(args.data)).toEqual(['lastLoginAt']);
   });
 
   it('rejects a disabled account (isActive=false) on returning sign-in', async () => {
-    stubExchange({
+    stubFetch(makeIdToken(tokenClaims({
       sub: 'g-sub-disabled',
       email: 'disabled@example.com',
-      email_verified: true,
       name: 'Disabled',
-    });
+    })));
     mockPrisma.user.findUnique.mockResolvedValueOnce({
       id: 'u-disabled',
       email: 'disabled@example.com',

@@ -7,9 +7,17 @@
  *   2. Google redirects back to /auth/google/callback with `code` + same
  *      `state`.
  *   3. We verify the state JWT (CSRF protection — only states we issued
- *      will round-trip), exchange the code for tokens via OAuth2Client,
- *      verify the ID token's audience + issuer + email_verified, and
- *      upsert the user.
+ *      will round-trip), exchange the code for tokens via raw fetch to
+ *      Google's token endpoint, verify the ID token's signature against
+ *      Google's JWKS + audience + issuer + email_verified, and upsert
+ *      the user.
+ *
+ * Implementation note: this used to call into google-auth-library, but
+ * its bundled gaxios HTTP transport hangs on oauth2.googleapis.com/token
+ * from the production container while native fetch to the same URL
+ * returns 400 in <300ms. Switching to raw fetch + crypto.createPublicKey
+ * removes a misbehaving dependency and keeps the wire protocol under
+ * our control.
  *
  * Account-linking policy: trust Google's email verification. If the
  * incoming `email` matches an existing user with no `googleSub`, link
@@ -17,8 +25,8 @@
  * incoming token, refuse — that account is bound to a different Google
  * identity.
  */
-import jwt from 'jsonwebtoken';
-import { OAuth2Client, type TokenPayload } from 'google-auth-library';
+import { createPublicKey, type KeyObject } from 'node:crypto';
+import jwt, { type JwtHeader } from 'jsonwebtoken';
 import { prisma } from '@aurex/database';
 import { signAccessToken, signRefreshToken, type TokenPayload as AurexTokenPayload } from '../lib/jwt.js';
 import { AppError } from '../middleware/error-handler.js';
@@ -27,6 +35,10 @@ import * as authService from './auth.service.js';
 
 const STATE_JWT_AUDIENCE = 'aurex:google-oauth-state';
 const STATE_TTL_SECONDS = 5 * 60;
+const TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
+const JWKS_ENDPOINT = 'https://www.googleapis.com/oauth2/v3/certs';
+const ISSUERS: [string, ...string[]] = ['https://accounts.google.com', 'accounts.google.com'];
+const NETWORK_TIMEOUT_MS = 8000;
 
 function readEnv(): {
   clientId: string;
@@ -50,31 +62,17 @@ function readEnv(): {
   return { clientId, clientSecret, redirectUri, jwtSecret, webBaseUrl };
 }
 
-let cachedClient: OAuth2Client | null = null;
-function getClient(): OAuth2Client {
-  if (cachedClient) return cachedClient;
-  const { clientId, clientSecret, redirectUri } = readEnv();
-  cachedClient = new OAuth2Client({ clientId, clientSecret, redirectUri });
-  return cachedClient;
-}
-
-/** For tests: drop the cached client so a fresh one is built next call. */
-export function _resetClient(): void {
-  cachedClient = null;
-}
-
 interface StatePayload {
   redirect: string;
   nonce: string;
 }
 
 /**
- * Sign a state JWT and return both the token and the Google authorization
- * URL the caller should 302 to. `redirect` is the post-login frontend
- * route to return the user to.
+ * Build the Google authorization URL the caller should 302 to.
+ * `redirect` is the post-login frontend route to return the user to.
  */
 export function buildAuthorizationUrl(opts: { redirect?: string }): string {
-  const { jwtSecret } = readEnv();
+  const { clientId, redirectUri, jwtSecret } = readEnv();
   const redirect = sanitizeRedirect(opts.redirect);
   const nonce = randomNonce();
   const state = jwt.sign(
@@ -83,12 +81,16 @@ export function buildAuthorizationUrl(opts: { redirect?: string }): string {
     { audience: STATE_JWT_AUDIENCE, expiresIn: STATE_TTL_SECONDS },
   );
 
-  return getClient().generateAuthUrl({
+  const params = new URLSearchParams({
+    client_id: clientId,
+    redirect_uri: redirectUri,
+    response_type: 'code',
+    scope: 'openid email profile',
     access_type: 'online',
     prompt: 'select_account',
-    scope: ['openid', 'email', 'profile'],
     state,
   });
+  return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
 /** Only allow same-origin redirects to prevent open-redirect abuse. */
@@ -100,11 +102,136 @@ function sanitizeRedirect(input: string | undefined): string {
 }
 
 function randomNonce(): string {
-  // 16 bytes is plenty; we only need uniqueness within the 5-min TTL.
   return Array.from(crypto.getRandomValues(new Uint8Array(16)))
     .map((b) => b.toString(16).padStart(2, '0'))
     .join('');
 }
+
+// ── Google ID token verification (JWKS, RS256) ─────────────────────────
+
+interface GoogleJwk {
+  kid: string;
+  kty: string;
+  n: string;
+  e: string;
+  alg?: string;
+  use?: string;
+}
+
+let jwksCache: { keys: GoogleJwk[]; fetchedAt: number } | null = null;
+const JWKS_TTL_MS = 60 * 60_000; // 1 hour
+
+async function fetchJwks(): Promise<GoogleJwk[]> {
+  if (jwksCache && Date.now() - jwksCache.fetchedAt < JWKS_TTL_MS) {
+    return jwksCache.keys;
+  }
+  const res = await fetch(JWKS_ENDPOINT, {
+    signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS),
+  });
+  if (!res.ok) {
+    throw new AppError(502, 'Bad Gateway', `JWKS fetch failed (${res.status})`);
+  }
+  const body = (await res.json()) as { keys: GoogleJwk[] };
+  jwksCache = { keys: body.keys, fetchedAt: Date.now() };
+  return body.keys;
+}
+
+/** For tests: drop the JWKS cache so the next call refetches. */
+export function _resetJwksCache(): void {
+  jwksCache = null;
+}
+
+function jwkToPublicKey(jwk: GoogleJwk): KeyObject {
+  // node:crypto's `createPublicKey({ format: 'jwk', key })` accepts a JWK
+  // object directly since Node 16; the global `JsonWebKey` DOM type isn't
+  // available in our tsconfig, so cast through unknown.
+  return createPublicKey({
+    key: jwk as unknown as Parameters<typeof createPublicKey>[0] extends string ? never : { kty: string },
+    format: 'jwk',
+  });
+}
+
+interface GoogleIdTokenPayload {
+  sub: string;
+  email?: string;
+  email_verified?: boolean;
+  name?: string;
+  iss: string;
+  aud: string;
+  exp: number;
+}
+
+async function verifyGoogleIdToken(idToken: string, expectedAud: string): Promise<GoogleIdTokenPayload> {
+  // Decode the header so we know which JWKS key to use.
+  const decoded = jwt.decode(idToken, { complete: true });
+  if (!decoded || typeof decoded === 'string') {
+    throw new AppError(401, 'Unauthorized', 'Could not decode Google id_token');
+  }
+  const header = decoded.header as JwtHeader & { kid?: string };
+  if (!header.kid) {
+    throw new AppError(401, 'Unauthorized', 'Google id_token missing kid');
+  }
+  if (header.alg !== 'RS256') {
+    throw new AppError(401, 'Unauthorized', `Unexpected id_token alg: ${header.alg}`);
+  }
+
+  let keys = await fetchJwks();
+  let jwk = keys.find((k) => k.kid === header.kid);
+  if (!jwk) {
+    // Key may have rotated since we cached; try one fresh fetch.
+    _resetJwksCache();
+    keys = await fetchJwks();
+    jwk = keys.find((k) => k.kid === header.kid);
+  }
+  if (!jwk) {
+    throw new AppError(401, 'Unauthorized', 'Google id_token kid not in JWKS');
+  }
+
+  const publicKey = jwkToPublicKey(jwk);
+  let verified: GoogleIdTokenPayload;
+  try {
+    verified = jwt.verify(idToken, publicKey, {
+      algorithms: ['RS256'],
+      audience: expectedAud,
+      issuer: ISSUERS,
+    }) as GoogleIdTokenPayload;
+  } catch (err) {
+    logger.warn({ err }, 'google-oauth: id_token signature/audience verification failed');
+    throw new AppError(401, 'Unauthorized', 'Invalid Google id_token');
+  }
+  return verified;
+}
+
+async function exchangeCodeForTokens(code: string): Promise<{ id_token?: string }> {
+  const { clientId, clientSecret, redirectUri } = readEnv();
+  const body = new URLSearchParams({
+    grant_type: 'authorization_code',
+    code,
+    client_id: clientId,
+    client_secret: clientSecret,
+    redirect_uri: redirectUri,
+  });
+  let res: Response;
+  try {
+    res = await fetch(TOKEN_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: body.toString(),
+      signal: AbortSignal.timeout(NETWORK_TIMEOUT_MS),
+    });
+  } catch (err) {
+    logger.warn({ err }, 'google-oauth: token endpoint network error');
+    throw new AppError(502, 'Bad Gateway', 'Could not reach Google token endpoint');
+  }
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    logger.warn({ status: res.status, body: text.slice(0, 300) }, 'google-oauth: token exchange returned error');
+    throw new AppError(400, 'Bad Request', 'Could not exchange authorization code');
+  }
+  return (await res.json()) as { id_token?: string };
+}
+
+// ── Public callback flow ───────────────────────────────────────────────
 
 export interface CallbackResult {
   accessToken: string;
@@ -135,33 +262,14 @@ export async function handleCallback(opts: {
   }
 
   // 2. Exchange the authorization code for tokens.
-  const client = getClient();
-  let idTokenStr: string | undefined;
-  try {
-    const { tokens } = await client.getToken(opts.code);
-    idTokenStr = tokens.id_token ?? undefined;
-  } catch (err) {
-    logger.warn({ err }, 'google-oauth: token exchange failed');
-    throw new AppError(400, 'Bad Request', 'Could not exchange authorization code');
-  }
+  const tokens = await exchangeCodeForTokens(opts.code);
+  const idTokenStr = tokens.id_token;
   if (!idTokenStr) {
     throw new AppError(400, 'Bad Request', 'Google response missing id_token');
   }
 
   // 3. Verify the ID token (signature, audience, issuer, expiry).
-  let payload: TokenPayload;
-  try {
-    const ticket = await client.verifyIdToken({
-      idToken: idTokenStr,
-      audience: clientId,
-    });
-    const p = ticket.getPayload();
-    if (!p) throw new Error('empty id token payload');
-    payload = p;
-  } catch (err) {
-    logger.warn({ err }, 'google-oauth: id token verification failed');
-    throw new AppError(401, 'Unauthorized', 'Invalid Google credentials');
-  }
+  const payload = await verifyGoogleIdToken(idTokenStr, clientId);
 
   if (payload.email_verified !== true) {
     throw new AppError(
