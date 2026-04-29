@@ -22,6 +22,7 @@ import { SylvagraphPage } from './pages/products/SylvagraphPage';
 import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { VerifyEmailPage } from './pages/auth/VerifyEmailPage';
+import { GoogleCallbackPage } from './pages/auth/GoogleCallbackPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { EmissionsPage } from './pages/dashboard/EmissionsPage';
 import { EmissionsDataEntry } from './pages/dashboard/emissions/EmissionsDataEntry';
@@ -131,6 +132,7 @@ export function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
+          <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
 
           {/* Protected dashboard routes */}
           <Route element={<DashboardLayout />}>

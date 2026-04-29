@@ -9,6 +9,7 @@ import { rateLimiter } from './middleware/rate-limiter.js';
 import { errorHandler } from './middleware/error-handler.js';
 import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
+import { authGoogleRouter } from './routes/auth-google.js';
 import { organizationRouter } from './routes/organizations.js';
 import { userRouter } from './routes/users.js';
 import { emissionsRouter } from './routes/emissions.js';
@@ -122,6 +123,9 @@ app.use(rateLimiter);
 
 // Routes
 app.use('/api/v1/health', healthRouter);
+// Google sub-router mounted BEFORE the parent so /auth/google/* doesn't
+// fall through to authRouter's catch-all error handlers.
+app.use('/api/v1/auth/google', authGoogleRouter);
 app.use('/api/v1/auth', authRouter);
 app.use('/api/v1/organizations', organizationRouter);
 // Security router must be mounted BEFORE userRouter so /users/me/* doesn't

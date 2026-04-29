@@ -12,7 +12,14 @@ datasource db {
 model User {
   id             String    @id @default(uuid()) @db.Uuid
   email          String    @unique @db.VarChar(254)
-  passwordHash   String    @map("password_hash") @db.VarChar(255)
+  // Nullable: Google-OAuth-only users have no local password. The login
+  // service rejects password attempts when this is null. Local-account
+  // users keep a bcrypt hash here as before.
+  passwordHash   String?   @map("password_hash") @db.VarChar(255)
+  // Google `sub` claim — opaque, stable per Google account. Unique so we
+  // can resolve a federated identity → user in O(1). Set when the user
+  // either signs up via Google or links their existing local account.
+  googleSub      String?   @unique @map("google_sub") @db.VarChar(64)
   name           String    @db.VarChar(200)
   role           Role      @default(VIEWER)
   isActive       Boolean   @default(true) @map("is_active")

@@ -44,6 +44,14 @@ export async function login(
     throw new AppError(429, 'Too Many Requests', 'Account temporarily locked. Try again later.');
   }
 
+  // Federated-only accounts (Google sign-in without a local password) have
+  // a NULL passwordHash. Reject password attempts the same way as a wrong
+  // password — preserves ADM-052 no-user-enumeration posture.
+  if (!user.passwordHash) {
+    await logAuthEvent(user.id, 'LOGIN_FAILURE', ipAddress, userAgent);
+    throw new AppError(401, 'Unauthorized', 'Invalid email or password');
+  }
+
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
     const attempts = user.failedAttempts + 1;

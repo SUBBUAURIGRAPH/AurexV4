@@ -25,6 +25,15 @@ export async function changePassword(
 ): Promise<void> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new AppError(404, 'Not Found', 'User not found');
+  if (!user.passwordHash) {
+    // Federated-only account (Google sign-in) — no local password to change.
+    // Surface a clean 400 so the client can offer "Set a password" instead.
+    throw new AppError(
+      400,
+      'Bad Request',
+      'This account has no local password. Set one before changing it.',
+    );
+  }
 
   const valid = await bcrypt.compare(currentPassword, user.passwordHash);
   if (!valid) {
@@ -110,6 +119,13 @@ export async function disableMfa(
 ): Promise<void> {
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new AppError(404, 'Not Found', 'User not found');
+  if (!user.passwordHash) {
+    throw new AppError(
+      400,
+      'Bad Request',
+      'This account has no local password. Disable MFA via your federated identity provider flow instead.',
+    );
+  }
 
   const valid = await bcrypt.compare(password, user.passwordHash);
   if (!valid) {
