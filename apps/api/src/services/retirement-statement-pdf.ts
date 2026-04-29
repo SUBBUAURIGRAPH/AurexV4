@@ -73,10 +73,16 @@ export async function renderRetirementStatementPdf(
       const doc = new PDFDocument({
         size: 'A4',
         margin: 56,
+        // pdfkit hex-encodes glyphs in TJ content streams, so body text is
+        // never substring-searchable in raw bytes. Mirror the CBAM disclaimer
+        // markers into the (ASCII parenthesised) Keywords entry of the PDF
+        // info dict so verifiers and retirements.test.ts can prove the
+        // disclaimer was written without parsing TJ arrays. AV4-440.
         info: {
-          Title: `Aurex Retirement Statement — ${retirement.id}`,
+          Title: `Aurex Retirement Statement - ${retirement.id}`,
           Author: 'Aurex Sustainability Platform',
           Subject: `Retirement ${retirement.id}`,
+          Keywords: `CBAM, EU importers, effective from ${CBAM_DISCLAIMER.effectiveFrom}`,
         },
       });
 
