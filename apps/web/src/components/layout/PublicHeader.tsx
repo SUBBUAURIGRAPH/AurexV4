@@ -143,6 +143,7 @@ export function PublicHeader() {
           </div>
 
           <Link to="/biocarbon/marketplace" style={linkStyle}>BioCarbon</Link>
+          <Link to="/pricing" style={linkStyle}>Pricing</Link>
           <Link to="/about" style={linkStyle}>About</Link>
         </div>
 
@@ -269,6 +270,7 @@ export function PublicHeader() {
               </Link>
             ))}
             <Link to="/biocarbon/marketplace" style={{ padding: '0.75rem 0', color: 'var(--text-primary)', textDecoration: 'none', fontSize: '0.9375rem', fontWeight: 500 }}>BioCarbon</Link>
+            <Link to="/pricing" style={{ padding: '0.75rem 0', color: 'var(--text-primary)', textDecoration: 'none', fontSize: '0.9375rem', fontWeight: 500 }}>Pricing</Link>
             <Link to="/about" style={{ padding: '0.75rem 0', color: 'var(--text-primary)', textDecoration: 'none', fontSize: '0.9375rem', fontWeight: 500 }}>About</Link>
             <div style={{ borderTop: '1px solid var(--border-primary)', marginTop: '0.5rem', paddingTop: '0.75rem', display: 'flex', gap: '0.75rem' }}>
               {isAuthenticated ? (

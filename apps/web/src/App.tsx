@@ -23,6 +23,8 @@ import { LoginPage } from './pages/auth/LoginPage';
 import { RegisterPage } from './pages/auth/RegisterPage';
 import { VerifyEmailPage } from './pages/auth/VerifyEmailPage';
 import { GoogleCallbackPage } from './pages/auth/GoogleCallbackPage';
+import { VoucherSignupPage } from './pages/auth/VoucherSignupPage';
+import { PricingPage } from './pages/public/PricingPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { EmissionsPage } from './pages/dashboard/EmissionsPage';
 import { EmissionsDataEntry } from './pages/dashboard/emissions/EmissionsDataEntry';
@@ -120,6 +122,7 @@ export function App() {
             <Route path="/products/carbontrace" element={<CarbonTracePage />} />
             <Route path="/products/hydropulse" element={<HydroPulsePage />} />
             <Route path="/products/sylvagraph" element={<SylvagraphPage />} />
+            <Route path="/pricing" element={<PricingPage />} />
           </Route>
 
           {/* Public BioCarbon marketplace (no auth) */}
@@ -131,6 +134,7 @@ export function App() {
           {/* Auth routes (no layout wrapper) */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+          <Route path="/signup/voucher" element={<VoucherSignupPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
 
