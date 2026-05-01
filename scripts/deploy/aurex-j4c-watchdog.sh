@@ -99,18 +99,19 @@ mv "${LAST_REPORT}.tmp" "${LAST_REPORT}"
 # Pull verdict + a one-line digest from the JSON for the alert body.
 DIGEST=$(python3 -c '
 import json, sys
+key_v = "verdict"
 with open(sys.argv[1]) as f:
     r = json.load(f)
-verdict = r.get("verdict", "?")
+verdict = r.get(key_v, "?")
 sections = []
 for name in ("deploy","containers","endpoints","csp","autoheal","jira"):
     sec = r.get(name, {})
-    sections.append(f"{name}={sec.get(\"verdict\",\"?\")}")
+    sections.append(name + "=" + sec.get(key_v, "?"))
 ep = r.get("endpoints", {}).get("probes", [])
-worst = next(({"url":p["url"],"actual":p["actual"],"err":p.get("error")} for p in ep if not p.get("ok")), None)
-print(f"verdict={verdict} | " + ", ".join(sections))
+worst = next((p for p in ep if not p.get("ok")), None)
+print("verdict=" + verdict + " | " + ", ".join(sections))
 if worst:
-    print(f"first failing endpoint: {worst}")
+    print("first failing endpoint: url=" + str(worst.get("url")) + " actual=" + str(worst.get("actual")))
 ' "${LAST_REPORT}" 2>/dev/null || echo "verdict=UNKNOWN (could not parse report)")
 
 VERDICT=$(echo "${DIGEST}" | head -1 | awk -F'verdict=' '{print $2}' | awk -F' ' '{print $1}')
