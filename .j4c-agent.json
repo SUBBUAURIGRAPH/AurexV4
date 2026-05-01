@@ -1,0 +1,27 @@
+{
+  "project": "AurexV4",
+  "jira_project_key": "AVX",
+  "jira_site": "aurigraphdlt.atlassian.net",
+  "server": {
+    "host": "dev4.aurigraph.io",
+    "ssh_port": 2227,
+    "user": "subbu",
+    "deploy_path": "/opt/aurexv4"
+  },
+  "health_endpoints": [
+    {"url": "https://dev4.aurigraph.io/", "expect": 200}
+  ],
+  "expected_containers": [],
+  "csp_required_origins": [],
+  "autoheal": {
+    "layer1_compose_file": "docker-compose.yml",
+    "layer2_systemd_unit": null,
+    "layer3_extprobe_unit": null
+  },
+  "j4c_central": {
+    "grpc_endpoint": null,
+    "grpc_tls": true,
+    "grpc_auth_token_env": "J4C_AGENT_TOKEN",
+    "comment": "TODO: confirm production URL (currently dev4 staging) + deploy_path; populate expected_containers + csp_required_origins; install AutoHeal Layer 2/3 timers per HCE2-347/348 pattern; set grpc_endpoint when J4C AgentReportService is live."
+  }
+}

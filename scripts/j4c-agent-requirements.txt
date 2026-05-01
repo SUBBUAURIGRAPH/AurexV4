@@ -1,0 +1,12 @@
+# j4c-agent — runtime dependencies for `report` mode (gRPC submission to
+# J4C central). The `doctor` command is stdlib-only and does NOT need
+# these installed.
+#
+#   pip install -r scripts/j4c-agent-requirements.txt
+#
+# Pinned to versions known to compile against Python 3.8+ and to match
+# the J4C server-side proto runtime (J4C Portal v3.x).
+
+grpcio>=1.60,<2.0
+grpcio-tools>=1.60,<2.0    # only needed when re-generating stubs from .proto
+protobuf>=4.25,<6.0

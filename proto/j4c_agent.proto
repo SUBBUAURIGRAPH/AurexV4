@@ -1,0 +1,177 @@
+// J4C Agent ↔ J4C Server contract — proto3.
+//
+// One report per project per check cycle. Server is expected to live at
+// e.g. ``j4c.aurigraph.io:50051`` and implement ``AgentReportService``.
+//
+// Generation (Python stubs into scripts/j4c_grpc/):
+//
+//   python3 -m grpc_tools.protoc \
+//     -I proto \
+//     --python_out=scripts/j4c_grpc \
+//     --grpc_python_out=scripts/j4c_grpc \
+//     proto/j4c_agent.proto
+//
+// Wire format: gRPC over HTTP/2, protobuf-encoded.
+
+syntax = "proto3";
+
+package aurigraph.j4c.v1;
+
+option go_package = "github.com/aurigraph-dlt-corp/j4c/proto/v1;j4cv1";
+
+import "google/protobuf/timestamp.proto";
+
+// ────────────────────────────────────────────────────────────────────
+// Service
+// ────────────────────────────────────────────────────────────────────
+
+service AgentReportService {
+  // Submit a single agent report. Server is expected to persist the
+  // report, file follow-up JIRA tickets for any FAIL/PARTIAL gaps that
+  // don't already have an open ticket, and update the project's
+  // Insights Journal entry.
+  rpc SubmitReport(AgentReport) returns (SubmitReportResponse);
+
+  // Optional: server-driven streaming of follow-up actions for the
+  // agent to execute (e.g. "rerun doctor", "post JIRA comment X").
+  // Agents may ignore actions they don't understand.
+  rpc StreamActions(StreamActionsRequest) returns (stream AgentAction);
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Top-level report
+// ────────────────────────────────────────────────────────────────────
+
+message AgentReport {
+  string j4c_agent_version = 1;
+  google.protobuf.Timestamp generated_at = 2;
+  string mode = 3;                  // "local" | "server"
+  string verdict = 4;               // "PASS" | "PARTIAL" | "FAIL"
+
+  ProjectSection project = 5;
+  DeploySection deploy = 6;
+  ContainersSection containers = 7;
+  EndpointsSection endpoints = 8;
+  CspSection csp = 9;
+  AutoHealSection autoheal = 10;
+  JiraSection jira = 11;
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Sections
+// ────────────────────────────────────────────────────────────────────
+
+message ProjectSection {
+  string name = 1;
+  string head = 2;
+  string branch = 3;
+  CommitInfo last_commit = 4;
+  string verdict = 5;
+}
+
+message CommitInfo {
+  string short = 1;
+  string author = 2;
+  string email = 3;
+  string committed_at = 4;
+  string subject = 5;
+}
+
+message DeploySection {
+  string mode = 1;                  // "local" | "server"
+  string server_path = 2;
+  string server_head = 3;
+  string local_head = 4;
+  bool drift = 5;                   // true when server_head != local_head
+  string verdict = 6;
+  string error = 7;
+}
+
+message ContainersSection {
+  int32 expected_count = 1;
+  int32 running_count = 2;
+  repeated string missing = 3;
+  repeated string not_running = 4;
+  repeated string unhealthy = 5;
+  repeated ContainerStatus containers = 6;
+  string verdict = 7;
+}
+
+message ContainerStatus {
+  string name = 1;
+  string state = 2;                 // "running" | "exited" | ...
+  string status = 3;                // raw status string from docker ps
+  string health = 4;                // "healthy" | "unhealthy" | "n/a" | ...
+}
+
+message EndpointsSection {
+  repeated EndpointProbe probes = 1;
+  string verdict = 2;
+}
+
+message EndpointProbe {
+  string url = 1;
+  int32 expect = 2;
+  int32 actual = 3;
+  double elapsed_ms = 4;
+  bool ok = 5;
+  string error = 6;
+}
+
+message CspSection {
+  string target = 1;
+  repeated string required_origins = 2;
+  repeated string missing_origins = 3;
+  int32 header_length = 4;
+  bool skipped = 5;
+  string verdict = 6;
+  string error = 7;
+}
+
+message AutoHealSection {
+  AutoHealLayer layer1 = 1;         // Docker restart policy
+  AutoHealLayer layer2 = 2;         // systemd watchdog timer
+  AutoHealLayer layer3 = 3;         // external probe / uptime monitor
+  string verdict = 4;
+}
+
+message AutoHealLayer {
+  string verdict = 1;
+  string status = 2;                // e.g. "active" / "inactive"
+  string reason = 3;                // present on PARTIAL/FAIL
+  string unit = 4;                  // unit name (layer 2/3)
+}
+
+message JiraSection {
+  string project = 1;
+  int32 open_total = 2;
+  map<string, int32> by_priority = 3;
+  bool skipped = 4;
+  string verdict = 5;
+  string error = 6;
+}
+
+// ────────────────────────────────────────────────────────────────────
+// Service messages
+// ────────────────────────────────────────────────────────────────────
+
+message SubmitReportResponse {
+  string status = 1;                // "accepted" | "rejected"
+  string report_id = 2;
+  // JIRA tickets the server opened in response to this report (e.g. for
+  // newly-discovered AutoHeal gaps).
+  repeated string follow_up_jira_keys = 3;
+  string message = 4;
+}
+
+message StreamActionsRequest {
+  string project = 1;
+  string agent_version = 2;
+}
+
+message AgentAction {
+  string action_id = 1;
+  string action_type = 2;           // "rerun_doctor", "post_jira_comment", ...
+  map<string, string> params = 3;
+  google.protobuf.Timestamp issued_at = 4;
+}
