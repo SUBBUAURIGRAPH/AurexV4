@@ -22,6 +22,7 @@ const { mockPrisma } = vi.hoisted(() => {
     },
     session: {
       deleteMany: vi.fn(),
+      create: vi.fn().mockResolvedValue({ id: 'sess-new' }),
     },
     authEvent: {
       create: vi.fn().mockResolvedValue({ id: 'ae-1' }),
@@ -49,6 +50,11 @@ vi.mock('bcrypt', () => ({
     hash: vi.fn(async (pw: string) => `hash::${pw}`),
     compare: vi.fn(async () => true),
   },
+}));
+
+vi.mock('../lib/jwt.js', () => ({
+  signAccessToken: vi.fn(() => 'access.jwt'),
+  signRefreshToken: vi.fn(() => 'refresh.jwt'),
 }));
 
 import { requestReset, consumeToken } from './password-reset.service.js';
@@ -176,7 +182,7 @@ describe('requestReset', () => {
 // ── consumeToken ───────────────────────────────────────────────────────────
 
 describe('consumeToken', () => {
-  it('hashes the new password, marks token used, and deletes every session', async () => {
+  it('hashes the new password, marks token used, deletes every session, and auto-issues fresh tokens', async () => {
     const plaintext = 'a'.repeat(64);
     const tokenHash = sha256(plaintext);
     mockPrisma.passwordReset.findUnique.mockResolvedValue({
@@ -185,12 +191,38 @@ describe('consumeToken', () => {
       expiresAt: new Date(Date.now() + 60_000),
       usedAt: null,
     });
-    mockPrisma.user.update.mockResolvedValue({ id: 'u1', email: 'a@b.com' });
+    mockPrisma.user.update.mockResolvedValue({
+      id: 'u1', email: 'a@b.com', name: 'Alice', role: 'viewer',
+    });
     mockPrisma.passwordReset.update.mockResolvedValue({ id: 'pr1' });
 
     const result = await consumeToken(plaintext, 'NewStr0ng!Pass', '127.0.0.1', 'jest-ua');
 
-    expect(result).toEqual({ userId: 'u1', email: 'a@b.com' });
+    expect(result).toEqual({
+      userId: 'u1',
+      email: 'a@b.com',
+      name: 'Alice',
+      role: 'viewer',
+      accessToken: 'access.jwt',
+      refreshToken: 'refresh.jwt',
+    });
+
+    // Fresh session created AFTER deleteMany so the user is auto-logged in.
+    expect(mockPrisma.session.create).toHaveBeenCalledTimes(1);
+    const sessArgs = mockPrisma.session.create.mock.calls[0]![0] as {
+      data: { userId: string; refreshToken: string; ipAddress?: string; userAgent?: string };
+    };
+    expect(sessArgs.data.userId).toBe('u1');
+    expect(sessArgs.data.refreshToken).toBe('refresh.jwt');
+    expect(sessArgs.data.ipAddress).toBe('127.0.0.1');
+    expect(sessArgs.data.userAgent).toBe('jest-ua');
+
+    // Two auth events: PASSWORD_RESET_COMPLETE + LOGIN_SUCCESS (auto-login).
+    const evtTypes = mockPrisma.authEvent.create.mock.calls.map(
+      (c) => (c[0] as { data: { eventType: string } }).data.eventType,
+    );
+    expect(evtTypes).toContain('PASSWORD_RESET_COMPLETE');
+    expect(evtTypes).toContain('LOGIN_SUCCESS');
 
     // Looked up by the sha256 hash, never the plaintext.
     expect(mockPrisma.passwordReset.findUnique).toHaveBeenCalledWith({
@@ -220,13 +252,9 @@ describe('consumeToken', () => {
     expect(mockPrisma.session.deleteMany).toHaveBeenCalledWith({
       where: { userId: 'u1' },
     });
-
-    // Auth event PASSWORD_RESET_COMPLETE.
-    expect(mockPrisma.authEvent.create).toHaveBeenCalledTimes(1);
-    const evt = mockPrisma.authEvent.create.mock.calls[0]![0] as {
-      data: { eventType: string };
-    };
-    expect(evt.data.eventType).toBe('PASSWORD_RESET_COMPLETE');
+    // (auth event types asserted above — the auto-login path now writes
+    // both PASSWORD_RESET_COMPLETE and LOGIN_SUCCESS, replacing the
+    // earlier single-event assertion.)
   });
 
   it('rejects unknown tokens with 404', async () => {

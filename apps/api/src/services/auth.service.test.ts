@@ -33,6 +33,9 @@ const { mockPrisma } = vi.hoisted(() => {
     authEvent: {
       create: vi.fn(),
     },
+    session: {
+      create: vi.fn().mockResolvedValue({ id: 'sess-1' }),
+    },
     // AAT-EMAIL: emailService.sendEmail writes audit rows on every call.
     outboundEmail: {
       create: vi.fn().mockResolvedValue({ id: 'oe-1' }),
@@ -121,7 +124,7 @@ describe('register (no coupon)', () => {
   it('creates a user and issues a verification token; trial absent', async () => {
     process.env.NODE_ENV = 'test';
     mockPrisma.user.findUnique.mockResolvedValue(null);
-    mockPrisma.user.create.mockResolvedValue({ id: 'u1', email: 'a@b.com', name: 'Alice' });
+    mockPrisma.user.create.mockResolvedValue({ id: 'u1', email: 'a@b.com', name: 'Alice', role: 'viewer' });
     mockPrisma.emailVerification.create.mockResolvedValue({ id: 'ev1' });
 
     const result = await register('a@b.com', 'Sup3rPass!', 'Alice');
@@ -150,7 +153,7 @@ describe('register (no coupon)', () => {
   it('does NOT leak a plaintext verification token in production either', async () => {
     process.env.NODE_ENV = 'production';
     mockPrisma.user.findUnique.mockResolvedValue(null);
-    mockPrisma.user.create.mockResolvedValue({ id: 'u1', email: 'a@b.com', name: 'Alice' });
+    mockPrisma.user.create.mockResolvedValue({ id: 'u1', email: 'a@b.com', name: 'Alice', role: 'viewer' });
     mockPrisma.emailVerification.create.mockResolvedValue({ id: 'ev1' });
 
     const result = await register('a@b.com', 'Sup3rPass!', 'Alice');
@@ -171,7 +174,7 @@ describe('register (with coupon)', () => {
   it('redeems the voucher and returns the trial window on the response', async () => {
     process.env.NODE_ENV = 'test';
     mockPrisma.user.findUnique.mockResolvedValue(null);
-    mockPrisma.user.create.mockResolvedValue({ id: 'u1', email: 'a@b.com', name: 'Alice' });
+    mockPrisma.user.create.mockResolvedValue({ id: 'u1', email: 'a@b.com', name: 'Alice', role: 'viewer' });
     mockPrisma.emailVerification.create.mockResolvedValue({ id: 'ev1' });
     mockPrisma.signupCoupon.findFirst.mockResolvedValue(makeCoupon());
     mockPrisma.couponRedemption.findUnique.mockResolvedValue(null);
@@ -206,7 +209,7 @@ describe('register (with coupon)', () => {
   it('still creates the user and surfaces couponWarning when redemption fails', async () => {
     process.env.NODE_ENV = 'test';
     mockPrisma.user.findUnique.mockResolvedValue(null);
-    mockPrisma.user.create.mockResolvedValue({ id: 'u2', email: 'b@b.com', name: 'Bob' });
+    mockPrisma.user.create.mockResolvedValue({ id: 'u2', email: 'b@b.com', name: 'Bob', role: 'viewer' });
     mockPrisma.emailVerification.create.mockResolvedValue({ id: 'ev2' });
     // Coupon doesn't exist → redeem throws inside the txn.
     mockPrisma.signupCoupon.findFirst.mockResolvedValue(null);
@@ -251,7 +254,7 @@ describe('register (with coupon)', () => {
   it('returns ALREADY_REDEEMED warning when re-using a voucher with the same email', async () => {
     process.env.NODE_ENV = 'test';
     mockPrisma.user.findUnique.mockResolvedValue(null);
-    mockPrisma.user.create.mockResolvedValue({ id: 'u3', email: 'd@b.com', name: 'Dave' });
+    mockPrisma.user.create.mockResolvedValue({ id: 'u3', email: 'd@b.com', name: 'Dave', role: 'viewer' });
     mockPrisma.emailVerification.create.mockResolvedValue({ id: 'ev3' });
     mockPrisma.signupCoupon.findFirst.mockResolvedValue(makeCoupon());
     // Existing redemption row triggers the dedup branch in redeemCoupon.

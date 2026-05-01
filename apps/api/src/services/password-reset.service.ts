@@ -28,6 +28,7 @@ import bcrypt from 'bcrypt';
 import { prisma } from '@aurex/database';
 import { AppError } from '../middleware/error-handler.js';
 import { logger } from '../lib/logger.js';
+import { signAccessToken, signRefreshToken, type TokenPayload } from '../lib/jwt.js';
 import * as emailService from './email/email.service.js';
 import { renderPasswordResetEmail } from './email/templates/password-reset.js';
 import { logAuthEvent } from './auth.service.js';
@@ -161,12 +162,25 @@ export async function requestReset(
  * and DELETEs every active session for that user so existing JWTs lose
  * their refresh path.
  */
+export interface ConsumeTokenResult {
+  userId: string;
+  email: string;
+  name: string;
+  role: string;
+  /** Auto-login tokens issued AFTER all prior sessions are wiped. The
+   *  SPA stores them and drops the user straight onto /dashboard — no
+   *  separate login round-trip after a reset (UX directive 2026-05-01:
+   *  no duplicate logins in workflow). */
+  accessToken: string;
+  refreshToken: string;
+}
+
 export async function consumeToken(
   plaintext: string,
   newPassword: string,
   ipAddress?: string,
   userAgent?: string,
-): Promise<{ userId: string; email: string }> {
+): Promise<ConsumeTokenResult> {
   if (!plaintext || typeof plaintext !== 'string') {
     throw new AppError(400, 'Bad Request', 'Reset token is required');
   }
@@ -199,7 +213,7 @@ export async function consumeToken(
         failedAttempts: 0,
         lockedUntil: null,
       },
-      select: { id: true, email: true },
+      select: { id: true, email: true, name: true, role: true },
     });
     await tx.passwordReset.update({
       where: { id: row.id },
@@ -211,10 +225,41 @@ export async function consumeToken(
     return updated;
   });
 
-  await logAuthEvent(user.id, 'PASSWORD_RESET_COMPLETE', ipAddress, userAgent);
-  logger.info({ userId: user.id }, 'Password reset completed');
+  // Auto-login: mint a fresh access + refresh and persist a single new
+  // session (the deleteMany above wiped every prior one). The SPA reads
+  // the tokens, writes them to localStorage, and bounces straight to
+  // /dashboard — no manual sign-in step.
+  const tokenPayload: TokenPayload = {
+    sub: user.id,
+    email: user.email,
+    role: user.role as TokenPayload['role'],
+  };
+  const accessToken = signAccessToken(tokenPayload);
+  const refreshToken = signRefreshToken(tokenPayload);
+  await prisma.session.create({
+    data: {
+      userId: user.id,
+      refreshToken,
+      userAgent,
+      ipAddress,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60_000),
+    },
+  });
 
-  return { userId: user.id, email: user.email };
+  await logAuthEvent(user.id, 'PASSWORD_RESET_COMPLETE', ipAddress, userAgent);
+  await logAuthEvent(user.id, 'LOGIN_SUCCESS', ipAddress, userAgent, {
+    method: 'password-reset-auto-login',
+  });
+  logger.info({ userId: user.id }, 'Password reset completed (auto-login issued)');
+
+  return {
+    userId: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.role.toLowerCase(),
+    accessToken,
+    refreshToken,
+  };
 }
 
 /** Test-only: drop the in-process token TTL constant for unit tests that

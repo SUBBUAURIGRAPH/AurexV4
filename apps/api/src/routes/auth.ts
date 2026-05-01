@@ -96,9 +96,18 @@ authRouter.post('/register', async (req, res, next) => {
     );
 
     // The frontend keys on `data` for the user shape; trial / coupon
-    // fields ride alongside so a single response carries everything.
+    // fields ride alongside. Tokens are top-level so AuthContext.register
+    // can pick them up from the same shape as /login (auto-login per UX
+    // directive 2026-05-01: no duplicate logins in workflow).
     const payload: Record<string, unknown> = {
-      data: { id: result.id, email: result.email, name: result.name },
+      data: {
+        id: result.id,
+        email: result.email,
+        name: result.name,
+        role: result.role,
+      },
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
     };
     if (result.trial) {
       payload.trial = {
@@ -198,13 +207,26 @@ authRouter.post('/forgot-password', async (req, res, next) => {
 authRouter.post('/reset-password', async (req, res, next) => {
   try {
     const { token, newPassword } = resetPasswordSchema.parse(req.body ?? {});
-    await passwordResetService.consumeToken(
+    const result = await passwordResetService.consumeToken(
       token,
       newPassword,
       getClientIP(req),
       req.headers['user-agent'],
     );
-    res.json({ message: 'Password reset complete. Sign in with your new password.' });
+    // Same shape as /login so AuthContext can store the tokens directly.
+    // Auto-login on reset eliminates the manual re-login step (UX
+    // directive 2026-05-01: no duplicate logins in workflow).
+    res.json({
+      message: 'Password reset complete.',
+      accessToken: result.accessToken,
+      refreshToken: result.refreshToken,
+      user: {
+        id: result.userId,
+        email: result.email,
+        name: result.name,
+        role: result.role,
+      },
+    });
   } catch (err) {
     next(err);
   }

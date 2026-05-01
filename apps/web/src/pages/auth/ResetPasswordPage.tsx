@@ -8,12 +8,14 @@
  */
 import { useEffect, useState, FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { useAuth } from '../../contexts/AuthContext';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 
 export function ResetPasswordPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { refreshUser } = useAuth();
   const token = searchParams.get('token') ?? '';
 
   const [password, setPassword] = useState('');
@@ -44,12 +46,34 @@ export function ResetPasswordPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ token, newPassword: password }),
       });
-      const data = (await res.json().catch(() => ({}))) as { message?: string; detail?: string };
+      const data = (await res.json().catch(() => ({}))) as {
+        message?: string;
+        detail?: string;
+        accessToken?: string;
+        refreshToken?: string;
+      };
       if (!res.ok) {
         setErrorMsg(data.detail || data.message || 'Reset failed. Please request a new link.');
         return;
       }
-      // Success — bounce to login with a banner the LoginPage can render.
+      // Auto-login: server issues a fresh JWT pair AFTER wiping all prior
+      // sessions. Drop them into localStorage (same keys used by /login),
+      // refresh the user via /me, and route straight to /dashboard — no
+      // manual sign-in (UX directive: no duplicate logins).
+      if (data.accessToken && data.refreshToken) {
+        localStorage.setItem('aurex_token', data.accessToken);
+        localStorage.setItem('aurex_refresh_token', data.refreshToken);
+        try {
+          await refreshUser();
+        } catch {
+          // If /me fails, fall back to the legacy "go log in" path.
+          navigate('/login?reset=ok', { replace: true });
+          return;
+        }
+        navigate('/dashboard', { replace: true });
+        return;
+      }
+      // Older API (no tokens) — fall back to manual login.
       navigate('/login?reset=ok', { replace: true });
     } catch {
       setErrorMsg('Could not reach the server. Check your connection and try again.');

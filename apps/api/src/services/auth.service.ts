@@ -114,6 +114,13 @@ export interface RegisterResult {
   id: string;
   email: string;
   name: string;
+  role: string;
+  /** Auto-login tokens issued at registration. The SPA picks these up and
+   *  drops the user straight onto /onboarding (or /dashboard for non-
+   *  voucher signups) — no separate login round-trip. UX directive
+   *  2026-05-01: "no duplicate logins in workflow". */
+  accessToken: string;
+  refreshToken: string;
   /** Trial window when a coupon was successfully redeemed during signup. */
   trial?: RegisterTrial;
   /** Set when a coupon code was provided but redemption failed; the
@@ -143,7 +150,7 @@ export async function register(
 
   const user = await prisma.user.create({
     data: { email, passwordHash, name },
-    select: { id: true, email: true, name: true },
+    select: { id: true, email: true, name: true, role: true },
   });
 
   logger.info({ userId: user.id, email }, 'User registered');
@@ -197,7 +204,38 @@ export async function register(
     { couponApplied: Boolean(trial), couponWarning: couponWarning ?? null },
   );
 
-  const result: RegisterResult = { id: user.id, email: user.email, name: user.name };
+  // Auto-login: issue access + refresh tokens, persist a session so
+  // /auth/refresh works, and ALSO log a LOGIN_SUCCESS event so the audit
+  // trail mirrors a normal login. The SPA stores the tokens and drops
+  // the user straight onto /onboarding — no separate login round-trip.
+  const tokenPayload: TokenPayload = {
+    sub: user.id,
+    email: user.email,
+    role: user.role as TokenPayload['role'],
+  };
+  const accessToken = signAccessToken(tokenPayload);
+  const refreshToken = signRefreshToken(tokenPayload);
+  await prisma.session.create({
+    data: {
+      userId: user.id,
+      refreshToken,
+      userAgent: options.userAgent,
+      ipAddress: options.ipAddress,
+      expiresAt: new Date(Date.now() + 7 * 24 * 60 * 60_000),
+    },
+  });
+  await logAuthEvent(user.id, 'LOGIN_SUCCESS', options.ipAddress, options.userAgent, {
+    method: 'register-auto-login',
+  });
+
+  const result: RegisterResult = {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: toApiRole(user.role),
+    accessToken,
+    refreshToken,
+  };
   if (trial) result.trial = trial;
   if (couponWarning) result.couponWarning = couponWarning;
   return result;
