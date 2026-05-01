@@ -844,7 +844,7 @@ export function OnboardingPage() {
         </button>
       </div>
 
-      <ProgressBar current={activeStep} />
+      <Breadcrumbs current={activeStep} onNavigate={(target) => goBack(target as 1 | 2)} />
 
       <div style={{
         backgroundColor: 'var(--bg-card)',
@@ -889,52 +889,110 @@ export function OnboardingPage() {
   );
 }
 
-// ── Progress bar ──────────────────────────────────────────────────────────
+// ── Breadcrumbs ───────────────────────────────────────────────────────────
+// UX directive 2026-05-01: replace the chunky pill-stepper with a compact
+// top-of-page breadcrumbs trail. Completed steps are clickable (back-
+// navigable); the active step is bold + green; future steps are muted and
+// not interactive. Visually: "Onboarding › Organisation › Plan / voucher
+// › Invite team", matching the breadcrumbs convention used elsewhere on
+// public pages.
 
-function ProgressBar({ current }: { current: 1 | 2 | 3 }) {
+function Breadcrumbs({
+  current,
+  onNavigate,
+}: {
+  current: 1 | 2 | 3;
+  onNavigate?: (step: 1 | 2) => void;
+}) {
   const steps = [
     { num: 1 as const, label: 'Organisation' },
     { num: 2 as const, label: 'Plan / voucher' },
     { num: 3 as const, label: 'Invite team' },
   ];
+
+  const baseLabelStyle: React.CSSProperties = {
+    fontSize: '0.875rem',
+    fontWeight: 500,
+    padding: '0.125rem 0.25rem',
+    borderRadius: '0.25rem',
+    transition: 'background-color 120ms ease, color 120ms ease',
+  };
+
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.5rem' }}>
+    <nav
+      aria-label="Onboarding progress"
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        flexWrap: 'wrap',
+        gap: '0.375rem',
+        marginBottom: '1.5rem',
+        paddingBottom: '0.75rem',
+        borderBottom: '1px solid var(--border-primary)',
+      }}
+    >
+      <span
+        style={{
+          fontSize: '0.8125rem',
+          color: 'var(--text-tertiary)',
+          fontWeight: 600,
+          textTransform: 'uppercase',
+          letterSpacing: '0.06em',
+          marginRight: '0.5rem',
+        }}
+      >
+        Onboarding
+      </span>
+      <span aria-hidden="true" style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>
+        ›
+      </span>
       {steps.map((s, i) => {
         const done = current > s.num;
         const active = current === s.num;
+        const isClickable = done && s.num < 3 && Boolean(onNavigate);
+        const label = (
+          <span
+            style={{
+              ...baseLabelStyle,
+              color: active ? '#1a5d3d' : done ? '#10b981' : 'var(--text-tertiary)',
+              fontWeight: active ? 700 : done ? 600 : 500,
+              cursor: isClickable ? 'pointer' : 'default',
+              textDecoration: isClickable ? 'underline' : 'none',
+              textUnderlineOffset: '3px',
+            }}
+          >
+            {s.label}
+          </span>
+        );
         return (
-          <div key={s.num} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flex: i < steps.length - 1 ? 1 : 0 }}>
-            <div style={{
-              display: 'flex', alignItems: 'center', gap: '0.625rem',
-              padding: '0.5rem 0.75rem', borderRadius: '9999px',
-              backgroundColor: done ? 'rgba(16,185,129,0.1)' : active ? 'rgba(26,93,61,0.1)' : 'var(--bg-secondary)',
-              border: `1px solid ${done ? '#10b981' : active ? '#1a5d3d' : 'var(--border-primary)'}`,
-            }}>
-              <div style={{
-                width: '1.5rem', height: '1.5rem', borderRadius: '9999px',
-                backgroundColor: done ? '#10b981' : active ? '#1a5d3d' : 'var(--bg-tertiary)',
-                color: '#fff', fontSize: '0.75rem', fontWeight: 700,
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                {done ? '✓' : s.num}
-              </div>
-              <span style={{
-                fontSize: '0.8125rem', fontWeight: active || done ? 600 : 500,
-                color: done ? '#10b981' : active ? '#1a5d3d' : 'var(--text-tertiary)',
-              }}>
-                {s.label}
-              </span>
-            </div>
-            {i < steps.length - 1 && (
-              <div style={{
-                flex: 1, height: '1px',
-                backgroundColor: done ? '#10b981' : 'var(--border-primary)',
-              }} />
+          <span key={s.num} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.375rem' }}>
+            {isClickable ? (
+              <button
+                type="button"
+                onClick={() => onNavigate?.(s.num as 1 | 2)}
+                aria-label={`Go back to ${s.label}`}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
+                  fontFamily: 'inherit',
+                }}
+              >
+                {label}
+              </button>
+            ) : (
+              <span aria-current={active ? 'step' : undefined}>{label}</span>
             )}
-          </div>
+            {i < steps.length - 1 && (
+              <span aria-hidden="true" style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>
+                ›
+              </span>
+            )}
+          </span>
         );
       })}
-    </div>
+    </nav>
   );
 }
 
