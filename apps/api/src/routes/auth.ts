@@ -5,6 +5,7 @@ import { requireAuth } from '../middleware/auth.js';
 import { isValidEmail, sanitizeInput } from '../lib/security.js';
 import * as authService from '../services/auth.service.js';
 import * as emailVerificationService from '../services/email-verification.service.js';
+import * as passwordResetService from '../services/password-reset.service.js';
 
 export const authRouter: IRouter = Router();
 
@@ -152,6 +153,58 @@ authRouter.post('/resend-verification', requireAuth, async (req, res, next) => {
     // AAT-EMAIL: the plaintext token is delivered via SES — never
     // returned in this response, even in dev.
     res.json({ data: { expiresAt: issued.expiresAt.toISOString() } });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ─── Password reset (forgot-password flow) ────────────────────────────
+
+const forgotPasswordSchema = z.object({
+  email: z.string().trim().min(1).max(254).email(),
+});
+
+const resetPasswordSchema = z.object({
+  token: z.string().trim().min(16).max(256),
+  newPassword: z.string().min(8).max(128),
+});
+
+/**
+ * Always returns 202 — never reveals whether the email matched a user
+ * (ADM-052: no enumeration). The dev-only `_devResetUrl` field is
+ * surfaced when NODE_ENV !== 'production' so an operator running
+ * locally can complete the flow without a real email round-trip.
+ */
+authRouter.post('/forgot-password', async (req, res, next) => {
+  try {
+    const { email } = forgotPasswordSchema.parse(req.body ?? {});
+    const result = await passwordResetService.requestReset(
+      sanitizeInput(email, 254),
+      getClientIP(req),
+      req.headers['user-agent'],
+    );
+    const payload: Record<string, unknown> = {
+      message: 'If that email is registered, a password-reset link is on its way.',
+    };
+    if (process.env.NODE_ENV !== 'production' && result._devResetUrl) {
+      payload._devResetUrl = result._devResetUrl;
+    }
+    res.status(202).json(payload);
+  } catch (err) {
+    next(err);
+  }
+});
+
+authRouter.post('/reset-password', async (req, res, next) => {
+  try {
+    const { token, newPassword } = resetPasswordSchema.parse(req.body ?? {});
+    await passwordResetService.consumeToken(
+      token,
+      newPassword,
+      getClientIP(req),
+      req.headers['user-agent'],
+    );
+    res.json({ message: 'Password reset complete. Sign in with your new password.' });
   } catch (err) {
     next(err);
   }

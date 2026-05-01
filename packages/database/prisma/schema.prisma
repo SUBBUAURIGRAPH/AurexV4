@@ -52,6 +52,7 @@ model User {
   workflowEnablements OrgWorkflowEnablement[] @relation("workflowEnabler")
   brsrResponses      BrsrResponse[]    @relation("brsrResponsesCreator")
   emailVerifications EmailVerification[]
+  passwordResets     PasswordReset[]
   // AAT-R3 / AV4-428, AV4-430: India DPDP Act 2023 compliance back-relations.
   consentRecords        ConsentRecord[]
   dataPrincipalRequests DataPrincipalRequest[]
@@ -80,6 +81,26 @@ model EmailVerification {
   @@index([userId])
   @@index([expiresAt])
   @@map("email_verifications")
+}
+
+// ─── Password reset (forgot-password flow) ─────────────────────────────
+// Single-use, short-TTL (1h) reset tokens. Token column stores the SHA-256
+// hex of a 32-byte random secret — the plaintext is delivered ONLY by
+// email and never stored. Same shape / lifecycle pattern as
+// EmailVerification: expiresAt enforced at consume-time, usedAt set on
+// successful password change so a token can't be replayed.
+model PasswordReset {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String    @unique @db.VarChar(128)
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("password_resets")
 }
 
 model Session {
@@ -480,6 +501,8 @@ enum AuthEventType {
   REGISTER              @map("register")
   EMAIL_VERIFIED        @map("email_verified")
   EMAIL_VERIFY_RESEND   @map("email_verify_resend")
+  PASSWORD_RESET_REQUEST  @map("password_reset_request")
+  PASSWORD_RESET_COMPLETE @map("password_reset_complete")
 }
 
 enum EmissionScope {

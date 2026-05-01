@@ -49,7 +49,11 @@ import {
 
 // ─── Types ─────────────────────────────────────────────────────────────
 
-export type EmailTemplateKey = 'verification' | 'welcome' | 'payment-receipt';
+export type EmailTemplateKey =
+  | 'verification'
+  | 'welcome'
+  | 'payment-receipt'
+  | 'password-reset';
 
 export interface SendEmailInput {
   to: string;

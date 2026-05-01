@@ -24,6 +24,8 @@ import { RegisterPage } from './pages/auth/RegisterPage';
 import { VerifyEmailPage } from './pages/auth/VerifyEmailPage';
 import { GoogleCallbackPage } from './pages/auth/GoogleCallbackPage';
 import { VoucherSignupPage } from './pages/auth/VoucherSignupPage';
+import { ForgotPasswordPage } from './pages/auth/ForgotPasswordPage';
+import { ResetPasswordPage } from './pages/auth/ResetPasswordPage';
 import { PricingPage } from './pages/public/PricingPage';
 import { DashboardPage } from './pages/dashboard/DashboardPage';
 import { EmissionsPage } from './pages/dashboard/EmissionsPage';
@@ -135,6 +137,8 @@ export function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
           <Route path="/signup/voucher" element={<VoucherSignupPage />} />
+          <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
           <Route path="/verify-email" element={<VerifyEmailPage />} />
           <Route path="/auth/google/callback" element={<GoogleCallbackPage />} />
 

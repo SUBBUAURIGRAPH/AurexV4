@@ -17,17 +17,21 @@ export function LoginPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [googleError, setGoogleError] = useState<string | null>(null);
+  const [resetSuccess, setResetSuccess] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
 
-  // Pull the ?google_error=... query param into a banner; clear from URL so
-  // a manual refresh doesn't keep showing it.
+  // Pull the ?google_error=... and ?reset=ok query params into banners;
+  // clear them from the URL so a manual refresh doesn't keep showing them.
   useEffect(() => {
-    const code = searchParams.get('google_error');
-    if (!code) return;
-    setGoogleError(googleErrorMessage(code));
+    const googleCode = searchParams.get('google_error');
+    const resetOk = searchParams.get('reset') === 'ok';
+    if (!googleCode && !resetOk) return;
+    if (googleCode) setGoogleError(googleErrorMessage(googleCode));
+    if (resetOk) setResetSuccess(true);
     const next = new URLSearchParams(searchParams);
     next.delete('google_error');
+    next.delete('reset');
     setSearchParams(next, { replace: true });
   }, [searchParams, setSearchParams]);
 
@@ -85,6 +89,20 @@ export function LoginPage() {
             <h1 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '0.375rem' }}>Welcome back</h1>
             <p style={{ fontSize: '0.9375rem', color: 'var(--text-tertiary)' }}>Sign in to your Aurex account</p>
           </div>
+
+          {resetSuccess && (
+            <div style={{
+              padding: '0.75rem 1rem',
+              backgroundColor: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(16, 185, 129, 0.25)',
+              borderRadius: '0.5rem',
+              marginBottom: '1.25rem',
+              fontSize: '0.875rem',
+              color: '#047857',
+            }}>
+              Password reset complete. Sign in with your new password.
+            </div>
+          )}
 
           {(error || googleError) && (
             <div style={{
@@ -177,9 +195,9 @@ export function LoginPage() {
             />
 
             <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
-              <a href="#" style={{ fontSize: '0.8125rem', color: '#10b981', textDecoration: 'none', fontWeight: 500 }}>
+              <Link to="/forgot-password" style={{ fontSize: '0.8125rem', color: '#10b981', textDecoration: 'none', fontWeight: 500 }}>
                 Forgot password?
-              </a>
+              </Link>
             </div>
 
             <Button type="submit" fullWidth loading={isLoading} size="lg">
