@@ -3,6 +3,7 @@ import { DashboardSidebar } from '../components/layout/DashboardSidebar';
 import { DashboardTopbar } from '../components/layout/DashboardTopbar';
 import { VerifyEmailBanner } from '../components/layout/VerifyEmailBanner';
 import { useAuth } from '../contexts/AuthContext';
+import { OrgProvider } from '../contexts/OrgContext';
 
 export function DashboardLayout() {
   const { isAuthenticated, isLoading } = useAuth();
@@ -38,17 +39,19 @@ export function DashboardLayout() {
   }
 
   return (
-    <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-secondary)' }}>
-      <DashboardTopbar />
-      <DashboardSidebar />
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
-        <VerifyEmailBanner />
-        <main style={{ flex: 1, padding: '1.5rem' }}>
-          <div className="page-enter">
-            <Outlet />
-          </div>
-        </main>
+    <OrgProvider>
+      <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column', backgroundColor: 'var(--bg-secondary)' }}>
+        <DashboardTopbar />
+        <DashboardSidebar />
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: 0 }}>
+          <VerifyEmailBanner />
+          <main style={{ flex: 1, padding: '1.5rem' }}>
+            <div className="page-enter">
+              <Outlet />
+            </div>
+          </main>
+        </div>
       </div>
-    </div>
+    </OrgProvider>
   );
 }

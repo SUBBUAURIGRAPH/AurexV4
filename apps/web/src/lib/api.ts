@@ -67,6 +67,23 @@ export function setOnboardingIncompleteHandler(
 }
 
 /**
+ * 2026-05-01: pluggable "active org id" getter. The OrgContext wires this
+ * once at mount with a ref-backed getter so every request() call injects
+ * the current `x-org-id` header without threading props through every
+ * caller. Backend `requireOrgScope` honors the header for multi-org
+ * members + SUPER_ADMIN (apps/api/src/middleware/org-scope.ts).
+ *
+ * Decoupled from React so api.ts stays usable from non-React code paths
+ * (TanStack Query, plain hooks, integration tests).
+ */
+type ActiveOrgIdGetter = () => string | null;
+let activeOrgIdGetter: ActiveOrgIdGetter | null = null;
+
+export function setActiveOrgIdGetter(getter: ActiveOrgIdGetter | null): void {
+  activeOrgIdGetter = getter;
+}
+
+/**
  * AAT-378 / AV4-378: pluggable quota-exceeded handler. Symmetric to
  * the onboarding handler — wired once at app boot from ToastContext +
  * react-router so the toast + optional redirect-to-billing UX stays
@@ -196,6 +213,13 @@ async function request<T>(path: string, options: RequestOptions = {}): Promise<T
   };
   if (token) {
     headers['Authorization'] = `Bearer ${token}`;
+  }
+  // Inject the active org id from OrgContext so requireOrgScope on the
+  // backend can route the request to the correct tenant. Skip when the
+  // caller has already set an explicit x-org-id (admin tools, debugging).
+  if (!headers['x-org-id'] && !headers['X-Org-Id']) {
+    const orgId = activeOrgIdGetter?.() ?? null;
+    if (orgId) headers['x-org-id'] = orgId;
   }
 
   // Auto-add Content-Type for POST/PATCH/PUT
