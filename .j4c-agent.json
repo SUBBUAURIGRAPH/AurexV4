@@ -1,27 +1,35 @@
 {
   "project": "AurexV4",
-  "jira_project_key": "AVX",
+  "jira_project_key": "AV4",
   "jira_site": "aurigraphdlt.atlassian.net",
   "server": {
-    "host": "dev4.aurigraph.io",
-    "ssh_port": 2227,
+    "host": "aurex.in",
+    "ssh_port": 2244,
     "user": "subbu",
-    "deploy_path": "/opt/aurexv4"
+    "deploy_path": "/home/subbu/aurexv4-src"
   },
   "health_endpoints": [
-    {"url": "https://dev4.aurigraph.io/", "expect": 200}
+    {"url": "https://aurex.in/api/v1/health", "expect": 200},
+    {"url": "https://aurex.in/", "expect": 200},
+    {"url": "https://aurex.in/login", "expect": 200},
+    {"url": "https://aurex.in/pricing", "expect": 200}
   ],
-  "expected_containers": [],
-  "csp_required_origins": [],
+  "expected_containers": [
+    "aurex-api",
+    "aurex-nginx",
+    "aurex-postgres",
+    "aurex-redis"
+  ],
+  "csp_required_origins": ["'self'"],
   "autoheal": {
-    "layer1_compose_file": "docker-compose.yml",
-    "layer2_systemd_unit": null,
-    "layer3_extprobe_unit": null
+    "layer1_compose_file": "infrastructure/docker/docker-compose.yml",
+    "layer2_systemd_unit": "aurex-watchdog.timer",
+    "layer3_extprobe_unit": "aurex-external-probe.timer"
   },
   "j4c_central": {
     "grpc_endpoint": null,
     "grpc_tls": true,
     "grpc_auth_token_env": "J4C_AGENT_TOKEN",
-    "comment": "TODO: confirm production URL (currently dev4 staging) + deploy_path; populate expected_containers + csp_required_origins; install AutoHeal Layer 2/3 timers per HCE2-347/348 pattern; set grpc_endpoint when J4C AgentReportService is live."
+    "comment": "AurexV4 production. grpc_endpoint stays null until the central J4C AgentReportService is live; doctor mode (local-only) is sufficient for the off-host watchdog."
   }
 }

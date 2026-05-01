@@ -1,0 +1,135 @@
+# AurexV4 off-host J4C watchdog — scheduled audit of aurex.in.
+#
+# Runs `j4c-agent.py doctor` against the production endpoints + posts a
+# Mandrill alert on FAIL (or PARTIAL when AUREX_J4C_ALERT_ON=any).
+#
+# Replaces UptimeRobot for the L3 off-host vantage role. Two scheduling
+# vectors ship in this repo (pick one — DON'T run both):
+#   1. THIS workflow (GitHub Actions, ubuntu-latest, multi-region)
+#   2. systemd user timer (scripts/deploy/systemd/aurex-j4c-watchdog.timer
+#      installed on dev4 or another off-host machine)
+#
+# Off-host caveat: this workflow runs on a self-hosted runner per the
+# project convention (CLAUDE.md: "GitHub Actions on self-hosted runners,
+# never ubuntu-latest"). If the runner pool sits on aurex.in itself,
+# the workflow loses its off-host vantage — confirm the runner is on a
+# DIFFERENT machine (dev4, j4c.aurigraph.io, or a build host) before
+# relying on this for full-host-outage detection.
+#
+# Required GitHub Actions secrets:
+#   MANDRILL_API_KEY      — required for email alerts
+#   AUREX_ALERT_EMAIL     — recipient (defaults to subscriptions@aurigraph.io)
+#   AUREX_ALERT_FROM      — sender (defaults to noreply@aurex.in)
+#   AUREX_ALERT_WEBHOOK   — optional Slack-compatible webhook
+name: j4c-watchdog
+
+on:
+  schedule:
+    # Every 5 minutes. Keep below GitHub's 5-min minimum reliability if
+    # the watchdog itself is critical — at-most-once-per-5-min is fine
+    # for a backstop probe; the on-host external-probe.timer fires
+    # every minute and covers the higher-frequency need.
+    - cron: '*/5 * * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write   # so the workflow can open an issue if FAIL repeats
+
+concurrency:
+  group: j4c-watchdog
+  cancel-in-progress: false
+
+jobs:
+  doctor:
+    runs-on: self-hosted
+    timeout-minutes: 5
+    env:
+      MANDRILL_API_KEY: ${{ secrets.MANDRILL_API_KEY }}
+      AUREX_ALERT_EMAIL: ${{ secrets.AUREX_ALERT_EMAIL || 'subscriptions@aurigraph.io' }}
+      AUREX_ALERT_FROM: ${{ secrets.AUREX_ALERT_FROM || 'noreply@aurex.in' }}
+      AUREX_ALERT_WEBHOOK: ${{ secrets.AUREX_ALERT_WEBHOOK }}
+      AUREX_J4C_ALERT_ON: 'fail'
+    steps:
+      - name: Checkout (shallow, for .j4c-agent.json + j4c-agent.py)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up Python 3
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Run j4c-agent doctor
+        id: doctor
+        run: |
+          set +e
+          python3 scripts/j4c-agent.py doctor > /tmp/j4c-report.json 2> /tmp/j4c-stderr.log
+          echo "rc=$?" >> "$GITHUB_OUTPUT"
+          # Parse verdict for the next step.
+          VERDICT=$(python3 -c 'import json; print(json.load(open("/tmp/j4c-report.json")).get("verdict","UNKNOWN"))' 2>/dev/null || echo "UNKNOWN")
+          echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
+          # Always print the human-readable summary so the run log is useful.
+          python3 scripts/j4c-agent.py doctor -v || true
+        shell: bash
+
+      - name: Alert on FAIL (Mandrill)
+        if: steps.doctor.outputs.verdict == 'FAIL'
+        run: |
+          if [ -z "$MANDRILL_API_KEY" ]; then
+            echo "MANDRILL_API_KEY not set — skipping email alert (run log is the only signal)."
+            exit 0
+          fi
+          DIGEST=$(python3 -c '
+          import json
+          r = json.load(open("/tmp/j4c-report.json"))
+          out = [f"verdict={r.get(\"verdict\",\"?\")}"]
+          for s in ("deploy","containers","endpoints","csp","autoheal","jira"):
+              out.append(f"{s}={r.get(s,{}).get(\"verdict\",\"?\")}")
+          worst = next(({"url":p["url"],"actual":p["actual"]} for p in r.get("endpoints",{}).get("probes",[]) if not p.get("ok")), None)
+          if worst:
+              out.append(f"first_failing_endpoint={worst}")
+          print(" | ".join(out))
+          ')
+          python3 -c "
+          import json, os, urllib.request
+          payload = {
+            'key': os.environ['MANDRILL_API_KEY'],
+            'message': {
+              'from_email': os.environ['AUREX_ALERT_FROM'],
+              'to': [{'email': os.environ['AUREX_ALERT_EMAIL'], 'type': 'to'}],
+              'subject': '[aurex-j4c FAIL] off-host watchdog tripped',
+              'text': '''Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+Digest:
+$DIGEST
+
+Workflow: ${{ github.workflow }}
+Triggered: ${{ github.event_name }}''',
+            },
+          }
+          req = urllib.request.Request(
+            'https://mandrillapp.com/api/1.0/messages/send.json',
+            data=json.dumps(payload).encode(),
+            headers={'Content-Type': 'application/json'},
+            method='POST',
+          )
+          with urllib.request.urlopen(req, timeout=8) as r:
+              print('mandrill:', r.status, r.read().decode()[:200])
+          "
+        shell: bash
+        env:
+          DIGEST: ${{ steps.doctor.outputs.verdict }}
+
+      - name: Surface report as workflow artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: j4c-report-${{ github.run_id }}
+          path: /tmp/j4c-report.json
+          retention-days: 7
+
+      - name: Pass-through exit code
+        run: exit ${{ steps.doctor.outputs.rc }}
+        shell: bash

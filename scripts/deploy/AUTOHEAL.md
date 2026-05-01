@@ -52,24 +52,62 @@ loginctl show-user subbu | grep Linger   # expect: Linger=yes
 After that, reboot or wait — `systemctl --user list-timers` should still
 show the AurexV4 timers active even with no SSH session open.
 
-### 2. Off-host external monitor for L3
+### 2. Off-host monitor for L3 — J4C Agent watchdog
 
 The `aurex-external-probe.timer` runs on aurex.in itself, so it cannot
 catch full-host outages or external reachability regressions (e.g. ISP
 loss, DNS resolver outage, certificate trust issue from a different
-vantage). Add an off-host monitor — UptimeRobot is the lightest option:
+vantage). Replace this gap with the **J4C agent watchdog** — the same
+one used by the deployment cascade, scheduled from a separate machine.
 
-1. Sign in at https://uptimerobot.com/dashboard.
-2. **Add New Monitor** → Monitor Type **HTTP(s)**.
-3. Friendly name: `AurexV4 — aurex.in /api/v1/health`.
-4. URL: `https://aurex.in/api/v1/health`.
-5. Monitoring interval: 5 minutes (free tier) or 1 minute (paid).
-6. Alert contacts: subscriptions@aurigraph.io.
-7. **Advanced** → Keyword Monitoring → expect string `healthy`.
-8. Save.
+The agent (`scripts/j4c-agent.py`) is config-driven by `.j4c-agent.json`
+and audits 6 sections in one pass: deploy SHA drift, expected
+containers, HTTP endpoints, CSP, AutoHeal Layer 1/2/3, and Jira
+project. Verdict is `PASS | PARTIAL | FAIL`; exit code matches.
 
-Equivalent setups work in BetterStack, Pingdom, Grafana Synthetic, or any
-multi-region uptime probe.
+**Two scheduling vectors ship in this repo — pick one, don't run both.**
+
+#### Vector A — systemd user timer on dev4 (or any non-aurex.in host)
+
+```bash
+# One-time install on the off-host machine (e.g. dev4.aurigraph.io):
+ssh -p 2227 subbu@dev4.aurigraph.io
+mkdir -p ~/bin ~/aurex-j4c ~/.config/systemd/user
+
+# (from local) copy the agent + config + wrapper + units
+scp -P 2227 scripts/j4c-agent.py subbu@dev4:~/bin/
+scp -P 2227 scripts/deploy/aurex-j4c-watchdog.sh subbu@dev4:~/bin/
+scp -P 2227 .j4c-agent.json subbu@dev4:~/aurex-j4c/
+scp -P 2227 scripts/deploy/systemd/aurex-j4c-watchdog.{service,timer} \
+    subbu@dev4:~/.config/systemd/user/
+
+# (back on dev4) make scripts executable + enable the timer
+ssh -p 2227 subbu@dev4 '
+  chmod +x ~/bin/j4c-agent.py ~/bin/aurex-j4c-watchdog.sh
+  systemctl --user daemon-reload
+  systemctl --user enable --now aurex-j4c-watchdog.timer
+  systemctl --user list-timers aurex-j4c-watchdog.timer
+'
+```
+
+Alert config (same env file pattern as the on-host watchdog):
+`~/.aurex-watchdog.env` on dev4 with `MANDRILL_API_KEY` +
+`AUREX_ALERT_EMAIL`. Mode 600.
+
+#### Vector B — GitHub Actions scheduled workflow
+
+`.github/workflows/j4c-watchdog.yml` runs the agent every 5 minutes on
+a self-hosted runner. Set the GitHub Actions secrets:
+`MANDRILL_API_KEY`, `AUREX_ALERT_EMAIL`, optionally
+`AUREX_ALERT_WEBHOOK`. Off-host caveat: works only if the self-hosted
+runner pool is **not** on aurex.in (otherwise it's effectively on-host).
+
+#### Manual one-shot (any host)
+
+```bash
+python3 scripts/j4c-agent.py doctor -v   # human-readable
+python3 scripts/j4c-agent.py doctor      # JSON, exit code = verdict
+```
 
 ## Maintenance
 

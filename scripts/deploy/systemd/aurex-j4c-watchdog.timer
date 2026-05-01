@@ -1,0 +1,11 @@
+[Unit]
+Description=Run AurexV4 off-host J4C watchdog every 5 minutes
+
+[Timer]
+OnCalendar=*:0/5
+AccuracySec=30s
+Persistent=true
+Unit=aurex-j4c-watchdog.service
+
+[Install]
+WantedBy=timers.target

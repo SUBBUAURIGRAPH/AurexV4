@@ -1,0 +1,9 @@
+[Unit]
+Description=AurexV4 off-host J4C watchdog — runs j4c-agent against aurex.in and alerts on FAIL
+After=network-online.target
+Documentation=file:///%h/aurex-j4c/scripts/deploy/AUTOHEAL.md
+
+[Service]
+Type=oneshot
+EnvironmentFile=-%h/.aurex-watchdog.env
+ExecStart=%h/bin/aurex-j4c-watchdog.sh

@@ -196,8 +196,13 @@ def section_deploy(
         "verdict": VERDICT_PASS,
     }
     if rc != 0:
+        # No remote .git in deploy_path is a common pattern (the deploy
+        # script tar's the source over but doesn't preserve .git — the
+        # canonical SHA lives on origin/main + the running image's
+        # bake-time label). Drift detection is then impossible, but
+        # that's a missing feature on the remote, not a deploy failure.
         out["error"] = err.strip() or "git rev-parse failed"
-        out["verdict"] = VERDICT_FAIL
+        out["verdict"] = VERDICT_PARTIAL
         return out
     if local_head and server_head and server_head != local_head:
         out["drift"] = {"server": server_head, "local": local_head}
@@ -388,14 +393,26 @@ def section_autoheal(config: dict[str, Any], mode: str, repo_root: Path) -> dict
     layer1 = {"verdict": VERDICT_PASS, "compose_file": str(compose_path)}
     if compose_path.exists():
         text = compose_path.read_text()
-        # Crude but no-yaml-dep: count `restart: always` vs `restart: no` lines
+        # Crude but no-yaml-dep. `restart: unless-stopped` is functionally
+        # equivalent to `restart: always` for our autoheal posture (both
+        # bring the container back after a crash; unless-stopped is the
+        # AurexV4 default per ADM-055 because it survives a manual
+        # `docker stop` without a fight). Count both as healthy.
         always = text.count("restart: always")
+        unless_stopped = text.count("restart: unless-stopped")
+        on_failure = text.count("restart: on-failure")
         nope = text.count("restart: 'no'") + text.count("restart: no\n")
         layer1["restart_always_count"] = always
+        layer1["restart_unless_stopped_count"] = unless_stopped
+        layer1["restart_on_failure_count"] = on_failure
         layer1["restart_no_count"] = nope
-        if always == 0:
+        healthy_count = always + unless_stopped + on_failure
+        if healthy_count == 0:
             layer1["verdict"] = VERDICT_PARTIAL
-            layer1["reason"] = "no service has `restart: always`"
+            layer1["reason"] = (
+                "no service has a healing restart policy "
+                "(always | unless-stopped | on-failure)"
+            )
     else:
         layer1["verdict"] = VERDICT_PARTIAL
         layer1["reason"] = "compose file not found"
