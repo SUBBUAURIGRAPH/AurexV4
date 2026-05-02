@@ -28,8 +28,10 @@
   },
   "j4c_central": {
     "grpc_endpoint": null,
+    "_pending_endpoint": "j4c.aurigraph.io:443",
+    "_pending_routing": "path-based on j4c.aurigraph.io — nginx grpc_pass /agent/ -> upstream gRPC (per ADM-075 + user direction 2026-05-02). Probed 2026-05-02: portal SPA serves /agent /grpc /agent/health 200 text/html (SPA fallback); /api/* reaches a JSON backend that 404s on AgentReportService — service not yet deployed. Once the J4C platform team ships the service, flip grpc_endpoint = _pending_endpoint and remove these comment fields.",
     "grpc_tls": true,
     "grpc_auth_token_env": "J4C_AGENT_TOKEN",
-    "comment": "AurexV4 production. grpc_endpoint stays null until the central J4C AgentReportService is live; doctor mode (local-only) is sufficient for the off-host watchdog."
+    "comment": "AurexV4 production. Currently doctor mode only (per-project Mandrill alerting); central data collection is the bridge per ADM-075 §5 until AgentReportService ships."
   }
 }
