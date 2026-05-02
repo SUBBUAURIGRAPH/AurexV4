@@ -5,7 +5,8 @@ j4c-agent — lightweight per-project J4C compliance probe.
 Single file, stdlib only. Drop into any Aurigraph project alongside a
 ``.j4c-agent.json`` config at the repo root. Outputs a JSON report covering
 local repo state, deployed-server state, container health, HTTP health
-endpoints, CSP allowlist drift, the 3-layer AutoHeal status, and (if a
+endpoints, CSP allowlist drift, the 3-layer AutoHeal status, an optional
+J4C llm-gateway (Gemma) chat probe when LL keys are exported, and (if a
 JIRA token is exported) open-ticket counts.
 
 Usage
@@ -468,7 +469,114 @@ def section_autoheal(config: dict[str, Any], mode: str, repo_root: Path) -> dict
 
 
 # ---------------------------------------------------------------------------
-# Section 7: JIRA (optional)
+# Section 7: J4C llm-gateway / Gemma (optional)
+# ---------------------------------------------------------------------------
+
+
+def section_j4c_llm(config: dict[str, Any]) -> dict[str, Any]:
+    """POST ``/v1/chat/completions`` to J4C llm-gateway when an API key is in the environment."""
+    jcfg = config.get("j4c_llm") or {}
+    if jcfg.get("probe") is False:
+        return {
+            "verdict": VERDICT_PASS,
+            "skipped": True,
+            "reason": "j4c_llm.probe is false in .j4c-agent.json",
+        }
+
+    base = (
+        os.environ.get("J4C_LLM_GATEWAY_BASE_URL")
+        or os.environ.get("LLM_GATEWAY_BASE_URL")
+        or "https://j4c.aurigraph.io/llm-gateway"
+    ).rstrip("/")
+    model = (
+        os.environ.get("LLM_GATEWAY_MODEL")
+        or os.environ.get("J4C_LLM_MODEL")
+        or "gemma3:12b"
+    )
+    key = (
+        os.environ.get("LLM_GATEWAY_KEY")
+        or os.environ.get("J4C_LLM_API_KEY")
+        or os.environ.get("LL_GATEWAY_API_KEY")
+    )
+    if not key:
+        return {
+            "verdict": VERDICT_PASS,
+            "skipped": True,
+            "reason": (
+                "no LLM key in env — set LLM_GATEWAY_KEY or J4C_LLM_API_KEY (J4C project key / OpenBao import)"
+            ),
+            "base_url": base,
+            "model": model,
+        }
+
+    url = f"{base}/v1/chat/completions"
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "Reply with one short word only."},
+            {"role": "user", "content": "Say: ok"},
+        ],
+        "max_tokens": 8,
+        "temperature": 0,
+    }
+    data_bytes = json.dumps(payload).encode("utf-8")
+    req = urllib.request.Request(
+        url,
+        data=data_bytes,
+        method="POST",
+        headers={
+            "User-Agent": "j4c-agent/1.0",
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+            "Authorization": f"Bearer {key}",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=25) as resp:
+            raw = resp.read().decode("utf-8", errors="replace")
+            status = resp.status
+        data = json.loads(raw)
+        choices = data.get("choices") or []
+        msg0 = (choices[0].get("message") or {}) if choices else {}
+        content = msg0.get("content")
+        if not isinstance(content, str):
+            content = ""
+        ok = len(content.strip()) > 0
+        verdict = VERDICT_PASS if ok else VERDICT_PARTIAL
+        return {
+            "verdict": verdict,
+            "skipped": False,
+            "base_url": base,
+            "model": model,
+            "http_status": status,
+            "content_snippet": content.strip()[:120],
+            "error": None if ok else "empty assistant content",
+        }
+    except urllib.error.HTTPError as exc:
+        try:
+            detail = exc.read().decode("utf-8", errors="replace")[:400]
+        except Exception:
+            detail = ""
+        return {
+            "verdict": VERDICT_PARTIAL,
+            "skipped": False,
+            "base_url": base,
+            "model": model,
+            "http_status": exc.code,
+            "error": f"HTTP {exc.code}: {detail}",
+        }
+    except Exception as exc:
+        return {
+            "verdict": VERDICT_PARTIAL,
+            "skipped": False,
+            "base_url": base,
+            "model": model,
+            "error": str(exc),
+        }
+
+
+# ---------------------------------------------------------------------------
+# Section 8: JIRA (optional)
 # ---------------------------------------------------------------------------
 
 
@@ -534,10 +642,11 @@ def run_doctor(repo_root: Path) -> tuple[dict[str, Any], str]:
     endpoints = section_endpoints(config)
     csp = section_csp(config)
     autoheal = section_autoheal(config, mode, repo_root)
+    j4c_llm = section_j4c_llm(config)
     jira = section_jira(config)
 
     overall = VERDICT_PASS
-    for sec in (project, deploy, containers, endpoints, csp, autoheal, jira):
+    for sec in (project, deploy, containers, endpoints, csp, autoheal, j4c_llm, jira):
         overall = worse(overall, sec.get("verdict", VERDICT_PASS))
 
     report = {
@@ -550,6 +659,7 @@ def run_doctor(repo_root: Path) -> tuple[dict[str, Any], str]:
         "endpoints": endpoints,
         "csp": csp,
         "autoheal": autoheal,
+        "j4c_llm": j4c_llm,
         "jira": jira,
         "verdict": overall,
     }
@@ -565,7 +675,7 @@ def render_human(report: dict[str, Any]) -> str:
     )
     lines.append(f"verdict: {report['verdict']}")
     lines.append("")
-    sections = ("deploy", "containers", "endpoints", "csp", "autoheal", "jira")
+    sections = ("deploy", "containers", "endpoints", "csp", "autoheal", "j4c_llm", "jira")
     for name in sections:
         sec = report[name]
         v = sec.get("verdict", "?")
