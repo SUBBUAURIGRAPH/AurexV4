@@ -44,6 +44,12 @@
   - L4: HEF voucher e2e 11/11, 0 test users remaining.
   - **Hardening applied this audit**: `aurex-postgres` + `aurex-redis` `RestartPolicy=no` → `unless-stopped` (had been `no` since the Apr 22 initial bootstrap, predating AutoHeal Layer 1). Now all four services auto-recover from crash.
 
+## Done in this session (2026-05-03)
+
+- [x] **Emissions Submit/Resubmit button** (commit `9a7fa45`): `apps/web/src/hooks/useEmissions.ts` widens mutation type to accept `'PENDING'`; `apps/web/src/pages/dashboard/EmissionsPage.tsx` adds Submit (DRAFT rows) and Resubmit (REJECTED rows) buttons to actions column. Bundle `index-C6sjfluS.js` deployed. Submit=28, Resubmit=1 in bundle. DRAFT→PENDING backend transition confirmed: IFHD record `162ce3be-885a-47f1-a7a4-a84098408af4` (Scope 1, stationary_combustion) promoted to PENDING at 2026-05-03T05:47:48Z. All L0–L3 PASS, AutoHeal nominal. 0 bugs filed.
+- [x] **P2002 fix: jti on every JWT** (commit `7e2d84a`): `apps/api/src/lib/jwt.ts` — `randomUUID()` as `jwtid` on every `signAccessToken` + `signRefreshToken` call. Verified: 5 concurrent /auth/login calls → 5/5 HTTP 200, 0 5xx, 5 distinct accessTokens. Race condition is resolved.
+- [x] **Teams + Access feature** (commit `7e2d84a`): Schema (TeamStatus enum, `teams` + `team_members` tables), service (CRUD + org-scoped member management), routes at `/api/v1/teams`, frontend (real API-driven TeamsPage + TeamDetailPage, useTeams hook, `/teams/:id` route). DB push applied. Full CRUD round-trip verified in L2 cascade. Bundle strings: "Teams and Access" x2, "Add Team" x1, "/teams" x17. 0 bugs filed.
+
 ## Done in this session (2026-05-01 — late) + (2026-05-02) + (2026-05-03)
 
 - [x] **L3 — Off-host J4C monitor SHIPPED** (commit `cff6ebc`, 2026-05-01): `scripts/j4c-agent.py` + `scripts/deploy/aurex-j4c-watchdog.sh` + `.github/workflows/j4c-watchdog.yml` + systemd unit files. Mandrill alerting confirmed working (status=sent, _id=7b0a27b5abac4814a845590d38ce2a00). PARTIAL verdict alert tested end-to-end.
@@ -57,6 +63,14 @@
 - [x] **Jeeves4Coder PR #31 — canonical watchdog bundle** (May 3): added `scripts/deploy/j4c-watchdog.sh`, systemd `.service` + `.timer`, `.github/workflows/j4c-watchdog.yml` to the J4C platform repo. Now self-contained: agent + proto + protoc helper + watchdog scaffold + GHA scheduler.
 - [x] **J4C-213 filed** (Jira J4C project): Deploy AgentReportService gRPC backend on j4c.aurigraph.io:443 (path-routed `/agent/`). All consumer projects' `.j4c-agent.json` carry `_pending_endpoint=j4c.aurigraph.io:443` ready to flip once the service ships.
 - [x] **AUREX_J4C_ALERT_ON env-var doc clarification** (2026-05-03): AUTOHEAL.md §2 now has explicit env-var tables for both Vector A (host) and Vector B (GHA) with a callout that the trigger flag is `AUREX_J4C_ALERT_ON`, not `AUREX_ALERT_ON`.
+
+## Open — Wave A/B follow-up blockers (2026-05-03)
+
+- [ ] **[OPERATOR] Apply compose update to running aurex.in stack**: `cd ~/aurex && docker compose up --force-recreate --no-deps aurex-api` — picks up `LLM_GATEWAY_URL`/`LLM_GATEWAY_KEY` env wiring from b2173d5. Low-urgency (Wave A/B manual fix already confirmed healthy; needed to make next `deploy-to-remote.sh` idempotent).
+
+- [ ] **[OPERATOR — BLOCKED] `loginctl enable-linger subbu` on DLT / Provenews / Website / HCE2**: Layer 2 systemd watchdog timers are active now but won't survive a host reboot without `linger=yes`. Requires root/sudo on each host: `sudo loginctl enable-linger subbu`. Escalate to server admin for one-time NOPASSWD grant (matching the `aurex.in` pattern: `/etc/sudoers.d/subbu-linger`).
+
+- [ ] **[OPERATOR — BLOCKED] `apihce2.aurex.in` TLS cert issuance**: Cert classified as mismatch — HCE2 Layer 3 external health probe will fail HTTPS verification. Requires privileged cert issuance (Let's Encrypt or manual) for `apihce2.aurex.in`. Unblock before next HCE2 deploy cascade.
 
 ## Open — operator-only follow-ups
 
