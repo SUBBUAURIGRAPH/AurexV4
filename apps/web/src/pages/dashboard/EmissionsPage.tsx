@@ -171,14 +171,16 @@ export function EmissionsPage() {
 
   /* Bulk actions */
   const handleBulkStatus = useCallback(
-    async (status: 'VERIFIED' | 'REJECTED') => {
+    async (status: 'PENDING' | 'VERIFIED' | 'REJECTED') => {
       const ids = Array.from(selectedIds);
+      const verb =
+        status === 'VERIFIED' ? 'approved' : status === 'REJECTED' ? 'rejected' : 'submitted for review';
       try {
         await Promise.all(ids.map((id) => updateStatus.mutateAsync({ id, status })));
-        toast.success(`${ids.length} item(s) ${status === 'VERIFIED' ? 'approved' : 'rejected'} successfully`);
+        toast.success(`${ids.length} item(s) ${verb} successfully`);
         setSelectedIds(new Set());
       } catch {
-        toast.error(`Failed to update status. Please try again.`);
+        toast.error('Failed to update status. Please try again.');
       }
     },
     [selectedIds, updateStatus, toast],
@@ -186,10 +188,12 @@ export function EmissionsPage() {
 
   /* Single action */
   const handleSingleStatus = useCallback(
-    async (id: string, status: 'VERIFIED' | 'REJECTED') => {
+    async (id: string, status: 'PENDING' | 'VERIFIED' | 'REJECTED') => {
+      const verb =
+        status === 'VERIFIED' ? 'approved' : status === 'REJECTED' ? 'rejected' : 'submitted for review';
       try {
         await updateStatus.mutateAsync({ id, status });
-        toast.success(`Entry ${status === 'VERIFIED' ? 'approved' : 'rejected'} successfully`);
+        toast.success(`Entry ${verb} successfully`);
       } catch {
         toast.error('Failed to update status.');
       }
@@ -305,6 +309,12 @@ export function EmissionsPage() {
         label: 'Actions',
         render: (_val, row) => {
           const canEdit = row.status === 'DRAFT' || row.status === 'REJECTED';
+          // DRAFT/REJECTED → PENDING is allowed for MAKER+ (5 roles); UI
+          // shows the button to anyone — backend gates with a 403 if the
+          // caller's org-scoped role isn't on the allow-list, and the
+          // toast layer surfaces the message. Without this button the
+          // entry sits at DRAFT forever (the bug surfaced 2026-05-03).
+          const canSubmit = row.status === 'DRAFT' || row.status === 'REJECTED';
           return (
             <div style={{ display: 'flex', gap: '0.375rem', flexWrap: 'nowrap' }}>
               <Button
@@ -323,6 +333,16 @@ export function EmissionsPage() {
                   style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
                 >
                   Edit
+                </Button>
+              )}
+              {canSubmit && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleSingleStatus(row.id, 'PENDING')}
+                  style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', color: '#1a5d3d' }}
+                >
+                  {row.status === 'REJECTED' ? 'Resubmit' : 'Submit'}
                 </Button>
               )}
               {isManagerOrAbove && row.status === 'PENDING' && (

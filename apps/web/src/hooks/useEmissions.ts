@@ -129,10 +129,23 @@ export function useDeleteEmission() {
   });
 }
 
+/**
+ * Status mutation. Accepts every transition the backend allows on
+ * PATCH /emissions/:id/status (apps/api/src/routes/emissions.ts:25-31):
+ *   DRAFT   -> PENDING   (MAKER+)
+ *   PENDING -> VERIFIED  (APPROVER+)
+ *   any     -> REJECTED  (AUDITOR+)
+ *
+ * UI gate per button is permissive — backend returns 403 with a clean
+ * RFC-7807 body if the caller's org-scoped role is not on the allow-
+ * list, and the toast layer surfaces the message.
+ */
+export type EmissionStatusTransition = 'PENDING' | 'VERIFIED' | 'REJECTED';
+
 export function useUpdateEmissionStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ id, status }: { id: string; status: 'VERIFIED' | 'REJECTED' }) =>
+    mutationFn: ({ id, status }: { id: string; status: EmissionStatusTransition }) =>
       api.patch<{ data: EmissionEntry }>(`/emissions/${id}/status`, { status }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['emissions'] });
@@ -143,7 +156,7 @@ export function useUpdateEmissionStatus() {
 export function useBulkUpdateStatus() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ ids, status }: { ids: string[]; status: 'VERIFIED' | 'REJECTED' }) =>
+    mutationFn: ({ ids, status }: { ids: string[]; status: EmissionStatusTransition }) =>
       api.post<{ updated: number }>('/emissions/bulk-status', { ids, status }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['emissions'] });
