@@ -44,6 +44,10 @@
   - L4: HEF voucher e2e 11/11, 0 test users remaining.
   - **Hardening applied this audit**: `aurex-postgres` + `aurex-redis` `RestartPolicy=no` → `unless-stopped` (had been `no` since the Apr 22 initial bootstrap, predating AutoHeal Layer 1). Now all four services auto-recover from crash.
 
+## Done in this session (2026-05-03) — docs/housekeeping commit
+
+- [x] **Docs-only deploy** (commit `5ac40ea`): session.md + todo.md + tests/security/vitest.config.ts committed + pushed. No production deploy. aurex.in confirmed healthy: API uptime 41,543s, auth/teams/HEF-PUNE-2026 all pass. AutoHeal L1/L2/L3 nominal. 0 bugs filed.
+
 ## Done in this session (2026-05-03)
 
 - [x] **Emissions Submit/Resubmit button** (commit `9a7fa45`): `apps/web/src/hooks/useEmissions.ts` widens mutation type to accept `'PENDING'`; `apps/web/src/pages/dashboard/EmissionsPage.tsx` adds Submit (DRAFT rows) and Resubmit (REJECTED rows) buttons to actions column. Bundle `index-C6sjfluS.js` deployed. Submit=28, Resubmit=1 in bundle. DRAFT→PENDING backend transition confirmed: IFHD record `162ce3be-885a-47f1-a7a4-a84098408af4` (Scope 1, stationary_combustion) promoted to PENDING at 2026-05-03T05:47:48Z. All L0–L3 PASS, AutoHeal nominal. 0 bugs filed.

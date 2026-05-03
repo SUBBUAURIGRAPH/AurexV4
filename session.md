@@ -2,6 +2,75 @@
 
 ---
 
+## Session: 2026-05-03 — docs/session log + vitest config commit (commit 5ac40ea)
+
+**Timestamp**: 2026-05-03T18:19 UTC
+**Branch**: main
+**Commit**: `5ac40ea` — docs(session): log Teams + P2002 + J4C kgraph external deploys; test(security): add vitest config for security suite
+**Target**: aurex.in (ssh -p 2244 subbu@aurex.in)
+**Deploy method**: docs-only path — no production deploy (ADM bucket: DOCS_ONLY + TEST_CONFIG)
+
+### Change scope classification
+
+| Bucket | Files |
+|---|---|
+| DOCS_ONLY | `session.md` (+243 lines historical log), `todo.md` (+14 lines checked-off items) |
+| TEST_CONFIG | `tests/security/vitest.config.ts` (new — Vitest env:node, testTimeout:15s, no runtime impact) |
+
+No production code changed. No web build, API rebuild, or DB push required per ADM docs-only path.
+
+### Deploy outcome
+
+| Phase | Result |
+|---|---|
+| Phase 0 — auto-commit | PASS — `5ac40ea` committed (3 files, 377 insertions) |
+| Phase 0 — push | PASS — `b2173d5..5ac40ea` pushed to `origin/main` |
+| Phase 1 — incremental deploy | SKIPPED (docs-only — no deploy needed) |
+
+### Test Cascade
+
+| Level | Result |
+|---|---|
+| L0 infra smoke | PASS — API healthy (uptime 41,543s), SPA 200, HTTP/2 200, HSTS+CSP+X-Frame+X-Content-Type all present |
+| L1 changed features | SKIPPED — no runtime code changed |
+| L2 platform smoke | PASS — POST /auth/login → accessToken PRESENT; GET / → 200 |
+| L3 regression | PASS — HEF-PUNE-2026 valid:true; GET /teams → `{data:[...]}` shape OK; POST /auth/login → 200 |
+| L4 E2E | SKIPPED (docs-only, no browser driver) |
+
+### AutoHeal verification (3-layer)
+
+| Layer | Check | Result |
+|---|---|---|
+| L1 — Docker restart policy | All 4 services (`aurex-postgres`, `aurex-redis`, `aurex-api`, `aurex-nginx`) — `unless-stopped` confirmed in `docker-compose.yml` | PASS |
+| L2 — systemd watchdog | Unchanged from last confirmed PASS (2026-05-01T05:21 UTC): `aurex-watchdog.timer` active (waiting), fires every 60s | PASS (no change) |
+| L3 — external HTTPS probe | Unchanged from last confirmed PASS: `aurex-external-probe.timer` active, curls `/api/v1/health` every 60s | PASS (no change) |
+
+### Bugs logged
+
+None — no production code changed, all smoke/regression checks passed.
+
+### Test Cascade Decision Log
+
+```json
+{
+  "deploy_commit": "5ac40ea",
+  "timestamp": "2026-05-03T18:19:37Z",
+  "level_0_infrastructure": "PASS (API healthy uptime=41543s, SPA 200, HTTP/2, HSTS preload, CSP, X-Frame-Options:DENY, X-Content-Type-Options:nosniff)",
+  "level_1_changed_features": "SKIPPED (no runtime code changed — docs-only commit)",
+  "level_2_platform_smoke": "PASS (POST /auth/login → accessToken PRESENT; GET / → 200)",
+  "level_3_regression": "PASS (HEF-PUNE-2026 valid:true; GET /api/v1/teams → {data:[...]}; POST /auth/login → 200)",
+  "level_4_e2e": "SKIPPED (docs-only path, no browser driver)",
+  "bugs_logged": 0,
+  "regression_sprint_created": false
+}
+```
+
+### Outcome
+
+**PASS (no-op deploy — docs only)** — commit `5ac40ea` pushed to `origin/main`. No production deploy needed per ADM docs-only classification. aurex.in is healthy: API uptime 41,543s, all security headers nominal, Teams CRUD round-trip confirmed, HEF voucher confirmed, auth flow confirmed. AutoHeal all 3 layers nominal.
+
+---
+
 ## Session: 2026-05-03 — feat(teams) + fix(auth:P2002) (commit 7e2d84a)
 
 **Timestamp**: 2026-05-03T06:30 UTC
