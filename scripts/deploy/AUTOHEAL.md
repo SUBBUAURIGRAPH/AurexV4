@@ -91,16 +91,39 @@ ssh -p 2227 subbu@dev4 '
 ```
 
 Alert config (same env file pattern as the on-host watchdog):
-`~/.aurex-watchdog.env` on dev4 with `MANDRILL_API_KEY` +
-`AUREX_ALERT_EMAIL`. Mode 600.
+`~/.aurex-watchdog.env` on dev4. Mode 600. Recognised vars:
+
+| Var | Purpose | Default |
+|---|---|---|
+| `MANDRILL_API_KEY` | Mandrill HTTP API key (required for email) | — |
+| `AUREX_ALERT_EMAIL` | recipient address | `subscriptions@aurigraph.io` |
+| `AUREX_ALERT_FROM` | sender address | `noreply@aurex.in` |
+| `AUREX_ALERT_WEBHOOK` | Slack-compatible webhook URL (optional) | — |
+| **`AUREX_J4C_ALERT_ON`** | when to fire alerts: `fail` (only on verdict=FAIL) or `any` (also on PARTIAL) | `fail` |
+
+> **Note on the alert-trigger flag**: the variable is `AUREX_J4C_ALERT_ON`,
+> not `AUREX_ALERT_ON`. The script reads `AUREX_J4C_ALERT_ON`; setting
+> `AUREX_ALERT_ON=any` will silently default to `fail` and you'll only
+> get pages on hard failures.
 
 #### Vector B — GitHub Actions scheduled workflow
 
 `.github/workflows/j4c-watchdog.yml` runs the agent every 5 minutes on
-a self-hosted runner. Set the GitHub Actions secrets:
-`MANDRILL_API_KEY`, `AUREX_ALERT_EMAIL`, optionally
-`AUREX_ALERT_WEBHOOK`. Off-host caveat: works only if the self-hosted
-runner pool is **not** on aurex.in (otherwise it's effectively on-host).
+a self-hosted runner. Set the GitHub Actions secrets the workflow
+reads:
+
+| Secret | Purpose | Required |
+|---|---|---|
+| `MANDRILL_API_KEY` | Mandrill HTTP API key | yes (for email alerts) |
+| `AUREX_ALERT_EMAIL` | recipient | optional, defaults to `subscriptions@aurigraph.io` |
+| `AUREX_ALERT_FROM` | sender | optional, defaults to `noreply@aurex.in` |
+| `AUREX_ALERT_WEBHOOK` | Slack-compatible webhook | optional |
+
+The `AUREX_J4C_ALERT_ON` value is hard-coded in the workflow (`'fail'`
+default); change the workflow file if you want PARTIAL alerts via GHA.
+
+Off-host caveat: works only if the self-hosted runner pool is **not**
+on aurex.in (otherwise it's effectively on-host).
 
 #### Manual one-shot (any host)
 

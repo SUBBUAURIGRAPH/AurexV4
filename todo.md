@@ -44,18 +44,32 @@
   - L4: HEF voucher e2e 11/11, 0 test users remaining.
   - **Hardening applied this audit**: `aurex-postgres` + `aurex-redis` `RestartPolicy=no` → `unless-stopped` (had been `no` since the Apr 22 initial bootstrap, predating AutoHeal Layer 1). Now all four services auto-recover from crash.
 
+## Done in this session (2026-05-01 — late) + (2026-05-02) + (2026-05-03)
+
+- [x] **L3 — Off-host J4C monitor SHIPPED** (commit `cff6ebc`, 2026-05-01): `scripts/j4c-agent.py` + `scripts/deploy/aurex-j4c-watchdog.sh` + `.github/workflows/j4c-watchdog.yml` + systemd unit files. Mandrill alerting confirmed working (status=sent, _id=7b0a27b5abac4814a845590d38ce2a00). PARTIAL verdict alert tested end-to-end.
+- [x] **Bridge-level MTU 1442 on aurex_network** (May 1 maintenance window): network rebuilt with `com.docker.network.driver.mtu=1442` opt; all 4 containers (aurex-postgres, aurex-redis, aurex-api, aurex-nginx) now have eth0 MTU=1442 inherited from the bridge. Per-container nsenter clamp in `deploy-to-remote.sh` + `aurex-watchdog.sh` is now defense-in-depth, not the primary mechanism. **Verified 2026-05-03**: `docker network inspect aurex_network` confirms `MTU opt = 1442`; all 4 container eth0 = 1442.
+- [x] **ADM-075 — J4C agent activation across all Aurigraph projects + central data collection** (May 1, USER MANDATED): logged in `~/.claude/ADM.md`. Strengthens ADM-068's deploy-time mandate with continuous off-host watchdog + central gRPC reporting. Phased rollout + canonical-source rule + alert/verdict semantics codified.
+- [x] **HCE2 PR #3 + PR #4 merged** (May 2): canonical agent at `4f8ff36c` includes Layer 1 `unless-stopped` + deploy `PARTIAL on missing .git` fixes + `section_j4c_llm` (Gemma chat probe) lifted from healthcare. Self-merged via `--admin` (HCE2 self-hosted runner offline).
+- [x] **Per-project J4C rollout: 7 PRs merged across the fleet** (May 2):
+  - AurexV3 PR #203, AWD2 PR #32, Aurigraph-DLT V12 PR #48, MEV-Shield PR #218 (new vendor)
+  - Aurigraph-Website-V-3 PR #30, Jeeves4Coder PR #30, healthcare PR #1 (re-vendor)
+  - **9/9 repos at canonical agent parity** (HCE2 + AurexV4 + 7 above) — zero divergence.
+- [x] **Jeeves4Coder PR #31 — canonical watchdog bundle** (May 3): added `scripts/deploy/j4c-watchdog.sh`, systemd `.service` + `.timer`, `.github/workflows/j4c-watchdog.yml` to the J4C platform repo. Now self-contained: agent + proto + protoc helper + watchdog scaffold + GHA scheduler.
+- [x] **J4C-213 filed** (Jira J4C project): Deploy AgentReportService gRPC backend on j4c.aurigraph.io:443 (path-routed `/agent/`). All consumer projects' `.j4c-agent.json` carry `_pending_endpoint=j4c.aurigraph.io:443` ready to flip once the service ships.
+- [x] **AUREX_J4C_ALERT_ON env-var doc clarification** (2026-05-03): AUTOHEAL.md §2 now has explicit env-var tables for both Vector A (host) and Vector B (GHA) with a callout that the trigger flag is `AUREX_J4C_ALERT_ON`, not `AUREX_ALERT_ON`.
+
 ## Open — operator-only follow-ups
 
 - [ ] **Google: real user-driven end-to-end test**: click "Sign in with Google" on https://aurex.in/login, complete the Google flow, confirm landing on /dashboard with the right user. Automated cascade is green (start 302, callback CSRF defense, callback bogus-code 302 in 260ms with proper Google error). Then **rotate the OAuth client secret** in Google Cloud Console (it was shared in chat) and re-run the env patch on aurex.in.
-- [ ] **Bridge-level MTU 1442 on aurex_network** (long-term replacement for the per-container clamp in deploy-to-remote.sh / aurex-watchdog.sh). Requires a maintenance window: `docker compose down && docker network rm aurex_network && docker network create --opt com.docker.network.driver.mtu=1442 aurex_network && docker compose up -d`. Until then the clamp scripts handle it for the API container, but postgres/redis/nginx are still on a 1500-MTU bridge — fine because they don't make outbound connections, but worth fixing for hygiene.
-- [x] **L3 — Off-host J4C monitor SHIPPED** (commit `cff6ebc`, 2026-05-01): `scripts/j4c-agent.py` + `scripts/deploy/aurex-j4c-watchdog.sh` + `.github/workflows/j4c-watchdog.yml` + systemd unit files. Mandrill alerting confirmed working (status=sent, _id=7b0a27b5abac4814a845590d38ce2a00). PARTIAL verdict alert tested end-to-end.
 
-- [ ] **Operator action: activate off-host scheduling** (pick ONE path):
+- [ ] **Operator action: activate AurexV4 off-host scheduling** (pick ONE path):
   - **Path A — GHA** (recommended, free, multi-region): Set secrets in GitHub repo → Settings → Secrets and variables → Actions: `MANDRILL_API_KEY`, `AUREX_ALERT_EMAIL` (optional). Confirm self-hosted runner pool is NOT on aurex.in (use dev4 or j4c.aurigraph.io).
   - **Path B — dev4 systemd timer**: `scp scripts/deploy/aurex-j4c-watchdog.sh subbu@dev4:~/bin/ && scp scripts/j4c-agent.py subbu@dev4:~/bin/ && scp .j4c-agent.json subbu@dev4:~/aurex-j4c/ && ssh dev4 "chmod +x ~/bin/aurex-j4c-watchdog.sh ~/bin/j4c-agent.py && cp ~/aurex-j4c/scripts/deploy/systemd/aurex-j4c-watchdog.{service,timer} ~/.config/systemd/user/ && systemctl --user enable --now aurex-j4c-watchdog.timer"`. Set `~/.aurex-watchdog.env` on dev4 with `MANDRILL_API_KEY=md-jBPJg7x2FLpKF3tVZefdjg`.
   - Do NOT install the timer on aurex.in itself (defeats off-host purpose).
 
-- [ ] **Watchdog AUREX_ALERT_ON env name clarification**: Script header comment says `AUREX_J4C_ALERT_ON` (correct) but user documentation may reference `AUREX_ALERT_ON` (wrong name). Update AUTOHEAL.md / README to clarify the correct variable name is `AUREX_J4C_ALERT_ON`.
+- [ ] **Per-project `.j4c-agent.json` TODO fills (8 other Aurigraph projects)**: AWD2 (server.host + deploy_path + health_endpoints), MEV-Shield (server.user + deploy_path), Aurigraph-DLT V12 (deploy_path), AurexV3 (none — fully filled). Each project's owner fills these from their own deploy knowledge.
+
+- [ ] **J4C-213 ships on j4c.aurigraph.io** (J4C platform team): once AgentReportService is live at `j4c.aurigraph.io:443` (path-routed `/agent/`), flip `j4c_central.grpc_endpoint` from `null` → `j4c.aurigraph.io:443` in every project's `.j4c-agent.json`. Watchdogs then switch from `doctor` mode to `report` mode and central data collection lights up.
 
 ## Infrastructure notes
 
