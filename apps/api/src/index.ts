@@ -10,6 +10,7 @@ import { errorHandler } from './middleware/error-handler.js';
 import { healthRouter } from './routes/health.js';
 import { authRouter } from './routes/auth.js';
 import { authGoogleRouter } from './routes/auth-google.js';
+import { teamsRouter } from './routes/teams.js';
 import { organizationRouter } from './routes/organizations.js';
 import { userRouter } from './routes/users.js';
 import { emissionsRouter } from './routes/emissions.js';
@@ -132,6 +133,7 @@ app.use('/api/v1/organizations', organizationRouter);
 // fall through to userRouter's /:id handler.
 app.use('/api/v1/users/me', securityRouter);
 app.use('/api/v1/users', userRouter);
+app.use('/api/v1/teams', teamsRouter);
 // FLOW-REWORK / Sprint 5 — apply org-approval gate to regulatory-write
 // surfaces. The middleware passes GET/HEAD through and blocks
 // POST/PUT/PATCH/DELETE with 412 when the org is PENDING_REVIEW or REJECTED.

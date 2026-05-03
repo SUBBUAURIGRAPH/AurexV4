@@ -53,6 +53,9 @@ model User {
   brsrResponses      BrsrResponse[]    @relation("brsrResponsesCreator")
   emailVerifications EmailVerification[]
   passwordResets     PasswordReset[]
+  // 2026-05-03: Teams (named subgroups within an org).
+  teamsOwned       Team[]       @relation("teamOwner")
+  teamMemberships  TeamMember[]
   // AAT-R3 / AV4-428, AV4-430: India DPDP Act 2023 compliance back-relations.
   consentRecords        ConsentRecord[]
   dataPrincipalRequests DataPrincipalRequest[]
@@ -189,6 +192,12 @@ model Organization {
   // during onboarding, used by intensity-based ESG reports (BRSR/CSRD)
   // and as the org-level revenue baseline for emissions intensity KPIs.
   financials         OrganizationFinancials?
+
+  // 2026-05-03: Teams as named subgroups within an org. A team is an
+  // arbitrary subset of org members with a default role + status —
+  // backs the /teams page in the dashboard ("Sustainability Office",
+  // "Plant Operations - North", etc.).
+  teams              Team[]
 
   @@index([parentOrgId])
   @@index([approvalStatus])
@@ -2629,4 +2638,54 @@ model DataBreachIncident {
   @@index([status])
   @@index([detectedAt])
   @@map("data_breach_incidents")
+}
+
+// ─── Teams (2026-05-03) ────────────────────────────────────────────────
+// Named subgroups within an Organization. A Team is an arbitrary
+// collection of org members with a default role + status — backs the
+// /teams dashboard page ("Sustainability Office", "Plant Operations -
+// North", etc.). Teams do NOT replace OrgMember role-gating; they are
+// a soft grouping concept on top of it. Membership in a team does not
+// grant org-level permissions.
+
+enum TeamStatus {
+  ACTIVE    @map("active")
+  IN_REVIEW @map("in_review")
+  ARCHIVED  @map("archived")
+}
+
+model Team {
+  id          String     @id @default(uuid()) @db.Uuid
+  orgId       String     @map("org_id") @db.Uuid
+  name        String     @db.VarChar(200)
+  description String?    @db.VarChar(500)
+  ownerId     String     @map("owner_id") @db.Uuid
+  defaultRole Role       @default(VIEWER) @map("default_role")
+  status      TeamStatus @default(ACTIVE)
+  createdAt   DateTime   @default(now()) @map("created_at")
+  updatedAt   DateTime   @updatedAt @map("updated_at")
+
+  org     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  owner   User         @relation("teamOwner", fields: [ownerId], references: [id])
+  members TeamMember[]
+
+  @@unique([orgId, name])
+  @@index([orgId])
+  @@index([status])
+  @@map("teams")
+}
+
+model TeamMember {
+  id      String   @id @default(uuid()) @db.Uuid
+  teamId  String   @map("team_id") @db.Uuid
+  userId  String   @map("user_id") @db.Uuid
+  addedAt DateTime @default(now()) @map("added_at")
+
+  team Team @relation(fields: [teamId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([teamId, userId])
+  @@index([teamId])
+  @@index([userId])
+  @@map("team_members")
 }

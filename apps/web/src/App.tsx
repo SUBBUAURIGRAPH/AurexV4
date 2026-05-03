@@ -40,6 +40,7 @@ import { ReportBuilderPage } from './pages/dashboard/reports/ReportBuilderPage';
 import { SettingsPage } from './pages/dashboard/SettingsPage';
 import { FinancialsPage } from './pages/dashboard/FinancialsPage';
 import { TeamsPage } from './pages/dashboard/TeamsPage';
+import { TeamDetailPage } from './pages/dashboard/teams/TeamDetailPage';
 import { IntegrationsPage } from './pages/dashboard/IntegrationsPage';
 import { CompliancePage } from './pages/dashboard/CompliancePage';
 import { AuditLogsPage } from './pages/dashboard/AuditLogsPage';
@@ -158,6 +159,7 @@ export function App() {
             <Route path="/reports" element={<ReportsPage />} />
             <Route path="/reports/build/:type" element={<ReportBuilderPage />} />
             <Route path="/teams" element={<RoleGuard allowedRoles={['administrator', 'manager', 'org_admin', 'super_admin']}><TeamsPage /></RoleGuard>} />
+            <Route path="/teams/:id" element={<RoleGuard allowedRoles={['administrator', 'manager', 'org_admin', 'super_admin']}><TeamDetailPage /></RoleGuard>} />
             <Route path="/integrations" element={<RoleGuard allowedRoles={['administrator', 'manager', 'editor']}><IntegrationsPage /></RoleGuard>} />
             <Route path="/compliance" element={<RoleGuard allowedRoles={['administrator', 'manager', 'editor']}><CompliancePage /></RoleGuard>} />
             <Route path="/audit-logs" element={<RoleGuard allowedRoles={['administrator', 'manager']}><AuditLogsPage /></RoleGuard>} />

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import type { Role } from '@aurex/shared';
 
@@ -16,14 +17,31 @@ export interface TokenPayload {
 export interface DecodedToken extends TokenPayload {
   iat: number;
   exp: number;
+  jti?: string;
 }
 
+/**
+ * Both helpers stamp a fresh `jti` (JWT ID) on every call so two
+ * tokens minted in the same second for the same user are still
+ * unique strings. Without this, two concurrent /auth/login calls for
+ * the same identity produce identical signatures and the second
+ * `prisma.session.create` collides on the `refresh_token` UNIQUE
+ * constraint (Prisma P2002 — observed during the 2026-05-03 deploy
+ * regression cascade for commit 9a7fa45).
+ */
+
 export function signAccessToken(payload: TokenPayload): string {
-  return jwt.sign(payload, ACCESS_SECRET, { expiresIn: ACCESS_EXPIRY_SECONDS });
+  return jwt.sign(payload, ACCESS_SECRET, {
+    expiresIn: ACCESS_EXPIRY_SECONDS,
+    jwtid: randomUUID(),
+  });
 }
 
 export function signRefreshToken(payload: TokenPayload): string {
-  return jwt.sign(payload, REFRESH_SECRET, { expiresIn: REFRESH_EXPIRY_SECONDS });
+  return jwt.sign(payload, REFRESH_SECRET, {
+    expiresIn: REFRESH_EXPIRY_SECONDS,
+    jwtid: randomUUID(),
+  });
 }
 
 export function verifyAccessToken(token: string): DecodedToken {
